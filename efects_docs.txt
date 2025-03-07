@@ -1,0 +1,73 @@
+moviepy.video.fx
+All the visual effects that can be applied to VideoClip.
+
+Modules
+
+moviepy.video.fx.AccelDecel([new_duration, ...])
+Accelerates and decelerates a clip, useful for GIF making.
+moviepy.video.fx.BlackAndWhite([RGB, ...])
+Desaturates the picture, makes it black and white.
+moviepy.video.fx.Blink(duration_on, duration_off)
+Makes the clip blink.
+moviepy.video.fx.Crop([x1, y1, x2, y2, ...])
+Effect to crop a clip to get a new clip in which just a rectangular subregion of the original clip is conserved.
+moviepy.video.fx.CrossFadeIn(duration)
+Makes the clip appear progressively, over duration seconds.
+moviepy.video.fx.CrossFadeOut(duration)
+Makes the clip disappear progressively, over duration seconds.
+moviepy.video.fx.EvenSize()
+Crops the clip to make dimensions even.
+moviepy.video.fx.FadeIn(duration[, ...])
+Makes the clip progressively appear from some color (black by default), over duration seconds at the beginning of the clip.
+moviepy.video.fx.FadeOut(duration[, final_color])
+Makes the clip progressively fade to some color (black by default), over duration seconds at the end of the clip.
+moviepy.video.fx.Freeze([t, ...])
+Momentarily freeze the clip at time t.
+moviepy.video.fx.FreezeRegion([t, region, ...])
+Freezes one region of the clip while the rest remains animated.
+moviepy.video.fx.GammaCorrection(gamma)
+Gamma-correction of a video clip.
+moviepy.video.fx.HeadBlur(fx, fy, radius[, ...])
+Returns a filter that will blur a moving part (a head ?) of the frames.
+moviepy.video.fx.InvertColors()
+Returns the color-inversed clip.
+moviepy.video.fx.Loop([n, duration])
+Returns a clip that plays the current clip in an infinite loop.
+moviepy.video.fx.LumContrast([lum, ...])
+Luminosity-contrast correction of a clip.
+moviepy.video.fx.MakeLoopable(overlap_duration)
+Makes the clip fade in progressively at its own end, this way it can be looped indefinitely.
+moviepy.video.fx.Margin([margin_size, left, ...])
+Draws an external margin all around the frame.
+moviepy.video.fx.MaskColor([color, ...])
+Returns a new clip with a mask for transparency where the original clip is of the given color.
+moviepy.video.fx.MasksAnd(other_clip)
+Returns the logical 'and' (minimum pixel color values) between two masks.
+moviepy.video.fx.MasksOr(other_clip)
+Returns the logical 'or' (maximum pixel color values) between two masks.
+moviepy.video.fx.MirrorX([apply_to])
+Flips the clip horizontally (and its mask too, by default).
+moviepy.video.fx.MirrorY([apply_to])
+Flips the clip vertically (and its mask too, by default).
+moviepy.video.fx.MultiplyColor(factor)
+Multiplies the clip's colors by the given factor, can be used to decrease or increase the clip's brightness (is that the right word ?)
+moviepy.video.fx.MultiplySpeed([factor, ...])
+Returns a clip playing the current clip but at a speed multiplied by factor.
+moviepy.video.fx.Painting([saturation, black])
+Transforms any photo into some kind of painting.
+moviepy.video.fx.Resize([new_size, height, ...])
+Effect returning a video clip that is a resized version of the clip.
+moviepy.video.fx.Rotate(angle[, unit, ...])
+Rotates the specified clip by angle degrees (or radians) anticlockwise If the angle is not a multiple of 90 (degrees) or center, translate, and bg_color are not None, there will be black borders.
+moviepy.video.fx.Scroll([w, h, x_speed, ...])
+Effect that scrolls horizontally or vertically a clip, e.g.
+moviepy.video.fx.SlideIn(duration, side)
+Makes the clip arrive from one side of the screen.
+moviepy.video.fx.SlideOut(duration, side)
+Makes the clip goes away by one side of the screen.
+moviepy.video.fx.SuperSample(d, n_frames)
+Replaces each frame at time t by the mean of n_frames equally spaced frames taken in the interval [t-d, t+d].
+moviepy.video.fx.TimeMirror()
+Returns a clip that plays the current clip backwards.
+moviepy.video.fx.TimeSymmetrize()
+Returns a clip that plays the current clip once forwards and then once backwards.
