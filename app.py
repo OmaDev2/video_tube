@@ -4,14 +4,15 @@ from glob import glob
 # Import the custom effects
 from efectos import ZoomEffect
 from transiciones import TransitionEffect
+from overlay_effects import OverlayEffect
 
 
 def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img=6, fps=24, 
-
                                aplicar_efectos=True, secuencia_efectos=None,
                                aplicar_transicion=False, tipo_transicion='none', duracion_transicion=2.0,
                                aplicar_fade_in=False, duracion_fade_in=2.0,
-                               aplicar_fade_out=False, duracion_fade_out=2.0):
+                               aplicar_fade_out=False, duracion_fade_out=2.0,
+                               aplicar_overlay=False, archivo_overlay=None, opacidad_overlay=0.5):
     """
     Crea un video a partir de imágenes en un directorio.
     
@@ -22,6 +23,9 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
         fps: Frames por segundo
         aplicar_efectos: Aplicar efectos a las imágenes
         tipo_zoom: Tipo de zoom a aplicar ('in' o 'out')
+        aplicar_overlay: Aplicar efecto de superposición
+        archivo_overlay: Ruta al archivo de overlay
+        opacidad_overlay: Opacidad del overlay (0.0 a 1.0)
     """
     # Obtener lista de archivos de imagen
     formatos = ['*.jpg', '*.jpeg', '*.png', '*.bmp']
@@ -79,6 +83,11 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
         print(f"Aplicando fade out con duración {duracion_fade_out} segundos")
         fade_out_effect = vfx.FadeOut(duracion_fade_out)
         video_final = video_final.with_effects([fade_out_effect])  # Pasar como lista de efectos
+    
+    # Aplicar overlay si se solicita
+    if aplicar_overlay and archivo_overlay and os.path.exists(archivo_overlay):
+        print(f"Aplicando overlay {os.path.basename(archivo_overlay)} con opacidad {opacidad_overlay}")
+        video_final = OverlayEffect.apply_overlay(video_final, archivo_overlay, opacidad_overlay)
     
     # Guardar el video
     video_final.write_videofile(archivo_salida, fps=fps)
@@ -188,9 +197,56 @@ def main():
         except ValueError:
             print("Entrada inválida, usando duración 2.0 por defecto")
             duracion_fade_out = 2.0
+    
+    # Opciones de overlay
+    aplicar_overlay = input("¿Aplicar efecto de overlay (como nieve, lluvia, etc.)? (s/n): ").lower() == 's'
+    archivo_overlay = None
+    opacidad_overlay = 0.5
+    
+    if aplicar_overlay:
+        # Directorio de overlays
+        overlay_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'overlays')
+        
+        # Verificar si existen overlays
+        overlays_disponibles = OverlayEffect.get_available_overlays(overlay_dir)
+        
+        if not overlays_disponibles:
+            print("\nNo se encontraron archivos de overlay en la carpeta 'overlays'.")
+            print("Coloca archivos de video (.mp4, .mov, .avi, .webm) en la carpeta 'overlays' para usar esta función.")
+            aplicar_overlay = False
+        else:
+            print("\nOverlays disponibles:")
+            for i, overlay in enumerate(overlays_disponibles):
+                print(f"{i+1}. {overlay}")
+            
+            # Seleccionar overlay
+            seleccion = input(f"Selecciona un overlay (1-{len(overlays_disponibles)}): ")
+            try:
+                indice = int(seleccion) - 1
+                if 0 <= indice < len(overlays_disponibles):
+                    archivo_overlay = os.path.join(overlay_dir, overlays_disponibles[indice])
+                else:
+                    print("Selección inválida, no se aplicará overlay")
+                    aplicar_overlay = False
+            except ValueError:
+                print("Entrada inválida, no se aplicará overlay")
+                aplicar_overlay = False
+            
+            # Opacidad del overlay
+            if aplicar_overlay:
+                try:
+                    opacidad_overlay = float(input("Opacidad del overlay (0.1-1.0, por defecto 0.5): ") or 0.5)
+                    if opacidad_overlay < 0.1 or opacidad_overlay > 1.0:
+                        print("La opacidad debe estar entre 0.1 y 1.0, usando 0.5 por defecto")
+                        opacidad_overlay = 0.5
+                except ValueError:
+                    print("Entrada inválida, usando opacidad 0.5 por defecto")
+                    opacidad_overlay = 0.5
+    
     crear_video_desde_imagenes(directorio, salida, duracion, fps, efectos, secuencia_efectos,
                               aplicar_transicion, tipo_transicion, duracion_transicion,
-                              aplicar_fade_in, duracion_fade_in, aplicar_fade_out, duracion_fade_out)
+                              aplicar_fade_in, duracion_fade_in, aplicar_fade_out, duracion_fade_out,
+                              aplicar_overlay, archivo_overlay, opacidad_overlay)
 
 if __name__ == "__main__":
     main()
