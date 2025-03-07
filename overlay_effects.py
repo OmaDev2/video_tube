@@ -7,6 +7,7 @@ class OverlayEffect:
     """
     Clase para aplicar efectos de superposición (overlays) en videos.
     Permite superponer videos de efectos (como nieve, lluvia, partículas) sobre clips de imágenes.
+    También permite aplicar diferentes overlays de forma secuencial a una serie de clips.
     """
     
     @staticmethod
@@ -78,3 +79,41 @@ class OverlayEffect:
         final_clip = CompositeVideoClip([base_clip, overlay_clip])
         
         return final_clip
+        
+    @staticmethod
+    def apply_sequential_overlays(clips, overlay_paths, opacity=0.5):
+        """
+        Aplica múltiples overlays de forma secuencial a una lista de clips.
+        Cada clip recibe un overlay según su posición, rotando entre los overlays disponibles.
+        
+        Args:
+            clips: Lista de clips base sobre los que se aplicarán los overlays
+            overlay_paths: Lista de rutas a los archivos de overlay
+            opacity: Opacidad de los overlays (0.0 a 1.0)
+            
+        Returns:
+            Lista de clips con los overlays aplicados secuencialmente
+        """
+        if not clips or not overlay_paths:
+            return clips
+        
+        # Verificar que todos los archivos de overlay existen
+        valid_overlays = [path for path in overlay_paths if os.path.exists(path)]
+        
+        if not valid_overlays:
+            print("Ninguno de los archivos de overlay especificados existe.")
+            return clips
+        
+        # Aplicar overlays secuencialmente a cada clip
+        clips_con_overlay = []
+        for i, clip in enumerate(clips):
+            # Seleccionar el overlay según la posición del clip (rotando)
+            overlay_idx = i % len(valid_overlays)
+            overlay_path = valid_overlays[overlay_idx]
+            
+            # Aplicar el overlay al clip actual
+            print(f"Aplicando overlay {os.path.basename(overlay_path)} a la imagen {i+1}")
+            clip_con_overlay = OverlayEffect.apply_overlay(clip, overlay_path, opacity)
+            clips_con_overlay.append(clip_con_overlay)
+        
+        return clips_con_overlay

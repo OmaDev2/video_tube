@@ -27,3 +27,4 @@ env/
 # System files
 .DS_Store
 Thumbs.db
+overlays/

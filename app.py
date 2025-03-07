@@ -12,7 +12,7 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
                                aplicar_transicion=False, tipo_transicion='none', duracion_transicion=2.0,
                                aplicar_fade_in=False, duracion_fade_in=2.0,
                                aplicar_fade_out=False, duracion_fade_out=2.0,
-                               aplicar_overlay=False, archivo_overlay=None, opacidad_overlay=0.5):
+                               aplicar_overlay=False, archivos_overlay=None, opacidad_overlay=0.5):
     """
     Crea un video a partir de imágenes en un directorio.
     
@@ -85,9 +85,23 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
         video_final = video_final.with_effects([fade_out_effect])  # Pasar como lista de efectos
     
     # Aplicar overlay si se solicita
-    if aplicar_overlay and archivo_overlay and os.path.exists(archivo_overlay):
-        print(f"Aplicando overlay {os.path.basename(archivo_overlay)} con opacidad {opacidad_overlay}")
-        video_final = OverlayEffect.apply_overlay(video_final, archivo_overlay, opacidad_overlay)
+    if aplicar_overlay and archivos_overlay:
+        # Verificar si tenemos múltiples overlays para aplicar secuencialmente a los clips
+        if len(archivos_overlay) > 1 and len(clips) > 1:
+            print(f"Aplicando {len(archivos_overlay)} overlays de forma secuencial a las imágenes")
+            # Aplicar overlays secuencialmente antes de las transiciones
+            clips = OverlayEffect.apply_sequential_overlays(clips, archivos_overlay, opacidad_overlay)
+            
+            # Volver a aplicar transiciones con los clips modificados
+            if aplicar_transicion and tipo_transicion != 'none':
+                video_final = TransitionEffect.apply_transition(clips, tipo_transicion, duracion_transicion)
+            else:
+                video_final = concatenate_videoclips(clips)
+        else:
+            # Si solo hay un overlay o un clip, aplicar el overlay al video final
+            overlay_path = archivos_overlay[0]
+            print(f"Aplicando overlay {os.path.basename(overlay_path)} con opacidad {opacidad_overlay}")
+            video_final = OverlayEffect.apply_overlay(video_final, overlay_path, opacidad_overlay)
     
     # Guardar el video
     video_final.write_videofile(archivo_salida, fps=fps)
@@ -200,7 +214,7 @@ def main():
     
     # Opciones de overlay
     aplicar_overlay = input("¿Aplicar efecto de overlay (como nieve, lluvia, etc.)? (s/n): ").lower() == 's'
-    archivo_overlay = None
+    archivos_overlay = []
     opacidad_overlay = 0.5
     
     if aplicar_overlay:
@@ -219,15 +233,29 @@ def main():
             for i, overlay in enumerate(overlays_disponibles):
                 print(f"{i+1}. {overlay}")
             
-            # Seleccionar overlay
-            seleccion = input(f"Selecciona un overlay (1-{len(overlays_disponibles)}): ")
+            # Seleccionar múltiples overlays
+            print("\nPuedes seleccionar múltiples overlays para aplicarlos secuencialmente a las imágenes.")
+            print("Ejemplo: 1,3,2 (separados por comas)")
+            seleccion = input(f"Selecciona los overlays (1-{len(overlays_disponibles)}): ")
+            
             try:
-                indice = int(seleccion) - 1
-                if 0 <= indice < len(overlays_disponibles):
-                    archivo_overlay = os.path.join(overlay_dir, overlays_disponibles[indice])
-                else:
-                    print("Selección inválida, no se aplicará overlay")
+                # Procesar la selección de múltiples overlays
+                indices = [int(idx.strip()) - 1 for idx in seleccion.split(',')]
+                
+                # Validar cada índice y agregar los overlays válidos
+                for indice in indices:
+                    if 0 <= indice < len(overlays_disponibles):
+                        ruta_overlay = os.path.join(overlay_dir, overlays_disponibles[indice])
+                        archivos_overlay.append(ruta_overlay)
+                    else:
+                        print(f"Índice {indice+1} inválido, ignorando esta selección")
+                
+                # Verificar si se seleccionó al menos un overlay válido
+                if not archivos_overlay:
+                    print("No se seleccionaron overlays válidos, no se aplicará overlay")
                     aplicar_overlay = False
+                else:
+                    print(f"Se aplicarán {len(archivos_overlay)} overlays de forma secuencial")
             except ValueError:
                 print("Entrada inválida, no se aplicará overlay")
                 aplicar_overlay = False
@@ -246,7 +274,7 @@ def main():
     crear_video_desde_imagenes(directorio, salida, duracion, fps, efectos, secuencia_efectos,
                               aplicar_transicion, tipo_transicion, duracion_transicion,
                               aplicar_fade_in, duracion_fade_in, aplicar_fade_out, duracion_fade_out,
-                              aplicar_overlay, archivo_overlay, opacidad_overlay)
+                              aplicar_overlay, archivos_overlay, opacidad_overlay)
 
 if __name__ == "__main__":
     main()
