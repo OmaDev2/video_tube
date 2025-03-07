@@ -3,9 +3,11 @@ import os
 from glob import glob
 # Import the custom effects
 from efectos import ZoomEffect
+from transiciones import TransitionEffect
 
 def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img=2, fps=24, 
-                               aplicar_efectos=True, secuencia_efectos=None):
+                               aplicar_efectos=True, secuencia_efectos=None,
+                               aplicar_transicion=False, tipo_transicion='none', duracion_transicion=1.0):
     """
     Crea un video a partir de imágenes en un directorio.
     
@@ -54,8 +56,13 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
         
         clips.append(clip)
     
-    # Concatenar clips sin transiciones
-    video_final = concatenate_videoclips(clips)
+    # Aplicar transiciones si se solicita
+    if aplicar_transicion and tipo_transicion != 'none':
+        print(f"Aplicando transición {tipo_transicion} con duración {duracion_transicion} segundos")
+        video_final = TransitionEffect.apply_transition(clips, tipo_transicion, duracion_transicion)
+    else:
+        # Concatenar clips sin transiciones
+        video_final = concatenate_videoclips(clips)
     
     # Guardar el video
     video_final.write_videofile(archivo_salida, fps=fps)
@@ -104,7 +111,45 @@ def main():
                 tipo_zoom = 'in'  # Valor por defecto
             secuencia_efectos = [tipo_zoom]
     
-    crear_video_desde_imagenes(directorio, salida, duracion, fps, efectos, secuencia_efectos)
+    # Opciones de transición
+    aplicar_transicion = input("¿Aplicar transiciones entre imágenes? (s/n): ").lower() == 's'
+    
+    tipo_transicion = 'none'
+    duracion_transicion = 1.0
+    
+    if aplicar_transicion:
+        # Mostrar transiciones disponibles
+        transiciones_disponibles = TransitionEffect.get_available_transitions()
+        print("\nTransiciones disponibles:")
+        for i, trans in enumerate(transiciones_disponibles):
+            print(f"{i+1}. {trans}")
+        
+        # Seleccionar tipo de transición
+        seleccion = input(f"Selecciona una transición (1-{len(transiciones_disponibles)}): ")
+        try:
+            indice = int(seleccion) - 1
+            if 0 <= indice < len(transiciones_disponibles):
+                tipo_transicion = transiciones_disponibles[indice]
+            else:
+                print("Selección inválida, usando 'none' por defecto")
+                tipo_transicion = 'none'
+        except ValueError:
+            print("Entrada inválida, usando 'none' por defecto")
+            tipo_transicion = 'none'
+        
+        # Duración de la transición
+        if tipo_transicion != 'none':
+            try:
+                duracion_transicion = float(input("Duración de la transición en segundos (por defecto 1.0): ") or 1.0)
+                if duracion_transicion <= 0:
+                    print("La duración debe ser mayor que 0, usando 1.0 por defecto")
+                    duracion_transicion = 1.0
+            except ValueError:
+                print("Entrada inválida, usando duración 1.0 por defecto")
+                duracion_transicion = 1.0
+    
+    crear_video_desde_imagenes(directorio, salida, duracion, fps, efectos, secuencia_efectos,
+                              aplicar_transicion, tipo_transicion, duracion_transicion)
 
 if __name__ == "__main__":
     main()
