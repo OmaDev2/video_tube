@@ -1,10 +1,13 @@
-from moviepy import VideoFileClip, ImageClip, concatenate_videoclips, CompositeVideoClip, vfx
+from moviepy import VideoFileClip, ImageClip, AudioFileClip, concatenate_videoclips, CompositeVideoClip, vfx
+# Updated import for MoviePy 2.0+
+from moviepy.audio import fx as afx
 import os
 from glob import glob
 # Import the custom effects
 from efectos import ZoomEffect, PanUpEffect, PanDownEffect, PanLeftEffect, PanRightEffect, KenBurnsEffect
 from transiciones import TransitionEffect
 from overlay_effects import OverlayEffect
+from subtitles import SubtitleEffect
 
 
 def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img=6, fps=24, 
@@ -13,6 +16,15 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
                                aplicar_fade_in=False, duracion_fade_in=2.0,
                                aplicar_fade_out=False, duracion_fade_out=2.0,
                                aplicar_overlay=False, archivos_overlay=None, opacidad_overlay=0.5,
+                               aplicar_musica=False, archivo_musica=None, volumen_musica=1.0,
+                               aplicar_fade_in_musica=False, duracion_fade_in_musica=2.0,
+                               aplicar_fade_out_musica=False, duracion_fade_out_musica=2.0,
+                               aplicar_voz=False, archivo_voz=None, volumen_voz=1.0,
+                               aplicar_fade_in_voz=False, duracion_fade_in_voz=1.0,
+                               aplicar_fade_out_voz=False, duracion_fade_out_voz=1.0,
+                               aplicar_subtitulos=False, archivo_subtitulos=None, 
+                               tamano_fuente_subtitulos=24, color_fuente_subtitulos='white',
+                               color_borde_subtitulos='black', grosor_borde_subtitulos=1,
                                progress_callback=None):
     """
     Crea un video a partir de imágenes en un directorio.
@@ -158,6 +170,91 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
             print("Se seleccionó aplicar overlay pero no se proporcionaron archivos de overlay")
         else:
             print("No se seleccionó aplicar overlay")
+    
+    # Aplicar audio (música de fondo y/o voz en off)
+    audio_clips = []
+    
+    # Aplicar música de fondo si se solicita
+    if aplicar_musica and archivo_musica and os.path.exists(archivo_musica):
+        print(f"Aplicando música de fondo: {os.path.basename(archivo_musica)}")
+        musica = AudioFileClip(archivo_musica)
+        
+        # Ajustar la duración de la música a la duración del video
+        if musica.duration > video_final.duration:
+            musica = musica.subclipped(0, video_final.duration)
+        else:
+            # Si la música es más corta que el video, repetirla hasta cubrir todo el video
+            repeticiones = int(video_final.duration / musica.duration) + 1
+            musica = concatenate_videoclips([musica] * repeticiones).subclipped(0, video_final.duration)
+        
+        # Ajustar el volumen
+        musica = musica.with_effects([afx.MultiplyVolume(volumen_musica)])
+        
+        # Aplicar fade in/out a la música si se solicita
+        if aplicar_fade_in_musica and duracion_fade_in_musica > 0:
+            print(f"Aplicando fade in a la música con duración {duracion_fade_in_musica} segundos")
+            musica = musica.with_effects([afx.AudioFadeIn(duracion_fade_in_musica)])
+        
+        if aplicar_fade_out_musica and duracion_fade_out_musica > 0:
+            print(f"Aplicando fade out a la música con duración {duracion_fade_out_musica} segundos")
+            musica = musica.with_effects([afx.AudioFadeOut(duracion_fade_out_musica)])
+        
+        audio_clips.append(musica)
+    
+    # Aplicar voz en off si se solicita
+    if aplicar_voz and archivo_voz and os.path.exists(archivo_voz):
+        print(f"Aplicando voz en off: {os.path.basename(archivo_voz)}")
+        voz = AudioFileClip(archivo_voz)
+        
+        # Ajustar la duración de la voz a la duración del video si es necesario
+        if voz.duration > video_final.duration:
+            voz = voz.subclipped(0, video_final.duration)
+        
+        # Ajustar el volumen
+        voz = voz.with_effects([afx.MultiplyVolume(volumen_voz)])
+        
+        # Aplicar fade in/out a la voz si se solicita
+        if aplicar_fade_in_voz and duracion_fade_in_voz > 0:
+            print(f"Aplicando fade in a la voz con duración {duracion_fade_in_voz} segundos")
+            voz = voz.with_effects([afx.AudioFadeIn(duracion_fade_in_voz)])
+        
+        if aplicar_fade_out_voz and duracion_fade_out_voz > 0:
+            print(f"Aplicando fade out a la voz con duración {duracion_fade_out_voz} segundos")
+            voz = voz.with_effects([afx.AudioFadeOut(duracion_fade_out_voz)])
+        
+        audio_clips.append(voz)
+    
+    # Combinar los clips de audio y aplicarlos al video
+    if audio_clips:
+        if len(audio_clips) == 1:
+            # Si solo hay un clip de audio, usarlo directamente
+            video_final = video_final.with_audio(audio_clips[0])
+        else:
+            # Si hay múltiples clips de audio, mezclarlos
+            from moviepy.audio.AudioClip import CompositeAudioClip
+            audio_final = CompositeAudioClip(audio_clips)
+            video_final = video_final.with_audio(audio_final)
+    
+    # Aplicar subtítulos si se solicita
+    if aplicar_subtitulos and archivo_subtitulos and os.path.exists(archivo_subtitulos):
+        print(f"Aplicando subtítulos: {os.path.basename(archivo_subtitulos)}")
+        try:
+            # Parsear el archivo de subtítulos
+            subtitulos = SubtitleEffect.parse_srt_file(archivo_subtitulos)
+            
+            # Aplicar los subtítulos al video
+            video_final = SubtitleEffect.apply_subtitles(
+                video_final,
+                subtitulos,
+                font_size=tamano_fuente_subtitulos,
+                font_color=color_fuente_subtitulos,
+                stroke_color=color_borde_subtitulos,
+                stroke_width=grosor_borde_subtitulos,
+                position=('center', 'bottom')
+            )
+            print(f"Se aplicaron {len(subtitulos)} subtítulos al video")
+        except Exception as e:
+            print(f"Error al aplicar subtítulos: {str(e)}")
     
     # Guardar el video
     video_final.write_videofile(archivo_salida, fps=fps)

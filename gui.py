@@ -42,6 +42,23 @@ class VideoCreatorApp:
         self.aplicar_overlay = tk.BooleanVar(value=True)
         self.opacidad_overlay = tk.DoubleVar(value=0.5)
         
+        # Variables para audio
+        self.aplicar_musica = tk.BooleanVar(value=False)
+        self.archivo_musica = tk.StringVar()
+        self.volumen_musica = tk.DoubleVar(value=1.0)
+        self.aplicar_fade_in_musica = tk.BooleanVar(value=True)
+        self.duracion_fade_in_musica = tk.DoubleVar(value=2.0)
+        self.aplicar_fade_out_musica = tk.BooleanVar(value=True)
+        self.duracion_fade_out_musica = tk.DoubleVar(value=2.0)
+        
+        self.aplicar_voz = tk.BooleanVar(value=False)
+        self.archivo_voz = tk.StringVar()
+        self.volumen_voz = tk.DoubleVar(value=1.0)
+        self.aplicar_fade_in_voz = tk.BooleanVar(value=False)
+        self.duracion_fade_in_voz = tk.DoubleVar(value=1.0)
+        self.aplicar_fade_out_voz = tk.BooleanVar(value=False)
+        self.duracion_fade_out_voz = tk.DoubleVar(value=1.0)
+        
         # Variable para controlar la cancelación del proceso
         self.proceso_cancelado = False
         self.pbar = None
@@ -79,6 +96,10 @@ class VideoCreatorApp:
         tab_overlay = ttk.Frame(notebook)
         notebook.add(tab_overlay, text="Overlays")
         
+        # Pestaña de audio
+        tab_audio = ttk.Frame(notebook)
+        notebook.add(tab_audio, text="Audio")
+        
         # Pestaña de vista previa
         tab_preview = ttk.Frame(notebook)
         notebook.add(tab_preview, text="Vista Previa")
@@ -89,6 +110,7 @@ class VideoCreatorApp:
         self.configurar_tab_transiciones(tab_transiciones)
         self.configurar_tab_fade(tab_fade)
         self.configurar_tab_overlay(tab_overlay)
+        self.configurar_tab_audio(tab_audio)
         self.configurar_tab_preview(tab_preview)
         
         # Botón para crear el video (en la parte inferior)
@@ -323,6 +345,125 @@ class VideoCreatorApp:
         btn_seleccionar = ttk.Button(frame_botones, text="Seleccionar Overlays", command=self.seleccionar_overlays)
         btn_seleccionar.pack(side="left", padx=5)
     
+    def configurar_tab_audio(self, tab):
+        # Frame para música de fondo
+        frame_musica = ttk.LabelFrame(tab, text="Música de Fondo")
+        frame_musica.pack(fill="x", padx=10, pady=10)
+        
+        # Checkbox para activar música
+        chk_musica = ttk.Checkbutton(frame_musica, text="Aplicar música de fondo", variable=self.aplicar_musica)
+        chk_musica.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+        
+        # Selección de archivo de música
+        lbl_archivo_musica = ttk.Label(frame_musica, text="Archivo de música:")
+        lbl_archivo_musica.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        frame_archivo_musica = ttk.Frame(frame_musica)
+        frame_archivo_musica.grid(row=1, column=1, padx=5, pady=5, sticky="we")
+        
+        entry_musica = ttk.Entry(frame_archivo_musica, textvariable=self.archivo_musica, width=40)
+        entry_musica.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        
+        btn_musica = ttk.Button(frame_archivo_musica, text="Examinar", command=self.seleccionar_archivo_musica)
+        btn_musica.pack(side="right")
+        
+        # Control de volumen
+        lbl_volumen_musica = ttk.Label(frame_musica, text="Volumen:")
+        lbl_volumen_musica.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        
+        scale_volumen_musica = ttk.Scale(frame_musica, from_=0.0, to=1.0, orient="horizontal", 
+                                       variable=self.volumen_musica, length=200)
+        scale_volumen_musica.grid(row=2, column=1, padx=5, pady=5, sticky="we")
+        
+        # Fade in/out para música
+        frame_fade_musica = ttk.Frame(frame_musica)
+        frame_fade_musica.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+        
+        # Fade in
+        chk_fade_in_musica = ttk.Checkbutton(frame_fade_musica, text="Fade in", 
+                                          variable=self.aplicar_fade_in_musica)
+        chk_fade_in_musica.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        lbl_fade_in_musica = ttk.Label(frame_fade_musica, text="Duración (s):")
+        lbl_fade_in_musica.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        
+        spin_fade_in_musica = ttk.Spinbox(frame_fade_musica, from_=0.5, to=10.0, increment=0.5, 
+                                        textvariable=self.duracion_fade_in_musica, width=5)
+        spin_fade_in_musica.grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        
+        # Fade out
+        chk_fade_out_musica = ttk.Checkbutton(frame_fade_musica, text="Fade out", 
+                                           variable=self.aplicar_fade_out_musica)
+        chk_fade_out_musica.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        lbl_fade_out_musica = ttk.Label(frame_fade_musica, text="Duración (s):")
+        lbl_fade_out_musica.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        
+        spin_fade_out_musica = ttk.Spinbox(frame_fade_musica, from_=0.5, to=10.0, increment=0.5, 
+                                         textvariable=self.duracion_fade_out_musica, width=5)
+        spin_fade_out_musica.grid(row=1, column=2, padx=5, pady=5, sticky="w")
+        
+        # Frame para voz en off
+        frame_voz = ttk.LabelFrame(tab, text="Voz en Off")
+        frame_voz.pack(fill="x", padx=10, pady=10)
+        
+        # Checkbox para activar voz
+        chk_voz = ttk.Checkbutton(frame_voz, text="Aplicar voz en off", variable=self.aplicar_voz)
+        chk_voz.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+        
+        # Selección de archivo de voz
+        lbl_archivo_voz = ttk.Label(frame_voz, text="Archivo de voz:")
+        lbl_archivo_voz.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        frame_archivo_voz = ttk.Frame(frame_voz)
+        frame_archivo_voz.grid(row=1, column=1, padx=5, pady=5, sticky="we")
+        
+        entry_voz = ttk.Entry(frame_archivo_voz, textvariable=self.archivo_voz, width=40)
+        entry_voz.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        
+        btn_voz = ttk.Button(frame_archivo_voz, text="Examinar", command=self.seleccionar_archivo_voz)
+        btn_voz.pack(side="right")
+        
+        # Control de volumen
+        lbl_volumen_voz = ttk.Label(frame_voz, text="Volumen:")
+        lbl_volumen_voz.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        
+        scale_volumen_voz = ttk.Scale(frame_voz, from_=0.0, to=1.0, orient="horizontal", 
+                                    variable=self.volumen_voz, length=200)
+        scale_volumen_voz.grid(row=2, column=1, padx=5, pady=5, sticky="we")
+        
+        # Fade in/out para voz
+        frame_fade_voz = ttk.Frame(frame_voz)
+        frame_fade_voz.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+        
+        # Fade in
+        chk_fade_in_voz = ttk.Checkbutton(frame_fade_voz, text="Fade in", 
+                                       variable=self.aplicar_fade_in_voz)
+        chk_fade_in_voz.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        lbl_fade_in_voz = ttk.Label(frame_fade_voz, text="Duración (s):")
+        lbl_fade_in_voz.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        
+        spin_fade_in_voz = ttk.Spinbox(frame_fade_voz, from_=0.5, to=10.0, increment=0.5, 
+                                     textvariable=self.duracion_fade_in_voz, width=5)
+        spin_fade_in_voz.grid(row=0, column=2, padx=5, pady=5, sticky="w")
+        
+        # Fade out
+        chk_fade_out_voz = ttk.Checkbutton(frame_fade_voz, text="Fade out", 
+                                        variable=self.aplicar_fade_out_voz)
+        chk_fade_out_voz.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        lbl_fade_out_voz = ttk.Label(frame_fade_voz, text="Duración (s):")
+        lbl_fade_out_voz.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        
+        spin_fade_out_voz = ttk.Spinbox(frame_fade_voz, from_=0.5, to=10.0, increment=0.5, 
+                                      textvariable=self.duracion_fade_out_voz, width=5)
+        spin_fade_out_voz.grid(row=1, column=2, padx=5, pady=5, sticky="w")
+        
+        # Información adicional
+        lbl_info = ttk.Label(tab, text="Nota: Los archivos de audio deben estar en formato MP3, WAV o OGG.")
+        lbl_info.pack(anchor="w", padx=10, pady=10)
+        
     def configurar_tab_preview(self, tab):
         # Frame para la vista previa
         frame_preview = ttk.LabelFrame(tab, text="Vista Previa de Imágenes")
@@ -363,6 +504,34 @@ class VideoCreatorApp:
         )
         if archivo:
             self.archivo_salida.set(archivo)
+            
+    def seleccionar_archivo_musica(self):
+        archivo = filedialog.askopenfilename(
+            title="Seleccionar archivo de música",
+            filetypes=[
+                ("Archivos de audio", "*.mp3 *.wav *.ogg"),
+                ("MP3", "*.mp3"),
+                ("WAV", "*.wav"),
+                ("OGG", "*.ogg"),
+                ("Todos los archivos", "*.*")
+            ]
+        )
+        if archivo:
+            self.archivo_musica.set(archivo)
+            
+    def seleccionar_archivo_voz(self):
+        archivo = filedialog.askopenfilename(
+            title="Seleccionar archivo de voz",
+            filetypes=[
+                ("Archivos de audio", "*.mp3 *.wav *.ogg"),
+                ("MP3", "*.mp3"),
+                ("WAV", "*.wav"),
+                ("OGG", "*.ogg"),
+                ("Todos los archivos", "*.*")
+            ]
+        )
+        if archivo:
+            self.archivo_voz.set(archivo)
     
     def buscar_imagenes(self):
         directorio = self.directorio_imagenes.get()
@@ -591,6 +760,23 @@ class VideoCreatorApp:
         self.lbl_estado.config(text="Creando video...")
         self.progress.start()
         
+        # Obtener configuración de audio
+        aplicar_musica = self.aplicar_musica.get()
+        archivo_musica = self.archivo_musica.get() if aplicar_musica else None
+        volumen_musica = self.volumen_musica.get()
+        aplicar_fade_in_musica = self.aplicar_fade_in_musica.get()
+        duracion_fade_in_musica = self.duracion_fade_in_musica.get()
+        aplicar_fade_out_musica = self.aplicar_fade_out_musica.get()
+        duracion_fade_out_musica = self.duracion_fade_out_musica.get()
+        
+        aplicar_voz = self.aplicar_voz.get()
+        archivo_voz = self.archivo_voz.get() if aplicar_voz else None
+        volumen_voz = self.volumen_voz.get()
+        aplicar_fade_in_voz = self.aplicar_fade_in_voz.get()
+        duracion_fade_in_voz = self.duracion_fade_in_voz.get()
+        aplicar_fade_out_voz = self.aplicar_fade_out_voz.get()
+        duracion_fade_out_voz = self.duracion_fade_out_voz.get()
+        
         # Crear el video en un hilo separado para no bloquear la interfaz
         thread = threading.Thread(
             target=self.procesar_video,
@@ -599,7 +785,13 @@ class VideoCreatorApp:
                   aplicar_transicion, tipo_transicion, duracion_transicion,
                   aplicar_fade_in, duracion_fade_in, 
                   aplicar_fade_out, duracion_fade_out,
-                  aplicar_overlay, archivos_overlay, opacidad_overlay)
+                  aplicar_overlay, archivos_overlay, opacidad_overlay,
+                  aplicar_musica, archivo_musica, volumen_musica,
+                  aplicar_fade_in_musica, duracion_fade_in_musica,
+                  aplicar_fade_out_musica, duracion_fade_out_musica,
+                  aplicar_voz, archivo_voz, volumen_voz,
+                  aplicar_fade_in_voz, duracion_fade_in_voz,
+                  aplicar_fade_out_voz, duracion_fade_out_voz)
         )
         thread.daemon = True
         thread.start()
@@ -609,7 +801,13 @@ class VideoCreatorApp:
                       aplicar_transicion, tipo_transicion, duracion_transicion,
                       aplicar_fade_in, duracion_fade_in, 
                       aplicar_fade_out, duracion_fade_out,
-                      aplicar_overlay, archivos_overlay, opacidad_overlay):
+                      aplicar_overlay, archivos_overlay, opacidad_overlay,
+                      aplicar_musica=False, archivo_musica=None, volumen_musica=1.0,
+                      aplicar_fade_in_musica=False, duracion_fade_in_musica=2.0,
+                      aplicar_fade_out_musica=False, duracion_fade_out_musica=2.0,
+                      aplicar_voz=False, archivo_voz=None, volumen_voz=1.0,
+                      aplicar_fade_in_voz=False, duracion_fade_in_voz=1.0,
+                      aplicar_fade_out_voz=False, duracion_fade_out_voz=1.0):
         try:
             # Obtener la cantidad de imágenes para la barra de progreso
             formatos = ['*.jpg', '*.jpeg', '*.png', '*.bmp']
@@ -648,6 +846,12 @@ class VideoCreatorApp:
                 aplicar_fade_in, duracion_fade_in, 
                 aplicar_fade_out, duracion_fade_out,
                 aplicar_overlay, archivos_overlay, opacidad_overlay,
+                aplicar_musica, archivo_musica, volumen_musica,
+                aplicar_fade_in_musica, duracion_fade_in_musica,
+                aplicar_fade_out_musica, duracion_fade_out_musica,
+                aplicar_voz, archivo_voz, volumen_voz,
+                aplicar_fade_in_voz, duracion_fade_in_voz,
+                aplicar_fade_out_voz, duracion_fade_out_voz,
                 progress_callback=update_progress
             )
             

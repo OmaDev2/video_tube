@@ -1,0 +1,534 @@
+moviepy.audio
+Everything about audio manipulation.
+
+Modules
+
+moviepy.audio.AudioClip
+
+Implements AudioClip (base class for audio clips) and its main subclasses:
+
+moviepy.audio.fx
+
+All the audio effects that can be applied to AudioClip and VideoClip.
+
+moviepy.audio.io
+
+Class and methods to read, write, preview audiofiles.
+
+moviepy.audio.tools
+
+Tools to better processing and edition of audio.
+moviepy.audio.AudioClip
+Implements AudioClip (base class for audio clips) and its main subclasses:
+
+Audio clips: AudioClip, AudioFileClip, AudioArrayClip
+
+Composition: CompositeAudioClip
+
+Classes
+
+AudioArrayClip(array, fps)
+
+An audio clip made from a sound array.
+
+AudioClip([frame_function, duration, fps])
+
+Base class for audio clips.
+
+CompositeAudioClip(clips)
+
+Clip made by composing several AudioClips.
+
+Functions
+
+concatenate_audioclips(clips)
+
+Concatenates one AudioClip after another, in the order that are passed to clips parameter.
+moviepy.audio.AudioClip.AudioArrayClip
+class moviepy.audio.AudioClip.AudioArrayClip(array, fps)[source]
+An audio clip made from a sound array.
+
+Parameters
+:
+array – A Numpy array representing the sound, of size Nx1 for mono, Nx2 for stereo.
+
+fps – Frames per second : speed at which the sound is supposed to be played.
+moviepy.audio.AudioClip.AudioClip
+class moviepy.audio.AudioClip.AudioClip(frame_function=None, duration=None, fps=None)[source]
+Base class for audio clips.
+
+See AudioFileClip and CompositeAudioClip for usable classes.
+
+An AudioClip is a Clip with a frame_function attribute of the form `` t -> [ f_t ]`` for mono sound and t-> [ f1_t, f2_t ] for stereo sound (the arrays are Numpy arrays). The f_t are floats between -1 and 1. These bounds can be trespassed without problems (the program will put the sound back into the bounds at conversion time, without much impact).
+
+Parameters
+:
+frame_function – A function t-> frame at time t. The frame does not mean much for a sound, it is just a float. What ‘makes’ the sound are the variations of that float in the time.
+
+duration – Duration of the clip (in seconds). Some clips are infinite, in this case their duration will be None.
+
+nchannels – Number of channels (one or two for mono or stereo).
+
+Examples
+
+# Plays the note A in mono (a sine wave of frequency 440 Hz)
+import numpy as np
+frame_function = lambda t: np.sin(440 * 2 * np.pi * t)
+clip = AudioClip(frame_function, duration=5, fps=44100)
+clip.preview()
+
+# Plays the note A in stereo (two sine waves of frequencies 440 and 880 Hz)
+frame_function = lambda t: np.array([
+    np.sin(440 * 2 * np.pi * t),
+    np.sin(880 * 2 * np.pi * t)
+]).T.copy(order="C")
+clip = AudioClip(frame_function, duration=3, fps=44100)
+clip.preview()
+audiopreview(fps=None, buffersize=2000, nbytes=2, audio_flag=None, video_flag=None)[source]
+Preview an AudioClip using ffplay
+
+Parameters
+:
+fps – Frame rate of the sound. 44100 gives top quality, but may cause problems if your computer is not fast enough and your clip is complicated. If the sound jumps during the preview, lower it (11025 is still fine, 5000 is tolerable).
+
+buffersize – The sound is not generated all at once, but rather made by bunches of frames (chunks). buffersize is the size of such a chunk. Try varying it if you meet audio problems (but you shouldn’t have to).
+
+nbytes – Number of bytes to encode the sound: 1 for 8bit sound, 2 for 16bit, 4 for 32bit sound. 2 bytes is fine.
+
+audio_flag – Instances of class threading events that are used to synchronize video and audio during VideoClip.preview().
+
+video_flag – Instances of class threading events that are used to synchronize video and audio during VideoClip.preview().
+
+display_in_notebook(filetype=None, maxduration=60, t=None, fps=None, rd_kwargs=None, center=True, **html_kwargs)
+Displays clip content in an Jupyter Notebook.
+
+Remarks: If your browser doesn’t support HTML5, this should warn you. If nothing is displayed, maybe your file or filename is wrong. Important: The media will be physically embedded in the notebook.
+
+Parameters
+:
+clip (moviepy.Clip.Clip) – Either the name of a file, or a clip to preview. The clip will actually be written to a file and embedded as if a filename was provided.
+
+filetype (str, optional) – One of "video", "image" or "audio". If None is given, it is determined based on the extension of filename, but this can bug.
+
+maxduration (float, optional) – An error will be raised if the clip’s duration is more than the indicated value (in seconds), to avoid spoiling the browser’s cache and the RAM.
+
+t (float, optional) – If not None, only the frame at time t will be displayed in the notebook, instead of a video of the clip.
+
+fps (int, optional) – Enables to specify an fps, as required for clips whose fps is unknown.
+
+rd_kwargs (dict, optional) – Keyword arguments for the rendering, like dict(fps=15, bitrate="50k"). Allow you to give some options to the render process. You can, for example, disable the logger bar passing dict(logger=None).
+
+center (bool, optional) – If true (default), the content will be wrapped in a <div align=middle> HTML container, so the content will be displayed at the center.
+
+kwargs – Allow you to give some options, like width=260, etc. When editing looping gifs, a good choice is loop=1, autoplay=1.
+
+Examples
+
+from moviepy import *
+# later ...
+clip.display_in_notebook(width=360)
+clip.audio.display_in_notebook()
+
+clip.write_gif("test.gif")
+display_in_notebook('test.gif')
+
+clip.save_frame("first_frame.jpeg")
+display_in_notebook("first_frame.jpeg")
+iter_chunks(chunksize=None, chunk_duration=None, fps=None, quantize=False, nbytes=2, logger=None)[source]
+Iterator that returns the whole sound array of the clip by chunks
+
+max_volume(stereo=False, chunksize=50000, logger=None)[source]
+Returns the maximum volume level of the clip.
+
+to_soundarray(tt=None, fps=None, quantize=False, nbytes=2, buffersize=50000)[source]
+Transforms the sound into an array that can be played by pygame or written in a wav file. See AudioClip.preview.
+
+Parameters
+:
+fps – Frame rate of the sound for the conversion. 44100 for top quality.
+
+nbytes – Number of bytes to encode the sound: 1 for 8bit sound, 2 for 16bit, 4 for 32bit sound.
+
+write_audiofile(filename, fps=None, nbytes=2, buffersize=2000, codec=None, bitrate=None, ffmpeg_params=None, write_logfile=False, logger='bar')[source]
+Writes an audio file from the AudioClip.
+
+Parameters
+:
+filename – Name of the output file, as a string or a path-like object.
+
+fps – Frames per second. If not set, it will try default to self.fps if already set, otherwise it will default to 44100.
+
+nbytes – Sample width (set to 2 for 16-bit sound, 4 for 32-bit sound)
+
+buffersize – The sound is not generated all at once, but rather made by bunches of frames (chunks). buffersize is the size of such a chunk. Try varying it if you meet audio problems (but you shouldn’t have to). Default to 2000
+
+codec – Which audio codec should be used. If None provided, the codec is determined based on the extension of the filename. Choose ‘pcm_s16le’ for 16-bit wav and ‘pcm_s32le’ for 32-bit wav.
+
+bitrate – Audio bitrate, given as a string like ‘50k’, ‘500k’, ‘3000k’. Will determine the size and quality of the output file. Note that it mainly an indicative goal, the bitrate won’t necessarily be the this in the output file.
+
+ffmpeg_params – Any additional parameters you would like to pass, as a list of terms, like [‘-option1’, ‘value1’, ‘-option2’, ‘value2’]
+
+write_logfile – If true, produces a detailed logfile named filename + ‘.log’ when writing the file
+
+
+moviepy.audio.AudioClip.CompositeAudioClip
+class moviepy.audio.AudioClip.CompositeAudioClip(clips)[source]
+Clip made by composing several AudioClips.
+
+An audio clip made by putting together several audio clips.
+
+Parameters
+:
+clips – List of audio clips, which may start playing at different times or together, depends on their start attributes. If all have their duration attribute set, the duration of the composite clip is computed automatically.
+
+property ends
+Returns ending times for all clips in the composition.
+
+frame_function(t)[source]
+Renders a frame for the composition for the time t.
+
+property starts
+Returns starting times for all clips in the composition.
+moviepy.audio.AudioClip.concatenate_audioclips
+moviepy.audio.AudioClip.concatenate_audioclips(clips)[source]
+Concatenates one AudioClip after another, in the order that are passed to clips parameter.
+
+Parameters
+:
+clips – List of audio clips, which will be played one after other.
+
+moviepy.audio.fx
+All the audio effects that can be applied to AudioClip and VideoClip.
+
+Modules
+
+moviepy.audio.fx.AudioDelay([offset, ...])
+
+Repeats audio certain number of times at constant intervals multiplying their volume levels using a linear space in the range 1 to decay argument value.
+
+moviepy.audio.fx.AudioFadeIn(duration)
+
+Return an audio (or video) clip that is first mute, then the sound arrives progressively over duration seconds.
+
+moviepy.audio.fx.AudioFadeOut(duration)
+
+Return a sound clip where the sound fades out progressively over duration seconds at the end of the clip.
+
+moviepy.audio.fx.AudioLoop([n_loops, duration])
+
+Loops over an audio clip.
+
+moviepy.audio.fx.AudioNormalize()
+
+Return a clip whose volume is normalized to 0db.
+
+moviepy.audio.fx.MultiplyStereoVolume([...])
+
+For a stereo audioclip, this function enables to change the volume of the left and right channel separately (with the factors left and right).
+
+moviepy.audio.fx.MultiplyVolume(factor[, ...])
+
+Returns a clip with audio volume multiplied by the value factor.
+
+previous
+
+moviepy.audio.AudioClip.concatenate_audioclips
+
+next
+
+moviepy.audio.fx.AudioDelay
+
+ Edit on GitHub
+ Show Source
+
+ moviepy.audio.fx.AudioDelay
+class moviepy.audio.fx.AudioDelay.AudioDelay(offset: float = 0.2, n_repeats: int = 8, decay: float = 1)[source]
+Repeats audio certain number of times at constant intervals multiplying their volume levels using a linear space in the range 1 to decay argument value.
+
+Parameters
+:
+offset (float, optional) – Gap between repetitions start times, in seconds.
+
+n_repeats (int, optional) – Number of repetitions (without including the clip itself).
+
+decay (float, optional) – Multiplication factor for the volume level of the last repetition. Each repetition will have a value in the linear function between 1 and this value, increasing or decreasing constantly. Keep in mind that the last repetition will be muted if this is 0, and if is greater than 1, the volume will increase for each repetition.
+
+Examples
+
+from moviepy import *
+videoclip = AudioFileClip('myaudio.wav').with_effects([
+    afx.AudioDelay(offset=.2, n_repeats=10, decayment=.2)
+])
+
+# stereo A note
+frame_function = lambda t: np.array(
+    [np.sin(440 * 2 * np.pi * t), np.sin(880 * 2 * np.pi * t)]
+).T
+clip = AudioClip(frame_function=frame_function, duration=0.1, fps=44100)
+clip = clip.with_effects([afx.AudioDelay(offset=.2, n_repeats=11, decay=0)])
+apply(clip: Clip) → Clip[source]
+Apply the effect to the clip.
+
+copy()
+Return a shallow copy of an Effect.
+
+You must always copy an Effect before applying, because some of them will modify their own attributes when applied. For example, setting a previously unset property by using target clip property.
+
+If we was to use the original effect, calling the same effect multiple times could lead to different properties, and different results for equivalent clips.
+
+By using copy, we ensure we can use the same effect object multiple times while maintaining the same behavior/result.
+
+In a way, copy makes the effect himself being kind of idempotent.
+moviepy.audio.fx.AudioFadeIn
+class moviepy.audio.fx.AudioFadeIn.AudioFadeIn(duration: float)[source]
+Return an audio (or video) clip that is first mute, then the sound arrives progressively over duration seconds.
+
+Parameters
+:
+duration (float) – How long does it take for the sound to return to its normal level.
+
+Examples
+
+clip = VideoFileClip("media/chaplin.mp4")
+clip.with_effects([afx.AudioFadeIn("00:00:06")])
+apply(clip: Clip) → Clip[source]
+Apply the effect to the clip.
+
+copy()
+Return a shallow copy of an Effect.
+
+You must always copy an Effect before applying, because some of them will modify their own attributes when applied. For example, setting a previously unset property by using target clip property.
+
+If we was to use the original effect, calling the same effect multiple times could lead to different properties, and different results for equivalent clips.
+
+By using copy, we ensure we can use the same effect object multiple times while maintaining the same behavior/result.
+
+In a way, copy makes the effect himself being kind of idempotent.
+
+moviepy.audio.fx.AudioFadeOut
+class moviepy.audio.fx.AudioFadeOut.AudioFadeOut(duration: float)[source]
+Return a sound clip where the sound fades out progressively over duration seconds at the end of the clip.
+
+Parameters
+:
+duration (float) – How long does it take for the sound to reach the zero level at the end of the clip.
+
+Examples
+
+clip = VideoFileClip("media/chaplin.mp4")
+clip.with_effects([afx.AudioFadeOut("00:00:06")])
+apply(clip: Clip) → Clip[source]
+Apply the effect to the clip.
+
+copy()
+Return a shallow copy of an Effect.
+
+You must always copy an Effect before applying, because some of them will modify their own attributes when applied. For example, setting a previously unset property by using target clip property.
+
+If we was to use the original effect, calling the same effect multiple times could lead to different properties, and different results for equivalent clips.
+
+By using copy, we ensure we can use the same effect object multiple times while maintaining the same behavior/result.
+
+In a way, copy makes the effect himself being kind of idempotent.
+
+moviepy.audio.fx.AudioLoop
+class moviepy.audio.fx.AudioLoop.AudioLoop(n_loops: int = None, duration: float = None)[source]
+Loops over an audio clip.
+
+Returns an audio clip that plays the given clip either n_loops times, or during duration seconds.
+
+Examples
+
+from moviepy import *
+videoclip = VideoFileClip('myvideo.mp4')
+music = AudioFileClip('music.ogg')
+audio = music.with_effects([afx.AudioLoop(duration=videoclip.duration)])
+videoclip.with_audio(audio)
+apply(clip: Clip) → Clip[source]
+Apply the effect to the clip.
+
+copy()
+Return a shallow copy of an Effect.
+
+You must always copy an Effect before applying, because some of them will modify their own attributes when applied. For example, setting a previously unset property by using target clip property.
+
+If we was to use the original effect, calling the same effect multiple times could lead to different properties, and different results for equivalent clips.
+
+By using copy, we ensure we can use the same effect object multiple times while maintaining the same behavior/result.
+
+In a way, copy makes the effect himself being kind of idempotent.
+
+moviepy.audio.fx.AudioNormalize
+class moviepy.audio.fx.AudioNormalize.AudioNormalize[source]
+Return a clip whose volume is normalized to 0db.
+
+Return an audio (or video) clip whose audio volume is normalized so that the maximum volume is at 0db, the maximum achievable volume.
+
+Examples
+
+from moviepy import *
+videoclip = VideoFileClip('myvideo.mp4').with_effects([afx.AudioNormalize()])
+apply(clip: Clip) → Clip[source]
+Apply the effect to the clip.
+
+copy()
+Return a shallow copy of an Effect.
+
+You must always copy an Effect before applying, because some of them will modify their own attributes when applied. For example, setting a previously unset property by using target clip property.
+
+If we was to use the original effect, calling the same effect multiple times could lead to different properties, and different results for equivalent clips.
+
+By using copy, we ensure we can use the same effect object multiple times while maintaining the same behavior/result.
+
+In a way, copy makes the effect himself being kind of idempotent.
+
+moviepy.audio.fx.MultiplyStereoVolume
+class moviepy.audio.fx.MultiplyStereoVolume.MultiplyStereoVolume(left: float = 1, right: float = 1)[source]
+For a stereo audioclip, this function enables to change the volume of the left and right channel separately (with the factors left and right). Makes a stereo audio clip in which the volume of left and right is controllable.
+
+Examples
+
+from moviepy import AudioFileClip
+music = AudioFileClip('music.ogg')
+# mutes left channel
+audio_r = music.with_effects([afx.MultiplyStereoVolume(left=0, right=1)])
+# halves audio volume
+audio_h = music.with_effects([afx.MultiplyStereoVolume(left=0.5, right=0.5)])
+apply(clip: Clip) → Clip[source]
+Apply the effect to the clip.
+
+copy()
+Return a shallow copy of an Effect.
+
+You must always copy an Effect before applying, because some of them will modify their own attributes when applied. For example, setting a previously unset property by using target clip property.
+
+If we was to use the original effect, calling the same effect multiple times could lead to different properties, and different results for equivalent clips.
+
+By using copy, we ensure we can use the same effect object multiple times while maintaining the same behavior/result.
+
+In a way, copy makes the effect himself being kind of idempotent.
+
+moviepy.audio.fx.MultiplyVolume
+class moviepy.audio.fx.MultiplyVolume.MultiplyVolume(factor: float, start_time: float = None, end_time: float = None)[source]
+Returns a clip with audio volume multiplied by the value factor. Can be applied to both audio and video clips.
+
+Parameters
+:
+factor (float) – Volume multiplication factor.
+
+start_time (float, optional) – Time from the beginning of the clip until the volume transformation begins to take effect, in seconds. By default at the beginning.
+
+end_time (float, optional) – Time from the beginning of the clip until the volume transformation ends to take effect, in seconds. By default at the end.
+
+Examples
+
+from moviepy import AudioFileClip
+
+music = AudioFileClip("music.ogg")
+# doubles audio volume
+doubled_audio_clip = music.with_effects([afx.MultiplyVolume(2)])
+# halves audio volume
+half_audio_clip = music.with_effects([afx.MultiplyVolume(0.5)])
+# silences clip during one second at third
+effect = afx.MultiplyVolume(0, start_time=2, end_time=3)
+silenced_clip = clip.with_effects([effect])
+apply(clip: Clip) → Clip[source]
+Apply the effect to the clip.
+
+copy()
+Return a shallow copy of an Effect.
+
+You must always copy an Effect before applying, because some of them will modify their own attributes when applied. For example, setting a previously unset property by using target clip property.
+
+If we was to use the original effect, calling the same effect multiple times could lead to different properties, and different results for equivalent clips.
+
+By using copy, we ensure we can use the same effect object multiple times while maintaining the same behavior/result.
+
+In a way, copy makes the effect himself being kind of idempotent.
+
+moviepy.audio.io
+Class and methods to read, write, preview audiofiles.
+
+Modules
+
+moviepy.audio.io.AudioFileClip
+
+Implements AudioFileClip, a class for audio clips creation using audio files.
+
+moviepy.audio.io.ffmpeg_audiowriter
+
+MoviePy audio writing with ffmpeg.
+
+moviepy.audio.io.ffplay_audiopreviewer
+
+MoviePy audio writing with ffmpeg.
+
+moviepy.audio.io.readers
+
+MoviePy audio reading with ffmpeg.
+
+moviepy.audio.io.AudioFileClip
+Implements AudioFileClip, a class for audio clips creation using audio files.
+
+Classes
+
+AudioFileClip(filename[, decode_file, ...])
+
+An audio clip read from a sound file, or an array.
+
+moviepy.audio.io.ffmpeg_audiowriter
+MoviePy audio writing with ffmpeg.
+
+Classes
+
+FFMPEG_AudioWriter(filename, fps_input[, ...])
+
+A class to write an AudioClip into an audio file.
+
+Functions
+
+ffmpeg_audiowrite(clip, filename, fps, ...)
+
+A function that wraps the FFMPEG_AudioWriter to write an AudioClip to a file.
+
+moviepy.audio.io.ffplay_audiopreviewer
+MoviePy audio writing with ffmpeg.
+
+Classes
+
+FFPLAY_AudioPreviewer(fps_input[, nbytes, ...])
+
+A class to preview an AudioClip.
+
+Functions
+
+ffplay_audiopreview(clip[, fps, buffersize, ...])
+
+A function that wraps the FFPLAY_AudioPreviewer to preview an AudioClip
+
+moviepy.audio.io.readers
+MoviePy audio reading with ffmpeg.
+
+Classes
+
+FFMPEG_AudioReader(filename, buffersize[, ...])
+
+A class to read the audio in either video files or audio files using ffmpeg.
+
+moviepy.audio.tools
+Tools to better processing and edition of audio.
+
+Modules
+
+moviepy.audio.tools.cuts
+
+Cutting utilities working with audio.
+moviepy.audio.tools.cuts
+Cutting utilities working with audio.
+
+Functions
+
+find_audio_period(clip[, min_time, ...])
+
+Finds the period, in seconds of an audioclip.
+
