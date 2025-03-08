@@ -135,18 +135,21 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
     if aplicar_overlay and archivos_overlay:
         print(f"Aplicando overlays: {archivos_overlay}")
         # Verificar si tenemos múltiples overlays para aplicar secuencialmente a los clips
-        if len(archivos_overlay) > 1 and len(clips) > 1:
+        if len(archivos_overlay) > 1:
+            # Guardar los clips originales antes de aplicar transiciones
+            clips_originales = clips.copy()
+            
             print(f"Aplicando {len(archivos_overlay)} overlays de forma secuencial a las imágenes")
             # Aplicar overlays secuencialmente antes de las transiciones
-            clips = OverlayEffect.apply_sequential_overlays(clips, archivos_overlay, opacidad_overlay)
+            clips_con_overlay = OverlayEffect.apply_sequential_overlays(clips_originales, archivos_overlay, opacidad_overlay)
             
             # Volver a aplicar transiciones con los clips modificados
             if aplicar_transicion and tipo_transicion != 'none':
-                video_final = TransitionEffect.apply_transition(clips, tipo_transicion, duracion_transicion)
+                video_final = TransitionEffect.apply_transition(clips_con_overlay, tipo_transicion, duracion_transicion)
             else:
-                video_final = concatenate_videoclips(clips)
+                video_final = concatenate_videoclips(clips_con_overlay)
         else:
-            # Si solo hay un overlay o un clip, aplicar el overlay al video final
+            # Si solo hay un overlay, aplicar el overlay al video final
             overlay_path = archivos_overlay[0]
             print(f"Aplicando overlay {os.path.basename(overlay_path)} con opacidad {opacidad_overlay}")
             video_final = OverlayEffect.apply_overlay(video_final, overlay_path, opacidad_overlay)
