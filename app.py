@@ -2,7 +2,7 @@ from moviepy import VideoFileClip, ImageClip, concatenate_videoclips, CompositeV
 import os
 from glob import glob
 # Import the custom effects
-from efectos import ZoomEffect
+from efectos import ZoomEffect, PanUpEffect, PanDownEffect, PanLeftEffect, PanRightEffect, KenBurnsEffect
 from transiciones import TransitionEffect
 from overlay_effects import OverlayEffect
 
@@ -55,16 +55,57 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
             efecto_idx = i % len(secuencia_efectos)
             tipo_efecto = secuencia_efectos[efecto_idx]
             
-            # Determinar si es zoom in o zoom out
-            zoom_in = tipo_efecto.lower() == 'in'
-            
-            # Aplicar efecto de zoom
-            effect = ZoomEffect(zoom_in=zoom_in, ratio=0.04)
-            clip = clip.transform(effect.apply)
-            
-            print(f"Aplicando efecto {tipo_efecto} a la imagen {i+1}")
+            # Aplicar el efecto correspondiente
+            if tipo_efecto.lower() == 'in':
+                effect = ZoomEffect(zoom_in=True, ratio=0.04)
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto zoom in a la imagen {i+1}")
+            elif tipo_efecto.lower() == 'out':
+                effect = ZoomEffect(zoom_in=False, ratio=0.04)
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto zoom out a la imagen {i+1}")
+            elif tipo_efecto.lower() == 'panup':
+                effect = PanUpEffect(speed=0.05)
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto pan up a la imagen {i+1}")
+            elif tipo_efecto.lower() == 'pandown':
+                effect = PanDownEffect(speed=0.05)
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto pan down a la imagen {i+1}")
+            elif tipo_efecto.lower() == 'panleft':
+                effect = PanLeftEffect(speed=0.05)
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto pan left a la imagen {i+1}")
+            elif tipo_efecto.lower() == 'panright':
+                effect = PanRightEffect(speed=0.05)
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto pan right a la imagen {i+1}")
+            elif tipo_efecto.lower() == 'kenburns':
+                # Por defecto, el efecto Ken Burns combina zoom in con pan up
+                effect = KenBurnsEffect(zoom_direction='in', pan_direction='up')
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto Ken Burns a la imagen {i+1}")
+            elif tipo_efecto.lower() == 'kenburns1':
+                # Variante 1: zoom in con pan left
+                effect = KenBurnsEffect(zoom_direction='in', pan_direction='left')
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto Ken Burns (variante 1) a la imagen {i+1}")
+            elif tipo_efecto.lower() == 'kenburns2':
+                # Variante 2: zoom out con pan right
+                effect = KenBurnsEffect(zoom_direction='out', pan_direction='right')
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto Ken Burns (variante 2) a la imagen {i+1}")
+            elif tipo_efecto.lower() == 'kenburns3':
+                # Variante 3: zoom out con pan down
+                effect = KenBurnsEffect(zoom_direction='out', pan_direction='down')
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto Ken Burns (variante 3) a la imagen {i+1}")
+            else:
+                print(f"Tipo de efecto desconocido: {tipo_efecto}")
         
         clips.append(clip)
+        
+        
         
         # Actualizar progreso si hay un callback definido
         if progress_callback:
@@ -141,30 +182,62 @@ def main():
     
     secuencia_efectos = None
     if efectos:
-        opciones = input("Opciones de efectos:\n1. Un solo tipo de efecto\n2. Secuencia personalizada\n3. Alternar automáticamente (in/out)\nElige una opción (1-3): ")
+        print("\nOpciones de efectos:")
+        print("1. Un solo tipo de efecto")
+        print("2. Secuencia personalizada")
+        print("3. Alternar automáticamente (in/out)")
+        print("4. Secuencia Ken Burns")
         
-        if opciones == "3":
+        opciones = input("Elige una opción (1-4): ")
+        
+        if opciones == "4":
+            # Secuencia Ken Burns predefinida
+            secuencia_efectos = ['kenburns', 'kenburns1', 'kenburns2', 'kenburns3']
+            print("Se aplicará una secuencia de efectos Ken Burns")
+        elif opciones == "3":
             # Modo alternado automático: alternar entre in y out
             secuencia_efectos = ['in', 'out']
             print("Se aplicarán efectos alternando automáticamente entre zoom in y zoom out")
         elif opciones == "2":
             # Modo secuencia personalizada
             print("\nDefinir secuencia de efectos:")
-            print("Ejemplo: in,out,in (separados por comas)")
+            print("Opciones disponibles: in, out, panup, pandown, panleft, panright, kenburns")
+            print("Ejemplo: in,panup,kenburns,out (separados por comas)")
             secuencia_input = input("Secuencia de efectos: ")
             secuencia_efectos = [efecto.strip() for efecto in secuencia_input.split(',')]
             
-            # Validar cada efecto en la secuencia
-            secuencia_efectos = [efecto if efecto in ['in', 'out'] else 'in' for efecto in secuencia_efectos]
+            # Validar cada efecto en la secuencia (permitir todos los efectos válidos)
+            efectos_validos = ['in', 'out', 'panup', 'pandown', 'panleft', 'panright', 'kenburns', 'kenburns1', 'kenburns2', 'kenburns3']
+            secuencia_efectos = [efecto if efecto in efectos_validos else 'in' for efecto in secuencia_efectos]
             
             if not secuencia_efectos:
                 secuencia_efectos = ['in']  # Valor por defecto si la secuencia está vacía
         else:
-            # Modo un solo tipo: un solo tipo de efecto para todos los clips
-            tipo_zoom = input("Tipo de zoom (in/out): ").lower()
-            if tipo_zoom not in ['in', 'out']:
-                tipo_zoom = 'in'  # Valor por defecto
-            secuencia_efectos = [tipo_zoom]
+            # Modo un solo tipo de efecto
+            print("\nTipo de efecto:")
+            print("1. Zoom In (acercamiento)")
+            print("2. Zoom Out (alejamiento)")
+            print("3. Pan Up (movimiento hacia arriba)")
+            print("4. Pan Down (movimiento hacia abajo)")
+            print("5. Pan Left (movimiento hacia la izquierda)")
+            print("6. Pan Right (movimiento hacia la derecha)")
+            print("7. Ken Burns (efecto cinematográfico combinado)")
+            
+            tipo_efecto_num = input("Elige un efecto (1-7): ")
+            
+            # Mapear el número al tipo de efecto
+            tipo_efecto_map = {
+                '1': 'in',
+                '2': 'out',
+                '3': 'panup',
+                '4': 'pandown',
+                '5': 'panleft',
+                '6': 'panright',
+                '7': 'kenburns'
+            }
+            
+            tipo_efecto = tipo_efecto_map.get(tipo_efecto_num, 'in')  # Valor por defecto: 'in'
+            secuencia_efectos = [tipo_efecto]
     
     # Opciones de transición
     aplicar_transicion = input("¿Aplicar transiciones entre imágenes? (s/n): ").lower() == 's'

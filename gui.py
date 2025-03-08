@@ -11,7 +11,7 @@ import time
 from tqdm.tk import tqdm as tqdm_tk
 
 # Importar los módulos personalizados
-from efectos import ZoomEffect
+from efectos import ZoomEffect, PanUpEffect, PanDownEffect, PanLeftEffect, PanRightEffect, KenBurnsEffect
 from transiciones import TransitionEffect
 from overlay_effects import OverlayEffect
 from app import crear_video_desde_imagenes
@@ -167,8 +167,8 @@ class VideoCreatorApp:
         btn_buscar.pack(pady=5)
     
     def configurar_tab_efectos(self, tab):
-        # Checkbox para activar efectos
-        chk_efectos = ttk.Checkbutton(tab, text="Aplicar efectos de zoom", variable=self.aplicar_efectos)
+    # Checkbox para activar efectos
+        chk_efectos = ttk.Checkbutton(tab, text="Aplicar efectos de movimiento", variable=self.aplicar_efectos)
         chk_efectos.pack(anchor="w", padx=10, pady=10)
         
         # Frame para las opciones de efectos
@@ -189,29 +189,43 @@ class VideoCreatorApp:
         rb_modo3 = ttk.Radiobutton(frame_opciones, text="Alternar automáticamente (in/out)", variable=self.modo_efecto, value="3")
         rb_modo3.grid(row=2, column=1, padx=5, pady=5, sticky="w")
         
+        rb_modo4 = ttk.Radiobutton(frame_opciones, text="Secuencia Ken Burns", variable=self.modo_efecto, value="4")
+        rb_modo4.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+        
         # Frame para un solo tipo de efecto
         frame_tipo = ttk.LabelFrame(tab, text="Un Solo Tipo de Efecto")
         frame_tipo.pack(fill="x", padx=10, pady=10)
         
-        # Radiobuttons para el tipo de zoom
-        rb_in = ttk.Radiobutton(frame_tipo, text="Zoom In (acercamiento)", variable=self.tipo_efecto, value="in")
-        rb_in.pack(anchor="w", padx=5, pady=5)
+        # Radiobuttons para el tipo de efecto
+        tipos_efectos = [
+            ("Zoom In (acercamiento)", "in"),
+            ("Zoom Out (alejamiento)", "out"),
+            ("Pan Up (movimiento hacia arriba)", "panup"),
+            ("Pan Down (movimiento hacia abajo)", "pandown"),
+            ("Pan Left (movimiento hacia la izquierda)", "panleft"),
+            ("Pan Right (movimiento hacia la derecha)", "panright"),
+            ("Ken Burns (efecto cinematográfico)", "kenburns")
+        ]
         
-        rb_out = ttk.Radiobutton(frame_tipo, text="Zoom Out (alejamiento)", variable=self.tipo_efecto, value="out")
-        rb_out.pack(anchor="w", padx=5, pady=5)
+        for i, (texto, valor) in enumerate(tipos_efectos):
+            rb = ttk.Radiobutton(frame_tipo, text=texto, variable=self.tipo_efecto, value=valor)
+            rb.grid(row=i, column=0, padx=5, pady=3, sticky="w")
         
         # Frame para secuencia personalizada
         frame_secuencia = ttk.LabelFrame(tab, text="Secuencia Personalizada")
         frame_secuencia.pack(fill="x", padx=10, pady=10)
         
-        lbl_secuencia = ttk.Label(frame_secuencia, text="Secuencia de efectos (in,out,in,...):")
+        lbl_secuencia = ttk.Label(frame_secuencia, text="Secuencia de efectos (separados por comas):")
         lbl_secuencia.pack(anchor="w", padx=5, pady=5)
         
         entry_secuencia = ttk.Entry(frame_secuencia, textvariable=self.secuencia_efectos, width=50)
         entry_secuencia.pack(fill="x", padx=5, pady=5)
         
-        lbl_ejemplo = ttk.Label(frame_secuencia, text="Ejemplo: in,out,in (separados por comas)")
-        lbl_ejemplo.pack(anchor="w", padx=5, pady=5)
+        lbl_ejemplo = ttk.Label(frame_secuencia, text="Ejemplo: in,panup,kenburns,out")
+        lbl_ejemplo.pack(anchor="w", padx=5, pady=2)
+        
+        lbl_efectos_disp = ttk.Label(frame_secuencia, text="Efectos disponibles: in, out, panup, pandown, panleft, panright, kenburns, kenburns1, kenburns2, kenburns3")
+        lbl_efectos_disp.pack(anchor="w", padx=5, pady=2)
     
     def configurar_tab_transiciones(self, tab):
         # Checkbox para activar transiciones
@@ -527,11 +541,15 @@ class VideoCreatorApp:
                 if secuencia:
                     secuencia_efectos = [efecto.strip() for efecto in secuencia.split(',')]
                     # Validar cada efecto en la secuencia
-                    secuencia_efectos = [efecto if efecto in ['in', 'out'] else 'in' for efecto in secuencia_efectos]
+                    efectos_validos = ['in', 'out', 'panup', 'pandown', 'panleft', 'panright', 'kenburns', 'kenburns1', 'kenburns2', 'kenburns3']
+                    secuencia_efectos = [efecto if efecto in efectos_validos else 'in' for efecto in secuencia_efectos]
                 else:
                     secuencia_efectos = ['in']  # Valor por defecto
             elif modo == "3":  # Alternar automáticamente
                 secuencia_efectos = ['in', 'out']
+            elif modo == "4":  # Secuencia Ken Burns
+                secuencia_efectos = ['kenburns', 'kenburns1', 'kenburns2', 'kenburns3']
+
         
         # Configuración de transiciones
         aplicar_transicion = self.aplicar_transicion.get()
