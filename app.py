@@ -1,4 +1,4 @@
-from moviepy import *
+from moviepy import VideoFileClip, ImageClip, concatenate_videoclips, CompositeVideoClip, vfx
 import os
 from glob import glob
 # Import the custom effects
@@ -12,7 +12,8 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
                                aplicar_transicion=False, tipo_transicion='none', duracion_transicion=2.0,
                                aplicar_fade_in=False, duracion_fade_in=2.0,
                                aplicar_fade_out=False, duracion_fade_out=2.0,
-                               aplicar_overlay=False, archivos_overlay=None, opacidad_overlay=0.5):
+                               aplicar_overlay=False, archivos_overlay=None, opacidad_overlay=0.5,
+                               progress_callback=None):
     """
     Crea un video a partir de imágenes en un directorio.
     
@@ -43,6 +44,7 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
     
     # Crear clips de imagen
     clips = []
+    total_imagenes = len(archivos)
     for i, archivo in enumerate(archivos):
         clip = ImageClip(archivo).with_duration(duracion_img)
         
@@ -63,6 +65,10 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
             print(f"Aplicando efecto {tipo_efecto} a la imagen {i+1}")
         
         clips.append(clip)
+        
+        # Actualizar progreso si hay un callback definido
+        if progress_callback:
+            progress_callback(1, total_imagenes)
     
     # Aplicar transiciones si se solicita
     if aplicar_transicion and tipo_transicion != 'none':
@@ -86,6 +92,7 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
     
     # Aplicar overlay si se solicita
     if aplicar_overlay and archivos_overlay:
+        print(f"Aplicando overlays: {archivos_overlay}")
         # Verificar si tenemos múltiples overlays para aplicar secuencialmente a los clips
         if len(archivos_overlay) > 1 and len(clips) > 1:
             print(f"Aplicando {len(archivos_overlay)} overlays de forma secuencial a las imágenes")
@@ -102,10 +109,19 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
             overlay_path = archivos_overlay[0]
             print(f"Aplicando overlay {os.path.basename(overlay_path)} con opacidad {opacidad_overlay}")
             video_final = OverlayEffect.apply_overlay(video_final, overlay_path, opacidad_overlay)
+    else:
+        if aplicar_overlay:
+            print("Se seleccionó aplicar overlay pero no se proporcionaron archivos de overlay")
+        else:
+            print("No se seleccionó aplicar overlay")
     
     # Guardar el video
     video_final.write_videofile(archivo_salida, fps=fps)
     print(f"Video guardado como {archivo_salida}")
+    
+    # Indicar que el proceso ha terminado (100% completado)
+    if progress_callback:
+        progress_callback(0, 1)  # Asegurar que la barra llegue al 100%
 
 def main():
     print("=== Convertidor de Imágenes a Video con Efecto Zoom ===")

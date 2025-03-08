@@ -1,4 +1,4 @@
-from moviepy import *
+from moviepy import VideoFileClip, ImageClip, concatenate_videoclips, CompositeVideoClip, vfx
 import os
 from glob import glob
 import numpy as np
@@ -52,33 +52,40 @@ class OverlayEffect:
             print(f"Archivo de overlay no encontrado: {overlay_path}")
             return base_clip
         
-        # Cargar el video de overlay
-        overlay_clip = VideoFileClip(overlay_path)
-        
-        # Redimensionar el overlay para que coincida con el tamaño del clip base
-        overlay_clip = overlay_clip.resized(base_clip.size)
-        
-        # Ajustar la opacidad del overlay
-        overlay_clip = overlay_clip.with_opacity(opacity)
-        
-        # Implementar looping manual si es necesario
-        if overlay_clip.duration < base_clip.duration:
-            # Calcular cuántas repeticiones necesitamos
-            repetitions = int(np.ceil(base_clip.duration / overlay_clip.duration))
-            # Crear una lista de clips para concatenar
-            clips_to_concat = [overlay_clip] * repetitions
-            # Concatenar los clips
-            extended_overlay = concatenate_videoclips(clips_to_concat)
-            # Recortar al tamaño exacto que necesitamos
-            overlay_clip = extended_overlay.with_duration(base_clip.duration)
-        else:
-            # Si el overlay es más largo, lo recortamos
-            overlay_clip = overlay_clip.with_duration(base_clip.duration)
-        
-        # Combinar los clips
-        final_clip = CompositeVideoClip([base_clip, overlay_clip])
-        
-        return final_clip
+        try:
+            # Cargar el video de overlay
+            print(f"Cargando overlay: {overlay_path}")
+            overlay_clip = VideoFileClip(overlay_path)
+            
+            # Redimensionar el overlay para que coincida con el tamaño del clip base
+            overlay_clip = overlay_clip.resized(base_clip.size)
+            
+            # Ajustar la opacidad del overlay
+            overlay_clip = overlay_clip.with_opacity(opacity)
+            
+            # Implementar looping manual si es necesario
+            if overlay_clip.duration < base_clip.duration:
+                # Calcular cuántas repeticiones necesitamos
+                repetitions = int(np.ceil(base_clip.duration / overlay_clip.duration))
+                print(f"El overlay necesita {repetitions} repeticiones para cubrir el clip base")
+                # Crear una lista de clips para concatenar
+                clips_to_concat = [overlay_clip] * repetitions
+                # Concatenar los clips
+                extended_overlay = concatenate_videoclips(clips_to_concat)
+                # Recortar al tamaño exacto que necesitamos
+                overlay_clip = extended_overlay.with_duration(base_clip.duration)
+            else:
+                # Si el overlay es más largo, lo recortamos
+                overlay_clip = overlay_clip.with_duration(base_clip.duration)
+            
+            # Combinar los clips
+            print(f"Combinando clip base con overlay usando opacidad {opacity}")
+            final_clip = CompositeVideoClip([base_clip, overlay_clip])
+            
+            return final_clip
+        except Exception as e:
+            print(f"Error al aplicar overlay: {str(e)}")
+            return base_clip
         
     @staticmethod
     def apply_sequential_overlays(clips, overlay_paths, opacity=0.5):
