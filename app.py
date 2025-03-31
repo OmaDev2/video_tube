@@ -77,39 +77,39 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto zoom out a la imagen {i+1}")
             elif tipo_efecto.lower() == 'panup':
-                effect = PanUpEffect(speed=0.15)
+                effect = PanUpEffect(speed=0.15, clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan up a la imagen {i+1}")
             elif tipo_efecto.lower() == 'pandown':
-                effect = PanDownEffect(speed=0.15)
+                effect = PanDownEffect(speed=0.15, clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan down a la imagen {i+1}")
             elif tipo_efecto.lower() == 'panleft':
-                effect = PanLeftEffect(speed=0.15)
+                effect = PanLeftEffect(speed=0.15, clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan left a la imagen {i+1}")
             elif tipo_efecto.lower() == 'panright':
-                effect = PanRightEffect(speed=0.15)
+                effect = PanRightEffect(speed=0.15, clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan right a la imagen {i+1}")
             elif tipo_efecto.lower() == 'kenburns':
                 # Por defecto, el efecto Ken Burns combina zoom in con pan up
-                effect = KenBurnsEffect(zoom_direction='in', pan_direction='up')
+                effect = KenBurnsEffect(zoom_direction='in', pan_direction='up', clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto Ken Burns a la imagen {i+1}")
             elif tipo_efecto.lower() == 'kenburns1':
                 # Variante 1: zoom in con pan left
-                effect = KenBurnsEffect(zoom_direction='in', pan_direction='left')
+                effect = KenBurnsEffect(zoom_direction='in', pan_direction='left', clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto Ken Burns (variante 1) a la imagen {i+1}")
             elif tipo_efecto.lower() == 'kenburns2':
                 # Variante 2: zoom out con pan right
-                effect = KenBurnsEffect(zoom_direction='out', pan_direction='right')
+                effect = KenBurnsEffect(zoom_direction='out', pan_direction='right', clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto Ken Burns (variante 2) a la imagen {i+1}")
             elif tipo_efecto.lower() == 'kenburns3':
                 # Variante 3: zoom out con pan down
-                effect = KenBurnsEffect(zoom_direction='out', pan_direction='down')
+                effect = KenBurnsEffect(zoom_direction='out', pan_direction='down', clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto Ken Burns (variante 3) a la imagen {i+1}")
             else:

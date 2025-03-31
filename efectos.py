@@ -66,7 +66,7 @@ class ZoomEffect(Effect):
 class PanEffect(Effect):
     """Efecto base para los efectos de paneo que mueve una 'cámara virtual' sobre una imagen."""
     
-    def __init__(self, direction='up', speed=0.12, scale_factor=1.2):
+    def __init__(self, direction='up', speed=0.12, scale_factor=1.2, clip_duration=None):
         """Inicializa el efecto de paneo.
         
         Args:
@@ -75,11 +75,12 @@ class PanEffect(Effect):
                    Valores más altos resultan en un paneo más rápido.
             scale_factor: Factor para redimensionar la imagen original antes del paneo.
                          Valores más altos permiten más movimiento pero pueden reducir calidad.
+            clip_duration: Duración del clip en segundos. Si no se proporciona, se intentará estimar.
         """
         self.direction = direction.lower()
         self.speed = speed
         self.scale_factor = scale_factor
-        self.clip_duration = None
+        self.clip_duration = clip_duration
         
     def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
         # Obtener el frame
@@ -130,7 +131,7 @@ class PanEffect(Effect):
         movement_range = 0.8
         
         # Calcular el progreso normalizado (0.0 a 1.0) basado en el tiempo actual
-        # Usamos la duración real del clip o un valor suficientemente grande
+        # Usamos la duración real del clip
         progress = t / self.clip_duration
         # Aseguramos que el progreso esté entre 0 y 1
         progress = max(0.0, min(1.0, progress))
@@ -184,29 +185,29 @@ class PanEffect(Effect):
 class PanUpEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de abajo hacia arriba sobre la imagen."""
     
-    def __init__(self, speed=0.12, scale_factor=1.2):
-        super().__init__(direction='up', speed=speed, scale_factor=scale_factor)
+    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None):
+        super().__init__(direction='up', speed=speed, scale_factor=scale_factor, clip_duration=clip_duration)
 
 
 class PanDownEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de arriba hacia abajo sobre la imagen."""
     
-    def __init__(self, speed=0.12, scale_factor=1.2):
-        super().__init__(direction='down', speed=speed, scale_factor=scale_factor)
+    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None):
+        super().__init__(direction='down', speed=speed, scale_factor=scale_factor, clip_duration=clip_duration)
 
 
 class PanLeftEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de derecha a izquierda sobre la imagen."""
     
-    def __init__(self, speed=0.12, scale_factor=1.2):
-        super().__init__(direction='left', speed=speed, scale_factor=scale_factor)
+    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None):
+        super().__init__(direction='left', speed=speed, scale_factor=scale_factor, clip_duration=clip_duration)
 
 
 class PanRightEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de izquierda a derecha sobre la imagen."""
     
-    def __init__(self, speed=0.12, scale_factor=1.2):
-        super().__init__(direction='right', speed=speed, scale_factor=scale_factor)
+    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None):
+        super().__init__(direction='right', speed=speed, scale_factor=scale_factor, clip_duration=clip_duration)
 
 
 class KenBurnsEffect(Effect):
@@ -217,7 +218,7 @@ class KenBurnsEffect(Effect):
     """
     
     def __init__(self, zoom_direction='in', pan_direction='up', 
-                 zoom_ratio=0.05, pan_speed=0.12, scale_factor=1.3):
+                 zoom_ratio=0.05, pan_speed=0.12, scale_factor=1.3, clip_duration=None):
         """Inicializa el efecto Ken Burns.
         
         Args:
@@ -227,21 +228,22 @@ class KenBurnsEffect(Effect):
             zoom_ratio: Factor de zoom por segundo
             pan_speed: Velocidad del paneo
             scale_factor: Factor para redimensionar la imagen original
+            clip_duration: Duración del clip en segundos. Si no se proporciona, se usará un valor predeterminado.
         """
         self.zoom_in = zoom_direction.lower() == 'in'
         self.zoom_ratio = zoom_ratio
         self.pan_direction = pan_direction.lower()
         self.pan_speed = pan_speed
         self.scale_factor = scale_factor
+        self.clip_duration = clip_duration if clip_duration is not None else 5.0  # Valor predeterminado si no se proporciona
     
     def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
         # Obtener el frame original
         img = Image.fromarray(get_frame(t))
         base_size = img.size
         
-        # Duración estimada para cálculo de movimiento
-        estimated_duration = 5.0  # segundos
-        progress = min(1.0, t / estimated_duration)
+        # Usar la duración real del clip para el cálculo de movimiento
+        progress = min(1.0, t / self.clip_duration)
         
         # Calcular el factor de zoom basado en la dirección y el tiempo
         if self.zoom_in:
@@ -249,7 +251,7 @@ class KenBurnsEffect(Effect):
             zoom_factor = 1 + (self.zoom_ratio * t)
         else:
             # Zoom Out: Empezamos con imagen más grande y la reducimos
-            max_zoom = 1 + (self.zoom_ratio * estimated_duration)
+            max_zoom = 1 + (self.zoom_ratio * self.clip_duration)
             zoom_factor = max_zoom - (self.zoom_ratio * t)
         
         # Aplicar el factor de escala adicional (para tener área para el paneo)
@@ -380,31 +382,31 @@ class KenBurnsEffect(Effect):
 
 class KenBurnsZoomInPanRight(KenBurnsEffect):
     """Ken Burns: Zoom In + Pan Right (efecto clásico de documental)"""
-    def __init__(self, zoom_ratio=0.03, pan_speed=0.04, scale_factor=1.4):
+    def __init__(self, zoom_ratio=0.03, pan_speed=0.04, scale_factor=1.4, clip_duration=None):
         super().__init__(zoom_direction='in', pan_direction='right', 
                          zoom_ratio=zoom_ratio, pan_speed=pan_speed, 
-                         scale_factor=scale_factor)
+                         scale_factor=scale_factor, clip_duration=clip_duration)
 
 
 class KenBurnsZoomOutPanLeft(KenBurnsEffect):
     """Ken Burns: Zoom Out + Pan Left (variante dramática)"""
-    def __init__(self, zoom_ratio=0.03, pan_speed=0.04, scale_factor=1.4):
+    def __init__(self, zoom_ratio=0.03, pan_speed=0.04, scale_factor=1.4, clip_duration=None):
         super().__init__(zoom_direction='out', pan_direction='left', 
                          zoom_ratio=zoom_ratio, pan_speed=pan_speed, 
-                         scale_factor=scale_factor)
+                         scale_factor=scale_factor, clip_duration=clip_duration)
 
 
 class KenBurnsDiagonalIn(KenBurnsEffect):
     """Ken Burns: Zoom In + Paneo Diagonal (muy dinámico)"""
-    def __init__(self, zoom_ratio=0.04, pan_speed=0.05, scale_factor=1.5):
+    def __init__(self, zoom_ratio=0.04, pan_speed=0.05, scale_factor=1.5, clip_duration=None):
         super().__init__(zoom_direction='in', pan_direction='diagonal_up_right', 
                          zoom_ratio=zoom_ratio, pan_speed=pan_speed, 
-                         scale_factor=scale_factor)
+                         scale_factor=scale_factor, clip_duration=clip_duration)
 
 
 class KenBurnsDiagonalOut(KenBurnsEffect):
     """Ken Burns: Zoom Out + Paneo Diagonal (variante cinematográfica)"""
-    def __init__(self, zoom_ratio=0.03, pan_speed=0.04, scale_factor=1.5):
+    def __init__(self, zoom_ratio=0.03, pan_speed=0.04, scale_factor=1.5, clip_duration=None):
         super().__init__(zoom_direction='out', pan_direction='diagonal_down_left', 
                          zoom_ratio=zoom_ratio, pan_speed=pan_speed, 
-                         scale_factor=scale_factor)
+                         scale_factor=scale_factor, clip_duration=clip_duration)

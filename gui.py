@@ -510,6 +510,17 @@ class VideoCreatorApp:
         lbl_opacidad = ttk.Label(frame_opacidad, text="Opacidad:")
         lbl_opacidad.pack(side="left", padx=5)
         
+        # Etiqueta para mostrar el valor actual de opacidad
+        self.lbl_valor_opacidad = ttk.Label(frame_opacidad, text=f"{self.opacidad_overlay.get():.2f}")
+        self.lbl_valor_opacidad.pack(side="right", padx=5)
+        
+        # Función para actualizar la etiqueta cuando cambia el valor
+        def actualizar_valor_opacidad(*args):
+            self.lbl_valor_opacidad.config(text=f"{self.opacidad_overlay.get():.2f}")
+        
+        # Vincular la función al cambio de valor
+        self.opacidad_overlay.trace_add("write", actualizar_valor_opacidad)
+        
         scale_opacidad = ttk.Scale(frame_opacidad, from_=0.0, to=1.0, orient="horizontal", 
                                   variable=self.opacidad_overlay)
         scale_opacidad.pack(side="left", fill="x", expand=True, padx=5)
