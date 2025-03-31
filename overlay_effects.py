@@ -53,6 +53,15 @@ class OverlayEffect:
             return base_clip
         
         try:
+            # Verificar si el clip base es un AudioFileClip (no tiene atributo size)
+            if not hasattr(base_clip, 'size'):
+                # Si es un AudioFileClip, no podemos aplicar un overlay visual
+                print("No se puede aplicar overlay visual a un clip de audio")
+                return base_clip
+                
+            # Verificación adicional para asegurar que size es accesible
+            _ = base_clip.size  # Intentar acceder al atributo para verificar que es válido
+            
             # Cargar el video de overlay
             print(f"Cargando overlay: {overlay_path}")
             overlay_clip = VideoFileClip(overlay_path)
@@ -83,6 +92,10 @@ class OverlayEffect:
             final_clip = CompositeVideoClip([base_clip, overlay_clip])
             
             return final_clip
+        except AttributeError as e:
+            print(f"Error de atributo al aplicar overlay: {str(e)}")
+            print("Es posible que el clip sea un clip de audio sin atributos visuales")
+            return base_clip
         except Exception as e:
             print(f"Error al aplicar overlay: {str(e)}")
             return base_clip
@@ -114,13 +127,25 @@ class OverlayEffect:
         # Aplicar overlays secuencialmente a cada clip
         clips_con_overlay = []
         for i, clip in enumerate(clips):
-            # Seleccionar el overlay según la posición del clip (rotando)
-            overlay_idx = i % len(valid_overlays)
-            overlay_path = valid_overlays[overlay_idx]
-            
-            # Aplicar el overlay al clip actual
-            print(f"Aplicando overlay {os.path.basename(overlay_path)} a la imagen {i+1}")
-            clip_con_overlay = OverlayEffect.apply_overlay(clip, overlay_path, opacity)
-            clips_con_overlay.append(clip_con_overlay)
+            # Verificar si el clip actual tiene atributo 'size' (es un clip de video)
+            try:
+                # Intentar acceder al atributo size para verificar si es un clip de video
+                if not hasattr(clip, 'size'):
+                    print(f"Omitiendo overlay para el clip {i+1} porque es un clip de audio")
+                    clips_con_overlay.append(clip)
+                    continue
+                    
+                # Seleccionar el overlay según la posición del clip (rotando)
+                overlay_idx = i % len(valid_overlays)
+                overlay_path = valid_overlays[overlay_idx]
+                
+                # Aplicar el overlay al clip actual
+                print(f"Aplicando overlay {os.path.basename(overlay_path)} a la imagen {i+1}")
+                clip_con_overlay = OverlayEffect.apply_overlay(clip, overlay_path, opacity)
+                clips_con_overlay.append(clip_con_overlay)
+            except Exception as e:
+                print(f"Error al procesar clip {i+1}: {str(e)}")
+                # Si hay un error, mantener el clip original sin modificar
+                clips_con_overlay.append(clip)
         
         return clips_con_overlay

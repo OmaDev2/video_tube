@@ -66,7 +66,7 @@ class ZoomEffect(Effect):
 class PanEffect(Effect):
     """Efecto base para los efectos de paneo que mueve una 'cámara virtual' sobre una imagen."""
     
-    def __init__(self, direction='up', speed=0.04, scale_factor=1.2):
+    def __init__(self, direction='up', speed=0.12, scale_factor=1.2):
         """Inicializa el efecto de paneo.
         
         Args:
@@ -79,6 +79,7 @@ class PanEffect(Effect):
         self.direction = direction.lower()
         self.speed = speed
         self.scale_factor = scale_factor
+        self.clip_duration = None
         
     def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
         # Obtener el frame
@@ -107,32 +108,48 @@ class PanEffect(Effect):
         offset_x = start_x
         offset_y = start_y
         
-        # Duración estimada del clip (para cálculos de movimiento)
-        estimated_duration = 5.0  # segundos
+        # Obtener la duración del clip si no la tenemos
+        if self.clip_duration is None:
+            # Intentar obtener la duración del clip actual
+            try:
+                # Intentamos acceder al atributo 'duration' del clip actual
+                # Esto funciona si el clip tiene un atributo duration
+                from moviepy import VideoClip
+                current_clip = VideoClip.current_clip
+                if hasattr(current_clip, 'duration'):
+                    self.clip_duration = current_clip.duration
+                else:
+                    # Si no podemos obtener la duración, usamos un valor por defecto más largo
+                    self.clip_duration = 30.0  # Valor suficientemente grande para la mayoría de casos
+            except (ImportError, AttributeError, NameError):
+                # Si hay algún error, usamos un valor por defecto más largo
+                self.clip_duration = 30.0
         
         # Calcular el desplazamiento basado en el tiempo y la dirección
         # Limitamos el movimiento al 80% del desplazamiento máximo para evitar llegar a los bordes
         movement_range = 0.8
         
+        # Calcular el progreso normalizado (0.0 a 1.0) basado en el tiempo actual
+        # Usamos la duración real del clip o un valor suficientemente grande
+        progress = t / self.clip_duration
+        # Aseguramos que el progreso esté entre 0 y 1
+        progress = max(0.0, min(1.0, progress))
+        
         if self.direction == 'up':
             # Para "up", nos movemos desde abajo hacia arriba (valores de y más pequeños)
             max_movement = max_offset_y * movement_range
-            progress = min(1.0, t / estimated_duration)
             offset_y = start_y + max_offset_y * movement_range * 0.5 - (progress * max_movement)
         elif self.direction == 'down':
             # Para "down", nos movemos desde arriba hacia abajo (valores de y más grandes)
             max_movement = max_offset_y * movement_range
-            progress = min(1.0, t / estimated_duration)
             offset_y = start_y - max_offset_y * movement_range * 0.5 + (progress * max_movement)
         elif self.direction == 'left':
             # Para "left", nos movemos desde derecha hacia izquierda (valores de x más pequeños)
             max_movement = max_offset_x * movement_range
-            progress = min(1.0, t / estimated_duration)
             offset_x = start_x + max_offset_x * movement_range * 0.5 - (progress * max_movement)
         elif self.direction == 'right':
             # Para "right", nos movemos desde izquierda hacia derecha (valores de x más grandes)
             max_movement = max_offset_x * movement_range
-            progress = min(1.0, t / estimated_duration)
             offset_x = start_x - max_offset_x * movement_range * 0.5 + (progress * max_movement)
         
         # Asegurar que los offsets estén dentro de los límites
@@ -167,28 +184,28 @@ class PanEffect(Effect):
 class PanUpEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de abajo hacia arriba sobre la imagen."""
     
-    def __init__(self, speed=0.04, scale_factor=1.2):
+    def __init__(self, speed=0.12, scale_factor=1.2):
         super().__init__(direction='up', speed=speed, scale_factor=scale_factor)
 
 
 class PanDownEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de arriba hacia abajo sobre la imagen."""
     
-    def __init__(self, speed=0.04, scale_factor=1.2):
+    def __init__(self, speed=0.12, scale_factor=1.2):
         super().__init__(direction='down', speed=speed, scale_factor=scale_factor)
 
 
 class PanLeftEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de derecha a izquierda sobre la imagen."""
     
-    def __init__(self, speed=0.04, scale_factor=1.2):
+    def __init__(self, speed=0.12, scale_factor=1.2):
         super().__init__(direction='left', speed=speed, scale_factor=scale_factor)
 
 
 class PanRightEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de izquierda a derecha sobre la imagen."""
     
-    def __init__(self, speed=0.04, scale_factor=1.2):
+    def __init__(self, speed=0.12, scale_factor=1.2):
         super().__init__(direction='right', speed=speed, scale_factor=scale_factor)
 
 
@@ -200,7 +217,7 @@ class KenBurnsEffect(Effect):
     """
     
     def __init__(self, zoom_direction='in', pan_direction='up', 
-                 zoom_ratio=0.03, pan_speed=0.04, scale_factor=1.4):
+                 zoom_ratio=0.05, pan_speed=0.12, scale_factor=1.3):
         """Inicializa el efecto Ken Burns.
         
         Args:

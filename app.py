@@ -77,19 +77,19 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto zoom out a la imagen {i+1}")
             elif tipo_efecto.lower() == 'panup':
-                effect = PanUpEffect(speed=0.05)
+                effect = PanUpEffect(speed=0.15)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan up a la imagen {i+1}")
             elif tipo_efecto.lower() == 'pandown':
-                effect = PanDownEffect(speed=0.05)
+                effect = PanDownEffect(speed=0.15)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan down a la imagen {i+1}")
             elif tipo_efecto.lower() == 'panleft':
-                effect = PanLeftEffect(speed=0.05)
+                effect = PanLeftEffect(speed=0.15)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan left a la imagen {i+1}")
             elif tipo_efecto.lower() == 'panright':
-                effect = PanRightEffect(speed=0.05)
+                effect = PanRightEffect(speed=0.15)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan right a la imagen {i+1}")
             elif tipo_efecto.lower() == 'kenburns':
@@ -174,7 +174,30 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
     # Aplicar audio (música de fondo y/o voz en off)
     audio_clips = []
     
-    # Aplicar música de fondo si se solicita
+    # Aplicar voz en off primero si se solicita
+    if aplicar_voz and archivo_voz and os.path.exists(archivo_voz):
+        print(f"Aplicando voz en off: {os.path.basename(archivo_voz)}")
+        voz = AudioFileClip(archivo_voz)
+        
+        # Ajustar la duración de la voz a la duración del video si es necesario
+        if voz.duration > video_final.duration:
+            voz = voz.subclipped(0, video_final.duration)
+        
+        # Ajustar el volumen
+        voz = voz.with_effects([afx.MultiplyVolume(volumen_voz)])
+        
+        # Aplicar fade in/out a la voz si se solicita
+        if aplicar_fade_in_voz and duracion_fade_in_voz > 0:
+            print(f"Aplicando fade in a la voz con duración {duracion_fade_in_voz} segundos")
+            voz = voz.with_effects([afx.AudioFadeIn(duracion_fade_in_voz)])
+        
+        if aplicar_fade_out_voz and duracion_fade_out_voz > 0:
+            print(f"Aplicando fade out a la voz con duración {duracion_fade_out_voz} segundos")
+            voz = voz.with_effects([afx.AudioFadeOut(duracion_fade_out_voz)])
+        
+        audio_clips.append(voz)
+    
+    # Aplicar música de fondo después si se solicita
     if aplicar_musica and archivo_musica and os.path.exists(archivo_musica):
         print(f"Aplicando música de fondo: {os.path.basename(archivo_musica)}")
         musica = AudioFileClip(archivo_musica)
@@ -200,29 +223,6 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
             musica = musica.with_effects([afx.AudioFadeOut(duracion_fade_out_musica)])
         
         audio_clips.append(musica)
-    
-    # Aplicar voz en off si se solicita
-    if aplicar_voz and archivo_voz and os.path.exists(archivo_voz):
-        print(f"Aplicando voz en off: {os.path.basename(archivo_voz)}")
-        voz = AudioFileClip(archivo_voz)
-        
-        # Ajustar la duración de la voz a la duración del video si es necesario
-        if voz.duration > video_final.duration:
-            voz = voz.subclipped(0, video_final.duration)
-        
-        # Ajustar el volumen
-        voz = voz.with_effects([afx.MultiplyVolume(volumen_voz)])
-        
-        # Aplicar fade in/out a la voz si se solicita
-        if aplicar_fade_in_voz and duracion_fade_in_voz > 0:
-            print(f"Aplicando fade in a la voz con duración {duracion_fade_in_voz} segundos")
-            voz = voz.with_effects([afx.AudioFadeIn(duracion_fade_in_voz)])
-        
-        if aplicar_fade_out_voz and duracion_fade_out_voz > 0:
-            print(f"Aplicando fade out a la voz con duración {duracion_fade_out_voz} segundos")
-            voz = voz.with_effects([afx.AudioFadeOut(duracion_fade_out_voz)])
-        
-        audio_clips.append(voz)
     
     # Combinar los clips de audio y aplicarlos al video
     if audio_clips:
