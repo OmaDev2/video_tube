@@ -78,7 +78,7 @@ class ZoomEffect(Effect):
 class PanEffect(Effect):
     """Efecto base para los efectos de paneo que mueve una 'cámara virtual' sobre una imagen."""
     
-    def __init__(self, direction='up', speed=0.12, scale_factor=1.2, clip_duration=None):
+    def __init__(self, direction='up', speed=0.25, scale_factor=1.5, clip_duration=None, easing=True, quality='high'):
         """Inicializa el efecto de paneo.
         
         Args:
@@ -88,11 +88,15 @@ class PanEffect(Effect):
             scale_factor: Factor para redimensionar la imagen original antes del paneo.
                          Valores más altos permiten más movimiento pero pueden reducir calidad.
             clip_duration: Duración del clip en segundos. Si no se proporciona, se intentará estimar.
+            easing: Si se debe aplicar suavizado al movimiento.
+            quality: Calidad del redimensionado ('high' para LANCZOS, 'medium' para BILINEAR).
         """
         self.direction = direction.lower()
         self.speed = speed
         self.scale_factor = scale_factor
         self.clip_duration = clip_duration
+        self.easing = easing
+        self.resample_mode = Resampling.LANCZOS if quality == 'high' else Resampling.BILINEAR
         
     def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
         # Obtener el frame
@@ -107,7 +111,7 @@ class PanEffect(Effect):
         )
         
         # Redimensionar la imagen original para tener más área para el paneo
-        scaled_img = img.resize(scaled_size, Resampling.LANCZOS)
+        scaled_img = img.resize(scaled_size, self.resample_mode)
         
         # Calcular el desplazamiento máximo posible (el rango en el que podemos movernos)
         max_offset_x = scaled_size[0] - base_size[0]
@@ -148,22 +152,34 @@ class PanEffect(Effect):
         # Aseguramos que el progreso esté entre 0 y 1
         progress = max(0.0, min(1.0, progress))
         
+        if self.easing:
+            # Aplicar curva de aceleración/desaceleración (ease in-out)
+            # Esto hace que el movimiento sea más natural
+            if progress < 0.5:
+                # Aceleración inicial (ease in)
+                ease_factor = 2 * progress * progress
+            else:
+                # Desaceleración final (ease out)
+                ease_factor = -1 + (4 * progress) - (2 * progress * progress)
+        else:
+            ease_factor = progress
+        
         if self.direction == 'up':
             # Para "up", nos movemos desde abajo hacia arriba (valores de y más pequeños)
             max_movement = max_offset_y * movement_range
-            offset_y = start_y + max_offset_y * movement_range * 0.5 - (progress * max_movement)
+            offset_y = start_y + max_offset_y * movement_range * 0.5 - (ease_factor * max_movement)
         elif self.direction == 'down':
             # Para "down", nos movemos desde arriba hacia abajo (valores de y más grandes)
             max_movement = max_offset_y * movement_range
-            offset_y = start_y - max_offset_y * movement_range * 0.5 + (progress * max_movement)
+            offset_y = start_y - max_offset_y * movement_range * 0.5 + (ease_factor * max_movement)
         elif self.direction == 'left':
             # Para "left", nos movemos desde derecha hacia izquierda (valores de x más pequeños)
             max_movement = max_offset_x * movement_range
-            offset_x = start_x + max_offset_x * movement_range * 0.5 - (progress * max_movement)
+            offset_x = start_x + max_offset_x * movement_range * 0.5 - (ease_factor * max_movement)
         elif self.direction == 'right':
             # Para "right", nos movemos desde izquierda hacia derecha (valores de x más grandes)
             max_movement = max_offset_x * movement_range
-            offset_x = start_x - max_offset_x * movement_range * 0.5 + (progress * max_movement)
+            offset_x = start_x - max_offset_x * movement_range * 0.5 + (ease_factor * max_movement)
         
         # Asegurar que los offsets estén dentro de los límites
         offset_x = max(0, min(max_offset_x, offset_x))
@@ -197,29 +213,33 @@ class PanEffect(Effect):
 class PanUpEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de abajo hacia arriba sobre la imagen."""
     
-    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None):
-        super().__init__(direction='up', speed=speed, scale_factor=scale_factor, clip_duration=clip_duration)
+    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None, easing=True, quality='high'):
+        super().__init__(direction='up', speed=speed, scale_factor=scale_factor, 
+                        clip_duration=clip_duration, easing=easing, quality=quality)
 
 
 class PanDownEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de arriba hacia abajo sobre la imagen."""
     
-    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None):
-        super().__init__(direction='down', speed=speed, scale_factor=scale_factor, clip_duration=clip_duration)
+    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None, easing=True, quality='high'):
+        super().__init__(direction='down', speed=speed, scale_factor=scale_factor, 
+                        clip_duration=clip_duration, easing=easing, quality=quality)
 
 
 class PanLeftEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de derecha a izquierda sobre la imagen."""
     
-    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None):
-        super().__init__(direction='left', speed=speed, scale_factor=scale_factor, clip_duration=clip_duration)
+    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None, easing=True, quality='high'):
+        super().__init__(direction='left', speed=speed, scale_factor=scale_factor, 
+                        clip_duration=clip_duration, easing=easing, quality=quality)
 
 
 class PanRightEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de izquierda a derecha sobre la imagen."""
     
-    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None):
-        super().__init__(direction='right', speed=speed, scale_factor=scale_factor, clip_duration=clip_duration)
+    def __init__(self, speed=0.12, scale_factor=1.2, clip_duration=None, easing=True, quality='high'):
+        super().__init__(direction='right', speed=speed, scale_factor=scale_factor, 
+                        clip_duration=clip_duration, easing=easing, quality=quality)
 
 
 class KenBurnsEffect(Effect):

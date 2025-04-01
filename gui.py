@@ -113,6 +113,30 @@ class VideoCreatorApp:
         self.aplicar_fade_out_voz = tk.BooleanVar(value=False)
         self.duracion_fade_out_voz = tk.DoubleVar(value=1.0)
         
+        # Variables para los ajustes de efectos
+        # ZoomEffect
+        self.settings_zoom_ratio = tk.DoubleVar(value=0.5)
+        self.settings_zoom_quality = tk.StringVar(value='high')
+        
+        # PanEffect (común para Up/Down/Left/Right)
+        self.settings_pan_scale_factor = tk.DoubleVar(value=1.2)
+        self.settings_pan_easing = tk.BooleanVar(value=True)
+        self.settings_pan_quality = tk.StringVar(value='high')
+        
+        # KenBurnsEffect
+        self.settings_kb_zoom_ratio = tk.DoubleVar(value=0.3)
+        self.settings_kb_scale_factor = tk.DoubleVar(value=1.3)
+        self.settings_kb_quality = tk.StringVar(value='high')
+        self.settings_kb_direction = tk.StringVar(value='random')
+        
+        # Transiciones
+        self.settings_transition_duration = tk.DoubleVar(value=1.0)
+        self.settings_transition_type = tk.StringVar(value='fade')
+        
+        # Overlay Effects
+        self.settings_overlay_opacity = tk.DoubleVar(value=0.8)
+        self.settings_overlay_blend_mode = tk.StringVar(value='normal')
+        
         # Variable para controlar la cancelación del proceso
         self.proceso_cancelado = False
         self.pbar = None
@@ -158,6 +182,10 @@ class VideoCreatorApp:
         tab_preview = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_preview, text="Vista Previa")
         
+        # Pestaña de ajustes de efectos
+        tab_settings = ttk.Frame(notebook, style="Card.TFrame")
+        notebook.add(tab_settings, text="Ajustes de Efectos")
+        
         # Configurar cada pestaña
         self.configurar_tab_basico(tab_basico)
         self.configurar_tab_efectos(tab_efectos)
@@ -166,6 +194,7 @@ class VideoCreatorApp:
         self.configurar_tab_overlay(tab_overlay)
         self.configurar_tab_audio(tab_audio)
         self.configurar_tab_preview(tab_preview)
+        self.configurar_tab_settings(tab_settings)
         
         # Botón para crear el video (en la parte inferior)
         frame_botones = ttk.Frame(self.root)
@@ -705,6 +734,151 @@ class VideoCreatorApp:
         # Variable para almacenar la imagen actual (para evitar que sea eliminada por el recolector de basura)
         self.imagen_actual = None
     
+    def configurar_tab_settings(self, tab):
+        """Configura la pestaña de ajustes de efectos"""
+        # Crear un canvas con scrollbar para manejar muchos widgets
+        canvas = tk.Canvas(tab, background="#34495e", highlightthickness=0)
+        scrollbar = ttk.Scrollbar(tab, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas, style="Card.TFrame")
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # --- Ajustes ZoomEffect ---
+        frame_zoom = ttk.LabelFrame(scrollable_frame, text="Zoom Effect", style="Card.TLabelframe")
+        frame_zoom.pack(fill="x", padx=10, pady=5)
+
+        # Ratio de zoom
+        lbl_zoom_ratio = ttk.Label(frame_zoom, text="Ratio de zoom:")
+        lbl_zoom_ratio.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        spin_zoom = ttk.Spinbox(frame_zoom, from_=0.1, to=2.0, increment=0.1, 
+                              textvariable=self.settings_zoom_ratio, width=8)
+        spin_zoom.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        
+        # Calidad
+        lbl_zoom_quality = ttk.Label(frame_zoom, text="Calidad:")
+        lbl_zoom_quality.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        combo_zoom_quality = ttk.Combobox(frame_zoom, textvariable=self.settings_zoom_quality, 
+                                        values=["low", "medium", "high"], width=8)
+        combo_zoom_quality.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        
+        # --- Ajustes PanEffect ---
+        frame_pan = ttk.LabelFrame(scrollable_frame, text="Pan Effect", style="Card.TLabelframe")
+        frame_pan.pack(fill="x", padx=10, pady=5)
+        
+        # Factor de escala
+        lbl_pan_scale = ttk.Label(frame_pan, text="Factor de escala:")
+        lbl_pan_scale.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        spin_pan_scale = ttk.Spinbox(frame_pan, from_=1.0, to=2.0, increment=0.1, 
+                                   textvariable=self.settings_pan_scale_factor, width=8)
+        spin_pan_scale.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        
+        # Easing
+        chk_pan_easing = ttk.Checkbutton(frame_pan, text="Easing (suavizado)", 
+                                       variable=self.settings_pan_easing)
+        chk_pan_easing.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky="w")
+        
+        # Calidad
+        lbl_pan_quality = ttk.Label(frame_pan, text="Calidad:")
+        lbl_pan_quality.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        
+        combo_pan_quality = ttk.Combobox(frame_pan, textvariable=self.settings_pan_quality, 
+                                       values=["low", "medium", "high"], width=8)
+        combo_pan_quality.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        
+        # --- Ajustes KenBurnsEffect ---
+        frame_kb = ttk.LabelFrame(scrollable_frame, text="Ken Burns Effect", style="Card.TLabelframe")
+        frame_kb.pack(fill="x", padx=10, pady=5)
+        
+        # Ratio de zoom
+        lbl_kb_zoom = ttk.Label(frame_kb, text="Ratio de zoom:")
+        lbl_kb_zoom.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        spin_kb_zoom = ttk.Spinbox(frame_kb, from_=0.1, to=1.0, increment=0.1, 
+                                 textvariable=self.settings_kb_zoom_ratio, width=8)
+        spin_kb_zoom.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        
+        # Factor de escala
+        lbl_kb_scale = ttk.Label(frame_kb, text="Factor de escala:")
+        lbl_kb_scale.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        spin_kb_scale = ttk.Spinbox(frame_kb, from_=1.0, to=2.0, increment=0.1, 
+                                  textvariable=self.settings_kb_scale_factor, width=8)
+        spin_kb_scale.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        
+        # Dirección
+        lbl_kb_direction = ttk.Label(frame_kb, text="Dirección:")
+        lbl_kb_direction.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        
+        combo_kb_direction = ttk.Combobox(frame_kb, textvariable=self.settings_kb_direction, 
+                                        values=["random", "in", "out", "left", "right", "up", "down"], width=8)
+        combo_kb_direction.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        
+        # Calidad
+        lbl_kb_quality = ttk.Label(frame_kb, text="Calidad:")
+        lbl_kb_quality.grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        
+        combo_kb_quality = ttk.Combobox(frame_kb, textvariable=self.settings_kb_quality, 
+                                      values=["low", "medium", "high"], width=8)
+        combo_kb_quality.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+        
+        # --- Ajustes Transiciones ---
+        frame_transition = ttk.LabelFrame(scrollable_frame, text="Transiciones", style="Card.TLabelframe")
+        frame_transition.pack(fill="x", padx=10, pady=5)
+        
+        # Duración
+        lbl_transition_duration = ttk.Label(frame_transition, text="Duración (s):")
+        lbl_transition_duration.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        spin_transition_duration = ttk.Spinbox(frame_transition, from_=0.5, to=3.0, increment=0.5, 
+                                             textvariable=self.settings_transition_duration, width=8)
+        spin_transition_duration.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        
+        # Tipo
+        lbl_transition_type = ttk.Label(frame_transition, text="Tipo:")
+        lbl_transition_type.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        combo_transition_type = ttk.Combobox(frame_transition, textvariable=self.settings_transition_type, 
+                                           values=["none", "dissolve"], width=10)
+        combo_transition_type.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        combo_transition_type.current(1)  # Seleccionar 'dissolve' por defecto
+        
+        # --- Ajustes Overlay ---
+        frame_overlay = ttk.LabelFrame(scrollable_frame, text="Overlay Effects", style="Card.TLabelframe")
+        frame_overlay.pack(fill="x", padx=10, pady=5)
+        
+        # Opacidad
+        lbl_overlay_opacity = ttk.Label(frame_overlay, text="Opacidad:")
+        lbl_overlay_opacity.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        spin_overlay_opacity = ttk.Spinbox(frame_overlay, from_=0.1, to=1.0, increment=0.1, 
+                                         textvariable=self.settings_overlay_opacity, width=8)
+        spin_overlay_opacity.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        
+        # Modo de mezcla
+        lbl_overlay_blend = ttk.Label(frame_overlay, text="Modo de mezcla:")
+        lbl_overlay_blend.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        combo_overlay_blend = ttk.Combobox(frame_overlay, textvariable=self.settings_overlay_blend_mode, 
+                                         values=["normal", "overlay", "screen", "multiply"], width=10)
+        combo_overlay_blend.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        
+        # Información de ayuda
+        lbl_info = ttk.Label(scrollable_frame, text="Estos ajustes se aplicarán a todos los efectos del mismo tipo.", 
+                           wraplength=400)
+        lbl_info.pack(padx=10, pady=10)
+    
     def seleccionar_directorio(self):
         directorio = filedialog.askdirectory(title="Seleccionar directorio de imágenes")
         if directorio:
@@ -850,7 +1024,7 @@ class VideoCreatorApp:
             self.lbl_estado.config(text=f"Se han seleccionado {len(self.overlays_seleccionados)} overlays")
             
             # Actualizar la etiqueta con los nombres de los overlays seleccionados
-            nombres_overlays = [os.path.basename(o) for o in self.overlays_seleccionados]
+            nombres_overlays = [os.path.basename(path) for path in self.overlays_seleccionados]
             if len(nombres_overlays) <= 3:
                 texto_overlays = "Seleccionados: " + ", ".join(nombres_overlays)
             else:
@@ -922,160 +1096,143 @@ class VideoCreatorApp:
             self.mostrar_imagen_actual()
     
     def crear_video(self):
-        # Verificar que se ha seleccionado un directorio
-        if not self.directorio_imagenes.get():
-            messagebox.showerror("Error", "Debes seleccionar un directorio con imágenes")
-            return
-        
-        # Verificar que hay imágenes en el directorio
         if not self.imagenes:
-            messagebox.showerror("Error", "No se encontraron imágenes en el directorio seleccionado")
+            messagebox.showerror("Error", "Por favor, selecciona al menos una imagen")
             return
-        
-        # Verificar que se ha especificado un archivo de salida
-        if not self.archivo_salida.get():
-            messagebox.showerror("Error", "Debes especificar un nombre para el archivo de salida")
-            return
-        
-        # Preparar la secuencia de efectos según el modo seleccionado
-        secuencia_efectos = None
-        if self.aplicar_efectos.get():
-            modo = self.modo_efecto.get()
-            
-            if modo == "4":  # Secuencia Ken Burns predefinida
-                secuencia_efectos = ['kenburns', 'kenburns1', 'kenburns2', 'kenburns3']
-            elif modo == "3":  # Alternar in/out
-                secuencia_efectos = ['in', 'out']
-            elif modo == "2":  # Secuencia personalizada
-                # Usar la secuencia generada por los checkboxes
-                if self.secuencia_efectos.get():
-                    secuencia_efectos = self.secuencia_efectos.get().split(',')
-                else:
-                    messagebox.showwarning("Advertencia", "No has seleccionado efectos para la secuencia. Se usará zoom in por defecto.")
-                    secuencia_efectos = ['in']
-            else:  # Un solo tipo de efecto
-                secuencia_efectos = [self.tipo_efecto.get()]
-        
-        # Preparar los overlays seleccionados
-        archivos_overlay = []
-        if self.aplicar_overlay.get():
-            if not self.overlays_seleccionados:
-                # Si no hay overlays seleccionados pero se quiere aplicar overlay, buscar overlays disponibles
-                overlay_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'overlays')
-                overlays_disponibles = OverlayEffect.get_available_overlays(overlay_dir)
-                
-                if overlays_disponibles:
-                    # Usar el primer overlay disponible si no hay ninguno seleccionado
-                    self.overlays_seleccionados = [os.path.join(overlay_dir, overlays_disponibles[0])]
-                    print(f"Usando overlay por defecto: {overlays_disponibles[0]}")
-                else:
-                    messagebox.showwarning("Advertencia", "Has seleccionado aplicar overlay pero no hay archivos de overlay disponibles.\nSe creará el video sin overlay.")
-            else:
-                archivos_overlay = self.overlays_seleccionados
-        
-        # Mostrar información sobre los overlays
-        if self.aplicar_overlay.get() and archivos_overlay:
-            overlay_names = [os.path.basename(path) for path in archivos_overlay]
-            print(f"Overlays seleccionados: {overlay_names}")
-        
-        # Preparar la configuración de audio
-        archivo_musica = self.archivo_musica.get() if self.aplicar_musica.get() else None
-        archivo_voz = self.archivo_voz.get() if self.aplicar_voz.get() else None
-        
-        # Mostrar la barra de progreso
-        self.progress.start()
-        self.lbl_estado.config(text="Creando video...")
-        self.proceso_cancelado = False
-        
-        # Crear el video en un hilo separado para no bloquear la interfaz
+
+        # Recoger los ajustes actuales
+        current_settings = {
+            'zoom_ratio': self.settings_zoom_ratio.get(),
+            'zoom_quality': self.settings_zoom_quality.get(),
+            'pan_scale_factor': self.settings_pan_scale_factor.get(),
+            'pan_easing': self.settings_pan_easing.get(),
+            'pan_quality': self.settings_pan_quality.get(),
+            'kb_zoom_ratio': self.settings_kb_zoom_ratio.get(),
+            'kb_scale_factor': self.settings_kb_scale_factor.get(),
+            'kb_quality': self.settings_kb_quality.get(),
+            'kb_direction': self.settings_kb_direction.get(),
+            'transition_duration': self.settings_transition_duration.get(),
+            'transition_type': self.settings_transition_type.get(),
+            'overlay_opacity': self.settings_overlay_opacity.get(),
+            'overlay_blend_mode': self.settings_overlay_blend_mode.get()
+        }
+
+        # Obtener la secuencia de efectos
+        secuencia_efectos = self.obtener_secuencia_efectos()
+
+        # Crear el hilo para procesar el video
         thread = threading.Thread(
             target=self.procesar_video,
-            args=(self.directorio_imagenes.get(), self.archivo_salida.get(), 
-                  self.duracion_img.get(), self.fps.get(), 
-                  self.aplicar_efectos.get(), secuencia_efectos,
-                  self.aplicar_transicion.get(), self.tipo_transicion.get(), self.duracion_transicion.get(),
-                  self.aplicar_fade_in.get(), self.duracion_fade_in.get(), 
-                  self.aplicar_fade_out.get(), self.duracion_fade_out.get(),
-                  self.aplicar_overlay.get(), archivos_overlay, self.opacidad_overlay.get(),
-                  self.aplicar_musica.get(), archivo_musica, self.volumen_musica.get(),
-                  self.aplicar_fade_in_musica.get(), self.duracion_fade_in_musica.get(),
-                  self.aplicar_fade_out_musica.get(), self.duracion_fade_out_musica.get(),
-                  self.aplicar_voz.get(), archivo_voz, self.volumen_voz.get(),
-                  self.aplicar_fade_in_voz.get(), self.duracion_fade_in_voz.get(),
-                  self.aplicar_fade_out_voz.get(), self.duracion_fade_out_voz.get())
+            args=(
+                self.imagenes,
+                self.duracion_img.get(),
+                self.aplicar_efectos.get(),
+                secuencia_efectos,
+                self.aplicar_transicion.get(),
+                self.archivo_musica.get() if self.aplicar_musica.get() else None,
+                self.overlays_seleccionados if hasattr(self, 'overlays_seleccionados') and self.aplicar_overlay.get() else None,
+                current_settings
+            )
         )
         thread.daemon = True
         thread.start()
     
-    def procesar_video(self, directorio, archivo_salida, duracion, fps, 
-                      aplicar_efectos, secuencia_efectos,
-                      aplicar_transicion, tipo_transicion, duracion_transicion,
-                      aplicar_fade_in, duracion_fade_in, 
-                      aplicar_fade_out, duracion_fade_out,
-                      aplicar_overlay, archivos_overlay, opacidad_overlay,
-                      aplicar_musica=False, archivo_musica=None, volumen_musica=1.0,
-                      aplicar_fade_in_musica=False, duracion_fade_in_musica=2.0,
-                      aplicar_fade_out_musica=False, duracion_fade_out_musica=2.0,
-                      aplicar_voz=False, archivo_voz=None, volumen_voz=1.0,
-                      aplicar_fade_in_voz=False, duracion_fade_in_voz=1.0,
-                      aplicar_fade_out_voz=False, duracion_fade_out_voz=1.0):
+    def obtener_secuencia_efectos(self):
+        """Obtiene la lista de efectos seleccionados para la secuencia"""
+        if self.aplicar_efectos.get():
+            # Si estamos en modo de un solo efecto (modo_efecto = 1), devolver ese efecto para todas las imágenes
+            if self.modo_efecto.get() == "1":
+                return [self.tipo_efecto.get()] * len(self.imagenes)
+            # Si estamos en modo secuencia (modo_efecto = 2), devolver la secuencia de efectos
+            elif self.modo_efecto.get() == "2":
+                secuencia = self.secuencia_efectos.get().split(',') if self.secuencia_efectos.get() else []
+                if not secuencia:
+                    return None
+                # Si hay menos efectos que imágenes, repetir la secuencia
+                if len(secuencia) < len(self.imagenes):
+                    repeticiones = (len(self.imagenes) // len(secuencia)) + 1
+                    secuencia = secuencia * repeticiones
+                return secuencia[:len(self.imagenes)]
+            # Si estamos en modo alternar in/out (modo_efecto = 3)
+            elif self.modo_efecto.get() == "3":
+                return ['in', 'out'] * (len(self.imagenes) // 2 + 1)
+            # Si estamos en modo Ken Burns predefinido (modo_efecto = 4)
+            elif self.modo_efecto.get() == "4":
+                secuencia = ['kenburns', 'kenburns1', 'kenburns2', 'kenburns3']
+                repeticiones = (len(self.imagenes) // len(secuencia)) + 1
+                return (secuencia * repeticiones)[:len(self.imagenes)]
+        return None
+    
+    def procesar_video(self, imagenes, duracion_img, aplicar_efectos, efectos, aplicar_transicion, 
+                      audio_file=None, overlays=None, settings=None):
         try:
-            # Obtener la cantidad de imágenes para la barra de progreso
-            formatos = ['*.jpg', '*.jpeg', '*.png', '*.bmp']
-            archivos = []
-            for formato in formatos:
-                archivos.extend(glob(os.path.join(directorio, formato)))
+            # Actualizar el estado
+            self.root.after(0, lambda: self.lbl_estado.config(
+                text="Creando video... Por favor, espere."
+            ))
+
+            # Configurar parámetros para la función crear_video_desde_imagenes
+            directorio_imagenes = os.path.dirname(imagenes[0]) if imagenes else ""
+            archivo_salida = "video_salida.mp4"
+            tipo_transicion = settings.get('transition_type', 'dissolve') if settings else 'dissolve'
             
-            total_imagenes = len(archivos)
-            
-            if total_imagenes == 0:
-                self.root.after(0, self.finalizar_proceso, False, "No se encontraron imágenes en el directorio seleccionado")
-                return
-            
-            # Variable para controlar si el proceso fue cancelado
-            self.proceso_cancelado = False
-            
-            # Crear una ventana de progreso con tqdm_tk
-            self.pbar = tqdm_tk(total=total_imagenes, desc="Creando video", 
-                          tk_parent=self.root, grab=False,
-                          cancel_callback=self.cancelar_proceso)
-            
-            # Definir una función de callback para actualizar la barra de progreso
-            def update_progress(n, total):
-                if not self.proceso_cancelado:
-                    self.pbar.update(n)
-                    self.pbar.refresh()
-                    # Actualizar la etiqueta de estado con el progreso actual
-                    progreso = min(100, int((self.pbar.n / self.pbar.total) * 100))
-                    self.root.after(0, lambda: self.lbl_estado.config(text=f"Procesando... {progreso}% completado"))
-            
-            # Llamar a la función de creación de video con la barra de progreso
+            # Asegurarse de que el tipo de transición sea uno de los disponibles
+            if tipo_transicion not in ["none", "dissolve"]:
+                print(f"Tipo de transición '{tipo_transicion}' no reconocido. Usando 'dissolve' por defecto.")
+                tipo_transicion = "dissolve"
+                
+            duracion_transicion = settings.get('transition_duration', 1.0) if settings else 1.0
+            opacidad_overlay = settings.get('overlay_opacity', 0.8) if settings else 0.8
+
+            # Crear el video
             crear_video_desde_imagenes(
-                directorio, archivo_salida, duracion, fps, 
-                aplicar_efectos, secuencia_efectos,
-                aplicar_transicion, tipo_transicion, duracion_transicion,
-                aplicar_fade_in, duracion_fade_in, 
-                aplicar_fade_out, duracion_fade_out,
-                aplicar_overlay, archivos_overlay, opacidad_overlay,
-                aplicar_musica, archivo_musica, volumen_musica,
-                aplicar_fade_in_musica, duracion_fade_in_musica,
-                aplicar_fade_out_musica, duracion_fade_out_musica,
-                aplicar_voz, archivo_voz, volumen_voz,
-                aplicar_fade_in_voz, duracion_fade_in_voz,
-                aplicar_fade_out_voz, duracion_fade_out_voz,
-                progress_callback=update_progress
+                directorio_imagenes=directorio_imagenes,
+                archivo_salida=archivo_salida,
+                duracion_img=duracion_img,
+                fps=24,
+                aplicar_efectos=aplicar_efectos,
+                secuencia_efectos=efectos,
+                aplicar_transicion=aplicar_transicion,
+                tipo_transicion=tipo_transicion,
+                duracion_transicion=duracion_transicion,
+                aplicar_overlay=bool(overlays),
+                archivos_overlay=overlays,
+                opacidad_overlay=opacidad_overlay,
+                aplicar_musica=bool(audio_file),
+                archivo_musica=audio_file,
+                volumen_musica=self.volumen_musica.get(),
+                aplicar_fade_in_musica=self.aplicar_fade_in_musica.get(),
+                duracion_fade_in_musica=self.duracion_fade_in_musica.get(),
+                aplicar_fade_out_musica=self.aplicar_fade_out_musica.get(),
+                duracion_fade_out_musica=self.duracion_fade_out_musica.get(),
+                # Parámetros para la voz en off
+                aplicar_voz=self.aplicar_voz.get(),
+                archivo_voz=self.archivo_voz.get() if self.aplicar_voz.get() else None,
+                volumen_voz=self.volumen_voz.get(),
+                aplicar_fade_in_voz=self.aplicar_fade_in_voz.get(),
+                duracion_fade_in_voz=self.duracion_fade_in_voz.get(),
+                aplicar_fade_out_voz=self.aplicar_fade_out_voz.get(),
+                duracion_fade_out_voz=self.duracion_fade_out_voz.get(),
+                # Pasar los ajustes personalizados
+                settings=settings,
+                # Parámetros para fade in/out del video
+                aplicar_fade_in=self.aplicar_fade_in.get(),
+                duracion_fade_in=self.duracion_fade_in.get(),
+                aplicar_fade_out=self.aplicar_fade_out.get(),
+                duracion_fade_out=self.duracion_fade_out.get()
             )
-            
-            # Cerrar la barra de progreso si no fue cancelado
-            if not self.proceso_cancelado:
-                self.pbar.close()
-                # Actualizar la interfaz cuando termine
-                self.root.after(0, self.finalizar_proceso, True, f"Video creado exitosamente: {archivo_salida}")
+
+            # Actualizar el estado al finalizar
+            self.root.after(0, lambda: self.lbl_estado.config(
+                text="¡Video creado con éxito!"
+            ))
+            messagebox.showinfo("Éxito", "El video se ha creado correctamente")
+
         except Exception as e:
-            # Manejar errores
-            if hasattr(self, 'pbar'):
-                self.pbar.close()
-            self.root.after(0, self.finalizar_proceso, False, f"Error al crear el video: {str(e)}")
+            messagebox.showerror("Error", f"Error al crear el video: {str(e)}")
+            self.root.after(0, lambda: self.lbl_estado.config(
+                text="Error al crear el video"
+            ))
     
     def finalizar_proceso(self, exito, mensaje):
         # Detener la barra de progreso
