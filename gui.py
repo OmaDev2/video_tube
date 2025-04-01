@@ -20,12 +20,12 @@ class VideoCreatorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Video Creator")
-        self.root.geometry("900x820")
+        self.root.geometry("900x950")
         
         # Configurar el tema y estilo
         self.style = ttk.Style()
         self.style.configure("TFrame", background="#2c3e50")
-        self.style.configure("TLabel", background="#2c3e50", font=("Helvetica", 10), foreground="white")
+        self.style.configure("TLabel", background="#2c3e50", font=("Helvetica", 12), foreground="white")
         self.style.configure("TButton", padding=6, relief="flat", background="#4a90e2", foreground="white")
         self.style.map("TButton",
             foreground=[("pressed", "white"), ("active", "white")],
@@ -136,7 +136,7 @@ class VideoCreatorApp:
         
         # Pestaña de efectos
         tab_efectos = ttk.Frame(notebook, style="Card.TFrame")
-        notebook.add(tab_efectos, text="Efectos de Zoom")
+        notebook.add(tab_efectos, text="Efectos Visuales")
         
         # Pestaña de transiciones
         tab_transiciones = ttk.Frame(notebook, style="Card.TFrame")
@@ -267,6 +267,7 @@ class VideoCreatorApp:
         
         rb_modo4 = ttk.Radiobutton(frame_opciones, text="Secuencia Ken Burns", variable=self.modo_efecto, value="4")
         rb_modo4.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+       
         
         # Frame para un solo tipo de efecto
         frame_tipo = ttk.LabelFrame(tab, text="Un Solo Tipo de Efecto")
@@ -280,12 +281,23 @@ class VideoCreatorApp:
             ("Pan Down (movimiento hacia abajo)", "pandown"),
             ("Pan Left (movimiento hacia la izquierda)", "panleft"),
             ("Pan Right (movimiento hacia la derecha)", "panright"),
-            ("Ken Burns (efecto cinematográfico)", "kenburns")
+            ("Ken Burns (efecto cinematográfico)", "kenburns"),
+            ("Viñeta Zoom In (acercamiento con viñeta)", "vignette_zoom_in"),
+            ("Viñeta Zoom Out (alejamiento con viñeta)", "vignette_zoom_out"),
+            ("Rotación Horaria", "rotate_clockwise"),
+            ("Rotación Antihoraria", "rotate_counter_clockwise")
         ]
-        
-        for i, (texto, valor) in enumerate(tipos_efectos):
+        row_num = 0
+        for texto, valor in tipos_efectos:
             rb = ttk.Radiobutton(frame_tipo, text=texto, variable=self.tipo_efecto, value=valor)
-            rb.grid(row=i, column=0, padx=5, pady=3, sticky="w")
+            rb.grid(row=row_num, column=0, padx=5, pady=3, sticky="w")
+            row_num += 1
+        # Dentro del frame_tipo en configurar_tab_efectos
+        rb_flip_h = ttk.Radiobutton(frame_tipo, text="Voltear Horizontalmente", variable=self.tipo_efecto, value="flip_horizontal")
+        rb_flip_h.grid(row=row_num, column=0, padx=5, pady=3, sticky="w") # Ajusta el número de fila
+
+        rb_flip_v = ttk.Radiobutton(frame_tipo, text="Voltear Verticalmente", variable=self.tipo_efecto, value="flip_vertical")
+        rb_flip_v.grid(row=row_num, column=0, padx=5, pady=3, sticky="w") # Ajusta el número de fila
         
         # Frame para secuencia personalizada
         frame_secuencia = ttk.LabelFrame(tab, text="Secuencia Personalizada")
@@ -309,7 +321,13 @@ class VideoCreatorApp:
             'kenburns': tk.BooleanVar(),
             'kenburns1': tk.BooleanVar(),
             'kenburns2': tk.BooleanVar(),
-            'kenburns3': tk.BooleanVar()
+            'kenburns3': tk.BooleanVar(),
+            'flip_horizontal': tk.BooleanVar(),
+            'flip_vertical': tk.BooleanVar(),
+            'vignette_zoom_in': tk.BooleanVar(),
+            'vignette_zoom_out': tk.BooleanVar(),
+            'rotate_clockwise': tk.BooleanVar(),
+            'rotate_counter_clockwise': tk.BooleanVar()
         }
         
         # Textos descriptivos para los efectos
@@ -323,11 +341,18 @@ class VideoCreatorApp:
             'kenburns': 'Ken Burns (clásico)',
             'kenburns1': 'Ken Burns 1',
             'kenburns2': 'Ken Burns 2',
-            'kenburns3': 'Ken Burns 3'
+            'kenburns3': 'Ken Burns 3',
+            'flip_horizontal': 'Voltear Horizontal',
+            'flip_vertical': 'Voltear Vertical',
+            'vignette_zoom_in': 'Viñeta Zoom In',
+            'vignette_zoom_out': 'Viñeta Zoom Out',
+            'rotate_clockwise': 'Rotación Horaria',
+            'rotate_counter_clockwise': 'Rotación Antihoraria'
         }
         
         # Crear checkboxes en dos columnas
         efectos_lista = list(self.efecto_checkboxes.keys())
+        efectos_lista.sort()
         mitad = len(efectos_lista) // 2
         
         for i, efecto in enumerate(efectos_lista):

@@ -4,7 +4,7 @@ from moviepy.audio import fx as afx
 import os
 from glob import glob
 # Import the custom effects
-from efectos import ZoomEffect, PanUpEffect, PanDownEffect, PanLeftEffect, PanRightEffect, KenBurnsEffect
+from efectos import ZoomEffect, PanUpEffect, PanDownEffect, PanLeftEffect, FlipEffect, PanRightEffect, KenBurnsEffect, VignetteZoomEffect, RotateEffect
 from transiciones import TransitionEffect
 from overlay_effects import OverlayEffect
 from subtitles import SubtitleEffect
@@ -15,7 +15,7 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
                                aplicar_transicion=False, tipo_transicion='none', duracion_transicion=2.0,
                                aplicar_fade_in=False, duracion_fade_in=2.0,
                                aplicar_fade_out=False, duracion_fade_out=2.0,
-                               aplicar_overlay=False, archivos_overlay=None, opacidad_overlay=0.5,
+                               aplicar_overlay=False, archivos_overlay=None, opacidad_overlay=0.3,
                                aplicar_musica=False, archivo_musica=None, volumen_musica=1.0,
                                aplicar_fade_in_musica=False, duracion_fade_in_musica=2.0,
                                aplicar_fade_out_musica=False, duracion_fade_out_musica=2.0,
@@ -66,30 +66,32 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
             # Si hay menos efectos que clips, se repite la secuencia
             efecto_idx = i % len(secuencia_efectos)
             tipo_efecto = secuencia_efectos[efecto_idx]
+            print(f"DEBUG: Procesando imagen {i+1}, tipo_efecto = '{tipo_efecto}'") 
+            effect = None# Mantenemos el debug
             
             # Aplicar el efecto correspondiente
             if tipo_efecto.lower() == 'in':
-                effect = ZoomEffect(zoom_in=True, ratio=0.04)
+                effect = ZoomEffect(zoom_in=True, ratio=1, clip_duration=duracion_img, quality='high')
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto zoom in a la imagen {i+1}")
             elif tipo_efecto.lower() == 'out':
-                effect = ZoomEffect(zoom_in=False, ratio=0.04)
+                effect = ZoomEffect(zoom_in=False, ratio=1, clip_duration=duracion_img, quality='high')
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto zoom out a la imagen {i+1}")
             elif tipo_efecto.lower() == 'panup':
-                effect = PanUpEffect(speed=0.15, clip_duration=duracion_img)
+                effect = PanUpEffect(speed=0.25, clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan up a la imagen {i+1}")
             elif tipo_efecto.lower() == 'pandown':
-                effect = PanDownEffect(speed=0.15, clip_duration=duracion_img)
+                effect = PanDownEffect(speed=0.25, clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan down a la imagen {i+1}")
             elif tipo_efecto.lower() == 'panleft':
-                effect = PanLeftEffect(speed=0.15, clip_duration=duracion_img)
+                effect = PanLeftEffect(speed=0.25, clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan left a la imagen {i+1}")
             elif tipo_efecto.lower() == 'panright':
-                effect = PanRightEffect(speed=0.15, clip_duration=duracion_img)
+                effect = PanRightEffect(speed=0.25, clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto pan right a la imagen {i+1}")
             elif tipo_efecto.lower() == 'kenburns':
@@ -112,7 +114,46 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
                 effect = KenBurnsEffect(zoom_direction='out', pan_direction='down', clip_duration=duracion_img)
                 clip = clip.transform(effect.apply)
                 print(f"Aplicando efecto Ken Burns (variante 3) a la imagen {i+1}")
-            else:
+            
+            elif tipo_efecto.lower() == 'flip_horizontal':
+                 effect = FlipEffect(direction='horizontal')
+                # Nota: FlipEffect no necesita clip_duration
+                 if effect:
+                    clip = clip.transform(effect.apply)
+                    print(f"Aplicando efecto flip_horizontal a la imagen {i+1}")
+
+            elif tipo_efecto.lower() == 'flip_vertical':
+                 effect = FlipEffect(direction='vertical')
+    # Nota: FlipEffect no necesita clip_duration
+                 if effect:
+                    clip = clip.transform(effect.apply)
+                    print(f"Aplicando efecto flip_vertical a la imagen {i+1}")
+            
+            elif tipo_efecto.lower() == 'vignette_zoom_in':
+                effect = VignetteZoomEffect(zoom_in=True, zoom_ratio=0.05,
+                                 vignette_strength=0.7, vignette_radius=0.8,
+                                 vignette_fade_duration=2.0, clip_duration=duracion_img)
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto vignette_zoom_in a la imagen {i+1}")
+                
+            elif tipo_efecto.lower() == 'vignette_zoom_out':
+                effect = VignetteZoomEffect(zoom_in=False, zoom_ratio=0.05,
+                                 vignette_strength=0.7, vignette_radius=0.8,
+                                 vignette_fade_duration=2.0, clip_duration=duracion_img)
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto vignette_zoom_out a la imagen {i+1}")
+            
+            elif tipo_efecto.lower() == 'rotate_clockwise':
+                effect = RotateEffect(speed=30, direction='clockwise', clip_duration=duracion_img)
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto de rotación en sentido horario a la imagen {i+1}")
+                
+            elif tipo_efecto.lower() == 'rotate_counter_clockwise':
+                effect = RotateEffect(speed=30, direction='counter-clockwise', clip_duration=duracion_img)
+                clip = clip.transform(effect.apply)
+                print(f"Aplicando efecto de rotación en sentido antihorario a la imagen {i+1}")
+            
+            elif effect is None:
                 print(f"Tipo de efecto desconocido: {tipo_efecto}")
         
         clips.append(clip)

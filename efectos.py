@@ -1,67 +1,79 @@
 from collections.abc import Callable
 from moviepy import *
-from PIL import Image
+from PIL import Image, ImageEnhance
 from PIL.Image import Resampling
 import math
 import numpy as np
 
+
+
 class ZoomEffect(Effect):
-    """Efecto de zoom que permite hacer zoom in o zoom out en una imagen."""
-    
-    def __init__(self, zoom_in=True, ratio=0.04):
-        """Inicializa el efecto de zoom.
-        
-        Args:
-            zoom_in: Si es True, hace zoom in. Si es False, hace zoom out.
-            ratio: Factor de zoom por segundo. Valores más altos resultan en zoom más rápido.
+    """
+    Efecto de zoom (in o out) que depende de la duración real del clip.
+    """
+    def __init__(self, zoom_in=True, ratio=0.5, clip_duration=None, quality='high'):
         """
+        Inicializa el efecto de zoom.
+
+        Args:
+            zoom_in: True para zoom in, False para zoom out.
+            ratio: Factor total de zoom a aplicar durante la duración del clip.
+                   Ej: ratio=0.5 significa un 50% de zoom total (factor final 1.5 para zoom-in).
+            clip_duration: Duración TOTAL del clip (¡Obligatorio!).
+            quality: Calidad del redimensionado ('high' para LANCZOS, 'medium' para BILINEAR).
+        """
+        if clip_duration is None or clip_duration <= 0:
+            raise ValueError(f"{self.__class__.__name__} requiere una clip_duration válida > 0.")
+
         self.zoom_in = zoom_in
-        self.ratio = ratio
-        
-        # Para zoom out, usamos un valor positivo pero aplicamos una lógica diferente
-        # en el método apply
-    
+        self.total_zoom_change = abs(ratio)
+        self.clip_duration = clip_duration
+        self.resample_mode = Resampling.LANCZOS if quality == 'high' else Resampling.BILINEAR
+
     def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
-        # Obtener el frame
-        img = Image.fromarray(get_frame(t))
-        base_size = img.size
-        
-        if self.zoom_in:
-            # Zoom In: Empezamos con imagen normal y la agrandamos
-            zoom_factor = 1 + (self.ratio * t)
-        else:
-            # Zoom Out: Empezamos con imagen más grande y la reducimos
-            # Calculamos el factor máximo para el final del clip
-            max_zoom = 1 + (self.ratio * 5)  # Asumiendo duración de 5 segundos
-            # Empezamos con el zoom máximo y vamos reduciendo
-            zoom_factor = max_zoom - (self.ratio * t)
-        
-        # Calcular el nuevo tamaño
-        new_size = (
-            math.ceil(img.size[0] * zoom_factor),
-            math.ceil(img.size[1] * zoom_factor),
-        )
+        img = None # Inicializar
+        try:
+            progress = min(1.0, max(0.0, t / self.clip_duration))
 
-        # Hacer el tamaño par
-        new_size = (
-            new_size[0] + (new_size[0] % 2),
-            new_size[1] + (new_size[1] % 2),
-        )
+            if self.zoom_in:
+                zoom_factor = 1.0 + self.total_zoom_change * progress
+            else:
+                start_zoom_factor = 1.0 + self.total_zoom_change
+                zoom_factor = start_zoom_factor - self.total_zoom_change * progress
 
-        # Redimensionar la imagen
-        img = img.resize(new_size, Resampling.LANCZOS)
+            img = Image.fromarray(get_frame(t))
+            base_size = img.size
 
-        # Recortar la imagen
-        x = math.ceil((new_size[0] - base_size[0]) / 2)
-        y = math.ceil((new_size[1] - base_size[1]) / 2)
-        img = img.crop((x, y, new_size[0] - x, new_size[1] - y)).resize(
-            base_size, Resampling.LANCZOS
-        )
+            new_size = (math.ceil(base_size[0] * zoom_factor), math.ceil(base_size[1] * zoom_factor))
+            new_size = (max(2, new_size[0] + (new_size[0] % 2)), max(2, new_size[1] + (new_size[1] % 2)))
 
-        # Convertir a array de numpy y retornar
-        result = np.array(img)
-        img.close()
-        return result
+            img_resized = img.resize(new_size, self.resample_mode)
+
+            x = max(0, math.ceil((new_size[0] - base_size[0]) / 2))
+            y = max(0, math.ceil((new_size[1] - base_size[1]) / 2))
+            box_width = min(base_size[0], new_size[0] - x)
+            box_height = min(base_size[1], new_size[1] - y)
+            box = (x, y, x + box_width, y + box_height)
+
+            img_zoomed = img_resized.crop(box)
+
+            if img_zoomed.size != base_size:
+                img_zoomed = img_zoomed.resize(base_size, self.resample_mode)
+
+            result = np.array(img_zoomed)
+
+            # Cerrar imágenes intermedias
+            if img_resized is not img: img_resized.close()
+            if img_zoomed is not img_resized and img_zoomed is not img: img_zoomed.close()
+
+            return result
+        except Exception as e:
+            print(f"Error en {self.__class__.__name__} (t={t:.2f}): {e}. Devolviendo frame original.")
+            return get_frame(t)
+        finally:
+            if img: img.close()
+
+
     
 class PanEffect(Effect):
     """Efecto base para los efectos de paneo que mueve una 'cámara virtual' sobre una imagen."""
@@ -410,3 +422,186 @@ class KenBurnsDiagonalOut(KenBurnsEffect):
         super().__init__(zoom_direction='out', pan_direction='diagonal_down_left', 
                          zoom_ratio=zoom_ratio, pan_speed=pan_speed, 
                          scale_factor=scale_factor, clip_duration=clip_duration)
+        
+class FlipEffect(Effect):
+    """
+    Voltea la imagen horizontal o verticalmente (efecto estático).
+    No necesita clip_duration ya que no varía con el tiempo.
+    """
+    def __init__(self, direction='horizontal'):
+        self.direction = direction.lower()
+
+    def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
+        img = None
+        img_flipped = None
+        try:
+            # t no se usa aquí, el efecto es constante
+            img = Image.fromarray(get_frame(t))
+
+            if self.direction == 'horizontal':
+                img_flipped = img.transpose(Image.FLIP_LEFT_RIGHT)
+            elif self.direction == 'vertical':
+                img_flipped = img.transpose(Image.FLIP_TOP_BOTTOM)
+            else:
+                img_flipped = img # Sin cambios si la dirección no es válida
+
+            result = np.array(img_flipped)
+            return result
+        except Exception as e:
+            print(f"Error en {self.__class__.__name__} (t={t:.2f}): {e}. Devolviendo frame original.")
+            return get_frame(t)
+        finally:
+             if img_flipped and img_flipped is not img: img_flipped.close()
+             if img: img.close()
+             
+# --- Añade esto a tu archivo de efectos ---
+
+class VignetteZoomEffect(Effect):
+    """
+    Combina un efecto de zoom (in o out) con un viñeteado gradual.
+    """
+    def __init__(self,
+                 # Parámetros de Zoom
+                 zoom_in=True,
+                 zoom_ratio=0.04, # Factor de zoom por segundo relativo a la duración
+                 # Parámetros de Vignette
+                 vignette_strength=0.7,
+                 vignette_radius=0.8,
+                 vignette_fade_duration=2.0,
+                 # Duración del clip (¡Importante!)
+                 clip_duration=5.0):
+        """
+        Inicializa el efecto combinado.
+
+        Args:
+            zoom_in: True para zoom in, False para zoom out.
+            zoom_ratio: Factor de zoom por segundo (más alto = más rápido).
+            vignette_strength: Fuerza del oscurecimiento del viñeteado (0.0 a 1.0).
+            vignette_radius: Radio del área central clara del viñeteado (0.0 a 1.0).
+            vignette_fade_duration: Tiempo para que el viñeteado alcance su fuerza máxima.
+            clip_duration: Duración TOTAL del clip al que se aplica el efecto.
+        """
+        # Zoom params
+        self.zoom_in = zoom_in
+        self.zoom_ratio = zoom_ratio
+
+        # Vignette params
+        self.vignette_strength = np.clip(vignette_strength, 0.0, 1.0)
+        self.vignette_radius = np.clip(vignette_radius, 0.01, 1.0)
+        self.vignette_fade_duration = max(0.1, vignette_fade_duration)
+
+        # Common params
+        self.clip_duration = max(0.1, clip_duration) # Evitar división por cero
+        self._mask = None # Cache para la máscara de viñeteado
+        self._mask_shape = None
+
+    def _create_vignette_mask(self, shape):
+        """Crea la máscara de viñeteado (va de 1 en el centro a ~0 en los bordes)."""
+        height, width = shape[:2]
+        center_x, center_y = width / 2, height / 2
+        Y, X = np.ogrid[:height, :width]
+        dist_normalized = np.sqrt( ((X - center_x)/(width/2.))**2 + ((Y - center_y)/(height/2.))**2 )
+        falloff_factor = 4
+        mask = 1.0 - np.clip(dist_normalized / self.vignette_radius, 0, 1)**falloff_factor
+        return mask[:, :, np.newaxis] # Añadir dimensión para broadcasting RGB
+
+    def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
+        # --- Lógica de Zoom (Corregida con clip_duration) ---
+        img = Image.fromarray(get_frame(t))
+        base_size = img.size
+        progress = t / self.clip_duration # Progreso normalizado (0 a 1)
+
+        if self.zoom_in:
+            # Zoom In: Tamaño aumenta con el tiempo
+            current_zoom = 1 + (self.zoom_ratio * self.clip_duration * progress)
+        else:
+            # Zoom Out: Tamaño disminuye con el tiempo
+            # Empieza grande (zoom_factor al final) y se reduce a 1
+            max_zoom_factor = 1 + self.zoom_ratio * self.clip_duration
+            current_zoom = max_zoom_factor - (self.zoom_ratio * self.clip_duration * progress)
+            current_zoom = max(1.0, current_zoom) # No reducir más allá del tamaño original
+
+        # Calcular nuevo tamaño y asegurar que sea par
+        new_size = (math.ceil(base_size[0] * current_zoom), math.ceil(base_size[1] * current_zoom))
+        new_size = (new_size[0] + (new_size[0] % 2), new_size[1] + (new_size[1] % 2))
+
+        # Redimensionar
+        img_resized = img.resize(new_size, Image.Resampling.LANCZOS)
+
+        # Calcular recorte para volver al tamaño original
+        x = max(0, math.ceil((new_size[0] - base_size[0]) / 2))
+        y = max(0, math.ceil((new_size[1] - base_size[1]) / 2))
+        box = (x, y, x + base_size[0], y + base_size[1])
+
+        # Recortar a tamaño original
+        # Puede que necesite ajustar si box excede img_resized.size con zooms muy rápidos
+        # Pero para zooms moderados debería estar bien.
+        img_zoomed = img_resized.crop(box)
+        # Asegurar tamaño final exacto si el recorte fue impreciso
+        if img_zoomed.size != base_size:
+             img_zoomed = img_zoomed.resize(base_size, Image.Resampling.LANCZOS)
+
+        # Convertir la imagen zoomeada a array para aplicar viñeteado
+        zoomed_array = np.array(img_zoomed)
+        img.close()
+        img_resized.close()
+        img_zoomed.close()
+
+        # --- Lógica de Vignette ---
+        current_vignette_strength = self.vignette_strength * min(1.0, t / self.vignette_fade_duration)
+
+        # Crear o reutilizar la máscara de viñeteado (basada en el tamaño final/base)
+        if self._mask is None or self._mask_shape != zoomed_array.shape:
+            self._mask = self._create_vignette_mask(zoomed_array.shape)
+            self._mask_shape = zoomed_array.shape
+
+        # Aplicar la máscara para oscurecer los bordes del frame zoomeado
+        vignette_factor = 1.0 - current_vignette_strength * (1.0 - self._mask)
+        final_frame = np.clip(zoomed_array * vignette_factor, 0, 255)
+
+        return final_frame.astype(np.uint8)
+    
+    
+    
+class RotateEffect(Effect):
+    """
+    Efecto que rota la imagen gradualmente alrededor de su centro.
+    """
+    def __init__(self, speed=30, direction='clockwise', clip_duration=5.0):
+        """
+        Inicializa el efecto de rotación.
+
+        Args:
+            speed: Velocidad de rotación en grados por segundo.
+            direction: Dirección de la rotación ('clockwise' o 'counter-clockwise').
+            clip_duration: Duración del clip al que se aplicará el efecto (¡Importante!).
+        """
+        self.speed = speed
+        self.direction_multiplier = 1 if direction.lower() == 'clockwise' else -1
+        self.clip_duration = clip_duration # Guarda la duración real del clip
+
+    def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
+        # Obtener el frame
+        img = Image.fromarray(get_frame(t))
+        original_size = img.size
+
+        # Calcular el ángulo actual basado en el tiempo y la velocidad
+        current_angle = (self.speed * t * self.direction_multiplier) % 360
+
+        # Rotar la imagen
+        # expand=False evita que la imagen cambie de tamaño, pero corta las esquinas.
+        # expand=True mantiene toda la imagen pero cambia el tamaño, requeriría un recorte complejo.
+        # Usamos BILINEAR para velocidad, LANCZOS es más lento pero de mayor calidad.
+        rotated_img = img.rotate(current_angle, resample=Image.Resampling.BILINEAR, expand=False)
+
+        # Asegurarse de que la imagen rotada tenga el tamaño original (si expand=False, ya lo tiene)
+        if rotated_img.size != original_size:
+             # Si usáramos expand=True, aquí necesitaríamos recortar al centro
+             # Pero con expand=False, esto no debería ser necesario.
+             rotated_img = rotated_img.crop((0, 0, original_size[0], original_size[1]))
+
+
+        result = np.array(rotated_img)
+        img.close()
+        rotated_img.close()
+        return result
