@@ -78,7 +78,7 @@ class VideoCreatorApp:
         self.root.configure(bg="#2c3e50")
         
         # Variables para almacenar la configuración
-        self.directorio_imagenes = tk.StringVar()
+        self.directorio_imagenes = tk.StringVar(value="/Users/olga/Development/proyectosPython/VideoPython/images")
         self.archivo_salida = tk.StringVar(value="video_salida.mp4")
         self.duracion_img = tk.DoubleVar(value=10.0)
         self.fps = tk.IntVar(value=24)
@@ -93,7 +93,7 @@ class VideoCreatorApp:
         self.duracion_fade_in = tk.DoubleVar(value=1.0)
         self.aplicar_fade_out = tk.BooleanVar(value=True)
         self.duracion_fade_out = tk.DoubleVar(value=1.0)
-        self.aplicar_overlay = tk.BooleanVar(value=True)
+        self.aplicar_overlay = tk.BooleanVar(value=True)  # Activar overlays por defecto
         self.opacidad_overlay = tk.DoubleVar(value=0.5)
         
         # Variables para audio
@@ -134,7 +134,7 @@ class VideoCreatorApp:
         self.settings_transition_type = tk.StringVar(value='fade')
         
         # Overlay Effects
-        self.settings_overlay_opacity = tk.DoubleVar(value=0.8)
+        self.settings_overlay_opacity = tk.DoubleVar(value=0.3)
         self.settings_overlay_blend_mode = tk.StringVar(value='normal')
         
         # Variable para controlar la cancelación del proceso
@@ -148,8 +148,20 @@ class VideoCreatorApp:
         
         # Crear la interfaz
         self.crear_interfaz()
+        
+        # Cargar automáticamente las imágenes y overlays al iniciar
+        self.root.after(500, self.buscar_imagenes)
+        self.root.after(1000, self.buscar_y_seleccionar_overlays)
     
     def crear_interfaz(self):
+        # Crear un frame superior para el botón de crear video
+        frame_superior = ttk.Frame(self.root)
+        frame_superior.pack(fill="x", padx=10, pady=5)
+        
+        # Botón para crear el video (en la parte superior derecha)
+        btn_crear = ttk.Button(frame_superior, text="Crear Video", command=self.crear_video, style="Primary.TButton")
+        btn_crear.pack(side="right", padx=5)
+        
         # Crear un notebook (pestañas)
         notebook = ttk.Notebook(self.root)
         notebook.pack(fill="both", expand=True, padx=10, pady=10)
@@ -195,13 +207,6 @@ class VideoCreatorApp:
         self.configurar_tab_audio(tab_audio)
         self.configurar_tab_preview(tab_preview)
         self.configurar_tab_settings(tab_settings)
-        
-        # Botón para crear el video (en la parte inferior)
-        frame_botones = ttk.Frame(self.root)
-        frame_botones.pack(fill="x", padx=10, pady=10)
-        
-        btn_crear = ttk.Button(frame_botones, text="Crear Video", command=self.crear_video, style="Primary.TButton")
-        btn_crear.pack(side="right", padx=5)
         
         # Barra de progreso
         self.progress = ttk.Progressbar(self.root, orient="horizontal", length=100, mode="indeterminate", style="TProgressbar")
@@ -1034,6 +1039,46 @@ class VideoCreatorApp:
         else:
             self.lbl_overlays_seleccionados.config(text="No hay overlays seleccionados", foreground="#e74c3c")
     
+    def buscar_y_seleccionar_overlays(self):
+        """Busca y selecciona automáticamente todos los overlays disponibles"""
+        # Directorio de overlays
+        overlay_dir = "/Users/olga/Development/proyectosPython/VideoPython/overlays"
+        
+        # Verificar si el directorio existe
+        if not os.path.exists(overlay_dir):
+            os.makedirs(overlay_dir)  # Crear el directorio si no existe
+            print("Se ha creado la carpeta 'overlays'. Coloca tus archivos de overlay en esta carpeta.")
+            return
+        
+        # Obtener los overlays disponibles
+        overlays_disponibles = OverlayEffect.get_available_overlays(overlay_dir)
+        
+        # Limpiar la lista actual
+        self.listbox_overlays.delete(0, tk.END)
+        
+        # Mostrar los overlays en el Listbox
+        if not overlays_disponibles:
+            print("No se encontraron archivos de overlay en la carpeta 'overlays'.")
+            self.aplicar_overlay.set(False)  # Desactivar si no hay overlays
+            self.lbl_overlays_seleccionados.config(text="No hay overlays disponibles", foreground="#e74c3c")
+        else:
+            # Asegurar que la opción de aplicar overlay esté activada
+            self.aplicar_overlay.set(True)
+            
+            for overlay in overlays_disponibles:
+                self.listbox_overlays.insert(tk.END, overlay)
+            
+            # Seleccionar automáticamente todos los overlays
+            for i in range(len(overlays_disponibles)):
+                self.listbox_overlays.selection_set(i)
+            
+            # Actualizar la lista de overlays seleccionados
+            self.actualizar_overlays_seleccionados()
+            
+            # Actualizar la etiqueta de estado
+            self.lbl_estado.config(text=f"Se cargaron {len(overlays_disponibles)} overlays automáticamente")
+            print(f"Se cargaron y seleccionaron automáticamente {len(overlays_disponibles)} overlays")
+    
     def mostrar_imagen_actual(self):
         if not self.imagenes or self.indice_imagen_actual < 0 or self.indice_imagen_actual >= len(self.imagenes):
             return
@@ -1172,18 +1217,9 @@ class VideoCreatorApp:
             ))
 
             # Configurar parámetros para la función crear_video_desde_imagenes
-            directorio_imagenes = os.path.dirname(imagenes[0]) if imagenes else ""
-            archivo_salida = "video_salida.mp4"
-            tipo_transicion = settings.get('transition_type', 'dissolve') if settings else 'dissolve'
+            directorio_imagenes = "/Users/olga/Development/proyectosPython/VideoPython/images"
+            archivo_salida = self.archivo_salida.get()
             
-            # Asegurarse de que el tipo de transición sea uno de los disponibles
-            if tipo_transicion not in ["none", "dissolve"]:
-                print(f"Tipo de transición '{tipo_transicion}' no reconocido. Usando 'dissolve' por defecto.")
-                tipo_transicion = "dissolve"
-                
-            duracion_transicion = settings.get('transition_duration', 1.0) if settings else 1.0
-            opacidad_overlay = settings.get('overlay_opacity', 0.8) if settings else 0.8
-
             # Crear el video
             crear_video_desde_imagenes(
                 directorio_imagenes=directorio_imagenes,
@@ -1193,11 +1229,11 @@ class VideoCreatorApp:
                 aplicar_efectos=aplicar_efectos,
                 secuencia_efectos=efectos,
                 aplicar_transicion=aplicar_transicion,
-                tipo_transicion=tipo_transicion,
-                duracion_transicion=duracion_transicion,
+                tipo_transicion=settings.get('transition_type', 'dissolve') if settings else 'dissolve',
+                duracion_transicion=settings.get('transition_duration', 1.0) if settings else 1.0,
                 aplicar_overlay=bool(overlays),
                 archivos_overlay=overlays,
-                opacidad_overlay=opacidad_overlay,
+                opacidad_overlay=settings.get('overlay_opacity', 0.3) if settings else 0.3,
                 aplicar_musica=bool(audio_file),
                 archivo_musica=audio_file,
                 volumen_musica=self.volumen_musica.get(),
