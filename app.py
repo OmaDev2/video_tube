@@ -61,7 +61,24 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
     for formato in formatos:
         archivos.extend(glob(os.path.join(directorio_imagenes, formato)))
     
-    archivos.sort()  # Ordenar archivos alfabéticamente
+    # Ordenar archivos por el número que aparece al final del nombre
+    def extraer_numero(archivo):
+        # Extraer el nombre base del archivo sin la ruta ni la extensión
+        nombre_base = os.path.basename(archivo)
+        # Buscar el último número en el nombre del archivo
+        import re
+        match = re.search(r'_(\d+)\.', nombre_base)
+        if match:
+            return int(match.group(1))  # Convertir a entero para ordenar numéricamente
+        return 0  # Si no hay número, devolver 0
+    
+    # Ordenar los archivos por el número extraído
+    archivos.sort(key=extraer_numero)
+    
+    # Imprimir los nombres de los archivos ordenados para depuración
+    print("Orden de archivos:")
+    for archivo in archivos:
+        print(f"  - {os.path.basename(archivo)}")
     
     if not archivos:
         print(f"No se encontraron imágenes en {directorio_imagenes}")
