@@ -87,7 +87,7 @@ class PanEffect(Effect):
                    Valores más altos resultan en un paneo más rápido.
             scale_factor: Factor para redimensionar la imagen original antes del paneo.
                          Valores más altos permiten más movimiento pero pueden reducir calidad.
-            clip_duration: Duración del clip en segundos. Si no se proporciona, se intentará estimar.
+            clip_duration: Duración del clip en segundos. Si no se proporciona, se usará un valor por defecto.
             easing: Si se debe aplicar suavizado al movimiento.
             quality: Calidad del redimensionado ('high' para LANCZOS, 'medium' para BILINEAR).
         """
@@ -99,116 +99,109 @@ class PanEffect(Effect):
         self.resample_mode = Resampling.LANCZOS if quality == 'high' else Resampling.BILINEAR
         
     def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
-        # Obtener el frame
-        img = Image.fromarray(get_frame(t))
-        base_size = img.size
-        
-        # Calcular el nuevo tamaño con el factor de escala
-        # Aplicamos un factor de escala para tener suficiente área para el paneo
-        scaled_size = (
-            math.ceil(img.size[0] * self.scale_factor),
-            math.ceil(img.size[1] * self.scale_factor),
-        )
-        
-        # Redimensionar la imagen original para tener más área para el paneo
-        scaled_img = img.resize(scaled_size, self.resample_mode)
-        
-        # Calcular el desplazamiento máximo posible (el rango en el que podemos movernos)
-        max_offset_x = scaled_size[0] - base_size[0]
-        max_offset_y = scaled_size[1] - base_size[1]
-        
-        # Calcular posición inicial (centro)
-        start_x = max_offset_x // 2
-        start_y = max_offset_y // 2
-        
-        # Inicializar offset con la posición central
-        offset_x = start_x
-        offset_y = start_y
-        
-        # Obtener la duración del clip si no la tenemos
-        if self.clip_duration is None:
-            # Intentar obtener la duración del clip actual
-            try:
-                # Intentamos acceder al atributo 'duration' del clip actual
-                # Esto funciona si el clip tiene un atributo duration
-                from moviepy import VideoClip
-                current_clip = VideoClip.current_clip
-                if hasattr(current_clip, 'duration'):
-                    self.clip_duration = current_clip.duration
+        try:
+            # Obtener el frame
+            img = Image.fromarray(get_frame(t))
+            base_size = img.size
+            
+            # Calcular el nuevo tamaño con el factor de escala
+            # Aplicamos un factor de escala para tener suficiente área para el paneo
+            scaled_size = (
+                math.ceil(img.size[0] * self.scale_factor),
+                math.ceil(img.size[1] * self.scale_factor),
+            )
+            
+            # Redimensionar la imagen original para tener más área para el paneo
+            scaled_img = img.resize(scaled_size, self.resample_mode)
+            
+            # Calcular el desplazamiento máximo posible (el rango en el que podemos movernos)
+            max_offset_x = scaled_size[0] - base_size[0]
+            max_offset_y = scaled_size[1] - base_size[1]
+            
+            # Calcular posición inicial (centro)
+            start_x = max_offset_x // 2
+            start_y = max_offset_y // 2
+            
+            # Inicializar offset con la posición central
+            offset_x = start_x
+            offset_y = start_y
+            
+            # Calcular el desplazamiento basado en el tiempo y la dirección
+            # Limitamos el movimiento al 80% del desplazamiento máximo para evitar llegar a los bordes
+            movement_range = 0.8
+            
+            # Calcular el progreso normalizado (0.0 a 1.0) basado en el tiempo actual
+            # Usamos la duración real del clip, con un límite para evitar divisiones por cero
+            progress = t / max(0.1, self.clip_duration)
+            # Aseguramos que el progreso esté entre 0 y 1
+            progress = max(0.0, min(1.0, progress))
+            
+            if self.easing:
+                # Aplicar curva de aceleración/desaceleración (ease in-out)
+                # Esto hace que el movimiento sea más natural
+                if progress < 0.5:
+                    # Aceleración inicial (ease in)
+                    ease_factor = 2 * progress * progress
                 else:
-                    # Si no podemos obtener la duración, usamos un valor por defecto más largo
-                    self.clip_duration = 30.0  # Valor suficientemente grande para la mayoría de casos
-            except (ImportError, AttributeError, NameError):
-                # Si hay algún error, usamos un valor por defecto más largo
-                self.clip_duration = 30.0
-        
-        # Calcular el desplazamiento basado en el tiempo y la dirección
-        # Limitamos el movimiento al 80% del desplazamiento máximo para evitar llegar a los bordes
-        movement_range = 0.8
-        
-        # Calcular el progreso normalizado (0.0 a 1.0) basado en el tiempo actual
-        # Usamos la duración real del clip
-        progress = t / self.clip_duration
-        # Aseguramos que el progreso esté entre 0 y 1
-        progress = max(0.0, min(1.0, progress))
-        
-        if self.easing:
-            # Aplicar curva de aceleración/desaceleración (ease in-out)
-            # Esto hace que el movimiento sea más natural
-            if progress < 0.5:
-                # Aceleración inicial (ease in)
-                ease_factor = 2 * progress * progress
+                    # Desaceleración final (ease out)
+                    ease_factor = -1 + (4 * progress) - (2 * progress * progress)
             else:
-                # Desaceleración final (ease out)
-                ease_factor = -1 + (4 * progress) - (2 * progress * progress)
-        else:
-            ease_factor = progress
-        
-        if self.direction == 'up':
-            # Para "up", nos movemos desde abajo hacia arriba (valores de y más pequeños)
-            max_movement = max_offset_y * movement_range
-            offset_y = start_y + max_offset_y * movement_range * 0.5 - (ease_factor * max_movement)
-        elif self.direction == 'down':
-            # Para "down", nos movemos desde arriba hacia abajo (valores de y más grandes)
-            max_movement = max_offset_y * movement_range
-            offset_y = start_y - max_offset_y * movement_range * 0.5 + (ease_factor * max_movement)
-        elif self.direction == 'left':
-            # Para "left", nos movemos desde derecha hacia izquierda (valores de x más pequeños)
-            max_movement = max_offset_x * movement_range
-            offset_x = start_x + max_offset_x * movement_range * 0.5 - (ease_factor * max_movement)
-        elif self.direction == 'right':
-            # Para "right", nos movemos desde izquierda hacia derecha (valores de x más grandes)
-            max_movement = max_offset_x * movement_range
-            offset_x = start_x - max_offset_x * movement_range * 0.5 + (ease_factor * max_movement)
-        
-        # Asegurar que los offsets estén dentro de los límites
-        offset_x = max(0, min(max_offset_x, offset_x))
-        offset_y = max(0, min(max_offset_y, offset_y))
-        
-        # Recortar la imagen para obtener la parte visible
-        crop_box = (
-            int(offset_x),
-            int(offset_y),
-            int(offset_x + base_size[0]),
-            int(offset_y + base_size[1])
-        )
-        
-        # Asegurarse de que el recorte está dentro de los límites de la imagen
-        crop_box = (
-            max(0, crop_box[0]),
-            max(0, crop_box[1]),
-            min(scaled_size[0], crop_box[2]),
-            min(scaled_size[1], crop_box[3])
-        )
-        
-        img_result = scaled_img.crop(crop_box)
-        
-        # Convertir a array de numpy y retornar
-        result = np.array(img_result)
-        img.close()
-        scaled_img.close()
-        img_result.close()
-        return result
+                ease_factor = progress
+            
+            if self.direction == 'up':
+                # Para "up", nos movemos desde abajo hacia arriba (valores de y más pequeños)
+                max_movement = max_offset_y * movement_range
+                offset_y = start_y + (max_movement / 2) - (ease_factor * max_movement)
+            elif self.direction == 'down':
+                # Para "down", nos movemos desde arriba hacia abajo (valores de y más grandes)
+                max_movement = max_offset_y * movement_range
+                offset_y = start_y - (max_movement / 2) + (ease_factor * max_movement)
+            elif self.direction == 'left':
+                # Mover desde la derecha (offset más alto) hacia la izquierda (offset más bajo)
+                max_movement = max_offset_x * movement_range
+                # Aplicar movimiento relativo al centro start_x (igual que up/down)
+                offset_x = start_x + (max_movement / 2) - (ease_factor * max_movement)
+            elif self.direction == 'right':
+                # Mover desde la izquierda (offset más bajo) hacia la derecha (offset más alto)
+                max_movement = max_offset_x * movement_range
+                # Aplicar movimiento relativo al centro start_x (igual que up/down)
+                offset_x = start_x - (max_movement / 2) + (ease_factor * max_movement)
+            
+            # Asegurar que los offsets estén dentro de los límites
+            offset_x = max(0, min(max_offset_x, int(round(offset_x))))
+            offset_y = max(0, min(max_offset_y, int(round(offset_y))))
+            
+            # Recortar la imagen para obtener la parte visible
+            crop_box = (
+                int(offset_x),
+                int(offset_y),
+                int(offset_x + base_size[0]),
+                int(offset_y + base_size[1])
+            )
+            
+            # Asegurarse de que el recorte está dentro de los límites de la imagen
+            crop_box = (
+                max(0, crop_box[0]),
+                max(0, crop_box[1]),
+                min(scaled_size[0], crop_box[2]),
+                min(scaled_size[1], crop_box[3])
+            )
+            
+            img_result = scaled_img.crop(crop_box)
+
+            # Convertir a array de numpy y retornar
+            result = np.array(img_result)
+            
+            # Liberar recursos
+            img.close()
+            scaled_img.close()
+            img_result.close()
+            
+            return result
+        except Exception as e:
+            print(f"Error en PanEffect (t={t:.2f}): {e}. Devolviendo frame original.")
+            return get_frame(t)
+
 
 class PanUpEffect(PanEffect):
     """Efecto que mueve la 'cámara virtual' de abajo hacia arriba sobre la imagen."""
@@ -267,147 +260,135 @@ class KenBurnsEffect(Effect):
         self.pan_direction = pan_direction.lower()
         self.pan_speed = pan_speed
         self.scale_factor = scale_factor
-        self.clip_duration = clip_duration if clip_duration is not None else 5.0  # Valor predeterminado si no se proporciona
+        self.clip_duration = clip_duration
     
     def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
-        # Obtener el frame original
-        img = Image.fromarray(get_frame(t))
-        base_size = img.size
-        
-        # Usar la duración real del clip para el cálculo de movimiento
-        progress = min(1.0, t / self.clip_duration)
-        
-        # Calcular el factor de zoom basado en la dirección y el tiempo
-        if self.zoom_in:
-            # Zoom In: Empezamos con imagen normal y la agrandamos
-            zoom_factor = 1 + (self.zoom_ratio * t)
-        else:
-            # Zoom Out: Empezamos con imagen más grande y la reducimos
-            max_zoom = 1 + (self.zoom_ratio * self.clip_duration)
-            zoom_factor = max_zoom - (self.zoom_ratio * t)
-        
-        # Aplicar el factor de escala adicional (para tener área para el paneo)
-        total_scale = zoom_factor * self.scale_factor
-        
-        # Calcular el nuevo tamaño con zoom y escala
-        new_size = (
-            math.ceil(img.size[0] * total_scale),
-            math.ceil(img.size[1] * total_scale),
-        )
-        
-        # Redimensionar la imagen con zoom aplicado
-        img_zoomed = img.resize(new_size, Resampling.LANCZOS)
-        
-        # Calcular desplazamientos máximos posibles
-        max_offset_x = new_size[0] - base_size[0]
-        max_offset_y = new_size[1] - base_size[1]
-        
-        # Posición central (punto de partida por defecto)
-        center_x = max_offset_x // 2
-        center_y = max_offset_y // 2
-        
-        # Calcular el rango de movimiento (usar 90% del desplazamiento máximo)
-        range_factor = 0.90
-        move_range_x = max_offset_x * range_factor
-        move_range_y = max_offset_y * range_factor
-        
-        # Calcular los desplazamientos iniciales y finales según la dirección del paneo
-        start_x, start_y = center_x, center_y
-        end_x, end_y = center_x, center_y
-        
-        # Configurar puntos iniciales y finales según la dirección
-        if self.pan_direction == 'up':
-            start_y = center_y + (move_range_y / 2)
-            end_y = center_y - (move_range_y / 2)
-        elif self.pan_direction == 'down':
-            start_y = center_y - (move_range_y / 2)
-            end_y = center_y + (move_range_y / 2)
-        elif self.pan_direction == 'left':
-            start_x = center_x + (move_range_x / 2)
-            end_x = center_x - (move_range_x / 2)
-        elif self.pan_direction == 'right':
-            start_x = center_x - (move_range_x / 2)
-            end_x = center_x + (move_range_x / 2)
-        elif self.pan_direction == 'diagonal_up_right':
-            start_x = center_x - (move_range_x / 2)
-            start_y = center_y + (move_range_y / 2)
-            end_x = center_x + (move_range_x / 2)
-            end_y = center_y - (move_range_y / 2)
-        elif self.pan_direction == 'diagonal_up_left':
-            start_x = center_x + (move_range_x / 2)
-            start_y = center_y + (move_range_y / 2)
-            end_x = center_x - (move_range_x / 2)
-            end_y = center_y - (move_range_y / 2)
-        elif self.pan_direction == 'diagonal_down_right':
-            start_x = center_x - (move_range_x / 2)
-            start_y = center_y - (move_range_y / 2)
-            end_x = center_x + (move_range_x / 2)
-            end_y = center_y + (move_range_y / 2)
-        elif self.pan_direction == 'diagonal_down_left':
-            start_x = center_x + (move_range_x / 2)
-            start_y = center_y - (move_range_y / 2)
-            end_x = center_x - (move_range_x / 2)
-            end_y = center_y + (move_range_y / 2)
-        
-        # Aplicar curva de aceleración/desaceleración (ease in-out)
-        # Esto hace que el movimiento sea más natural
-        if progress < 0.5:
-            # Aceleración inicial (ease in)
-            ease_factor = 2 * progress * progress
-        else:
-            # Desaceleración final (ease out)
-            ease_factor = -1 + (4 * progress) - (2 * progress * progress)
-        
-        # Calcular posición actual usando interpolación con factor de facilidad
-        current_x = start_x + (end_x - start_x) * ease_factor
-        current_y = start_y + (end_y - start_y) * ease_factor
-        
-        # Asegurar que los offsets estén dentro de los límites
-        offset_x = max(0, min(max_offset_x, int(current_x)))
-        offset_y = max(0, min(max_offset_y, int(current_y)))
-        
-        # Recortar la imagen para obtener la parte visible
-        crop_box = (
-            offset_x,
-            offset_y,
-            offset_x + base_size[0],
-            offset_y + base_size[1]
-        )
-        
-        # Asegurarse de que el recorte está dentro de los límites de la imagen
-        crop_box = (
-            max(0, crop_box[0]),
-            max(0, crop_box[1]),
-            min(new_size[0], crop_box[2]),
-            min(new_size[1], crop_box[3])
-        )
-        
-        # Verificar que el tamaño del recorte sea correcto
-        if crop_box[2] - crop_box[0] != base_size[0] or crop_box[3] - crop_box[1] != base_size[1]:
-            # Ajustar el recorte para mantener el tamaño original
-            crop_width = min(base_size[0], new_size[0])
-            crop_height = min(base_size[1], new_size[1])
+        try:
+            # Obtener el frame original
+            img = Image.fromarray(get_frame(t))
+            base_size = img.size
             
-            # Ajustar el recorte para mantener centrada la imagen
-            crop_box = (
-                max(0, (new_size[0] - crop_width) // 2),
-                max(0, (new_size[1] - crop_height) // 2),
-                min(new_size[0], max(0, (new_size[0] - crop_width) // 2) + crop_width),
-                min(new_size[1], max(0, (new_size[1] - crop_height) // 2) + crop_height)
+            # Usar la duración real del clip para el cálculo de movimiento
+            progress = min(1.0, t / max(0.1, self.clip_duration))
+            
+            # Calcular el factor de zoom basado en la dirección y el tiempo
+            if self.zoom_in:
+                # Zoom In: Empezamos con imagen normal y la agrandamos
+                zoom_factor = 1 + (self.zoom_ratio * self.clip_duration * progress)
+            else:
+                # Zoom Out: Empezamos con imagen más grande y la reducimos
+                max_zoom = 1 + (self.zoom_ratio * self.clip_duration)
+                zoom_factor = max_zoom - (self.zoom_ratio * self.clip_duration * progress)
+            
+            # Aplicar el factor de escala adicional (para tener área para el paneo)
+            total_scale = zoom_factor * self.scale_factor
+            
+            # Calcular el nuevo tamaño con zoom y escala
+            new_size = (
+                math.ceil(img.size[0] * total_scale),
+                math.ceil(img.size[1] * total_scale),
             )
-        
-        img_result = img_zoomed.crop(crop_box)
-        
-        # Redimensionar al tamaño original si es necesario
-        if img_result.size != base_size:
-            img_result = img_result.resize(base_size, Resampling.LANCZOS)
-        
-        # Convertir a array de numpy y retornar
-        result = np.array(img_result)
-        img.close()
-        img_zoomed.close()
-        img_result.close()
-        return result
+            
+            # Redimensionar la imagen con zoom aplicado
+            img_zoomed = img.resize(new_size, Resampling.LANCZOS)
+            
+            # Calcular desplazamientos máximos posibles
+            max_offset_x = new_size[0] - base_size[0]
+            max_offset_y = new_size[1] - base_size[1]
+            
+            # Posición central (punto de partida por defecto)
+            center_x = max_offset_x // 2
+            center_y = max_offset_y // 2
+            
+            # Calcular el rango de movimiento (usar 90% del desplazamiento máximo)
+            range_factor = 0.90
+            move_range_x = max_offset_x * range_factor
+            move_range_y = max_offset_y * range_factor
+            
+            # Calcular los desplazamientos iniciales y finales según la dirección del paneo
+            start_x, start_y = center_x, center_y
+            end_x, end_y = center_x, center_y
+            
+            # Configurar puntos iniciales y finales según la dirección
+            if self.pan_direction == 'up':
+                start_y = center_y + (move_range_y / 2)
+                end_y = center_y - (move_range_y / 2)
+            elif self.pan_direction == 'down':
+                start_y = center_y - (move_range_y / 2)
+                end_y = center_y + (move_range_y / 2)
+            elif self.pan_direction == 'left':
+                start_x = center_x + (move_range_x / 2)
+                end_x = center_x - (move_range_x / 2)
+            elif self.pan_direction == 'right':
+                start_x = center_x - (move_range_x / 2)
+                end_x = center_x + (move_range_x / 2)
+            elif self.pan_direction == 'diagonal_up_right':
+                start_x = center_x - (move_range_x / 2)
+                start_y = center_y + (move_range_y / 2)
+                end_x = center_x + (move_range_x / 2)
+                end_y = center_y - (move_range_y / 2)
+            elif self.pan_direction == 'diagonal_up_left':
+                start_x = center_x + (move_range_x / 2)
+                start_y = center_y + (move_range_y / 2)
+                end_x = center_x - (move_range_x / 2)
+                end_y = center_y - (move_range_y / 2)
+            elif self.pan_direction == 'diagonal_down_right':
+                start_x = center_x - (move_range_x / 2)
+                start_y = center_y - (move_range_y / 2)
+                end_x = center_x + (move_range_x / 2)
+                end_y = center_y + (move_range_y / 2)
+            elif self.pan_direction == 'diagonal_down_left':
+                start_x = center_x + (move_range_x / 2)
+                start_y = center_y - (move_range_y / 2)
+                end_x = center_x - (move_range_x / 2)
+                end_y = center_y + (move_range_y / 2)
+            
+            # Interpolar entre los puntos inicial y final basado en el progreso
+            current_x = start_x + (end_x - start_x) * progress
+            current_y = start_y + (end_y - start_y) * progress
+            
+            # Asegurar que los offsets estén dentro de los límites
+            current_x = max(0, min(max_offset_x, current_x))
+            current_y = max(0, min(max_offset_y, current_y))
+            
+            # Recortar la imagen para obtener la parte visible
+            crop_box = (
+                int(current_x),
+                int(current_y),
+                int(current_x + base_size[0]),
+                int(current_y + base_size[1])
+            )
+            
+            # Asegurarse de que el recorte está dentro de los límites de la imagen
+            crop_box = (
+                max(0, crop_box[0]),
+                max(0, crop_box[1]),
+                min(new_size[0], crop_box[2]),
+                min(new_size[1], crop_box[3])
+            )
+            
+            # Verificar que el recorte tiene dimensiones válidas
+            if crop_box[2] <= crop_box[0] or crop_box[3] <= crop_box[1]:
+                print(f"Advertencia: Recorte inválido en KenBurnsEffect (t={t:.2f}). Usando frame original.")
+                result = np.array(img)
+            else:
+                img_result = img_zoomed.crop(crop_box)
+
+                # Si el tamaño del recorte no coincide con el tamaño base, redimensionar
+                if img_result.size != base_size:
+                    img_result = img_result.resize(base_size, Resampling.LANCZOS)
+                
+                result = np.array(img_result)
+                img_result.close()
+            
+            # Liberar recursos
+            img.close()
+            img_zoomed.close()
+            
+            return result
+        except Exception as e:
+            print(f"Error en KenBurnsEffect (t={t:.2f}): {e}. Devolviendo frame original.")
+            return get_frame(t)
 
 
 # Variantes predefinidas del efecto Ken Burns con diferentes configuraciones
