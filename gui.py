@@ -78,7 +78,7 @@ class VideoCreatorApp:
         self.root.configure(bg="#2c3e50")
         
         # Variables para almacenar la configuración
-        self.directorio_imagenes = tk.StringVar(value="/Users/olga/Development/proyectosPython/VideoPython/images")
+        self.directorio_imagenes = tk.StringVar(value="images")
         self.archivo_salida = tk.StringVar(value="video_salida.mp4")
         self.duracion_img = tk.DoubleVar(value=10.0)
         self.fps = tk.IntVar(value=24)
@@ -624,11 +624,38 @@ class VideoCreatorApp:
         lbl_volumen_musica = ttk.Label(frame_musica, text="Volumen:")
         lbl_volumen_musica.grid(row=2, column=0, padx=5, pady=5, sticky="w")
         
+        # Añadir una función para convertir el valor del slider a un valor de volumen logarítmico
+        def convertir_volumen_musica(valor_slider):
+            # Convertir el valor lineal (0-1) a logarítmico para mejor control en niveles bajos
+            # Esto da más precisión en el rango bajo (música ambiental)
+            valor_slider = float(valor_slider)
+            if valor_slider <= 0:
+                return 0
+            # Escala logarítmica menos agresiva: valores bajos son más audibles
+            # Rango: 0.03 (3%) a 1.0 (100%)
+            return 0.03 + (valor_slider * 0.97)
+        
+        # Añadir una función para actualizar el volumen cuando se mueve el slider
+        def actualizar_volumen_musica(valor):
+            valor_float = float(valor)
+            # Calcular el valor real (logarítmico)
+            valor_real = convertir_volumen_musica(valor_float)
+            # Actualizar la variable de volumen
+            self.volumen_musica.set(valor_real)
+            # Actualizar la etiqueta (mostrar como porcentaje)
+            self.etiqueta_volumen_musica.set(f"{valor_real*100:.1f}%")
+        
+        # Usar un slider con escala visual lineal pero que internamente usa valores logarítmicos
         scale_volumen_musica = ttk.Scale(frame_musica, from_=0.0, to=1.0, orient="horizontal", 
-                                       variable=self.volumen_musica, length=200, command=self.actualizar_etiqueta_volumen_musica)
+                                       length=200, command=actualizar_volumen_musica)
+        # Valor inicial del slider muy bajo para volumen ambiental (3%)
+        scale_volumen_musica.set(0.0)
         scale_volumen_musica.grid(row=2, column=1, padx=5, pady=5, sticky="we")
         
-        self.etiqueta_volumen_musica.set(f"{self.volumen_musica.get()*100:.0f}%")
+        # Inicializar el valor real y la etiqueta
+        valor_inicial = convertir_volumen_musica(0.0)  # 3% de volumen
+        self.volumen_musica.set(valor_inicial)
+        self.etiqueta_volumen_musica.set(f"{valor_inicial*100:.1f}%")
         etiqueta_volumen_musica = ttk.Label(frame_musica, textvariable=self.etiqueta_volumen_musica)
         etiqueta_volumen_musica.grid(row=2, column=2, padx=5, pady=5, sticky="w")
         

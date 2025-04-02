@@ -338,7 +338,10 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
             musica = concatenate_audioclips([musica] * repeticiones).subclipped(0, video_final.duration)
         
         # Ajustar el volumen
-        musica = musica.with_effects([afx.MultiplyVolume(volumen_musica)])
+        # Aplicar un factor de reducción moderado (0.7) para música ambiental suave pero audible
+        volumen_musica_ajustado = volumen_musica * 0.7
+        print(f"Volumen de música original: {volumen_musica}, ajustado: {volumen_musica_ajustado}")
+        musica = musica.with_effects([afx.MultiplyVolume(volumen_musica_ajustado)])
         
         # Aplicar fade in/out a la música si se solicita
         if aplicar_fade_in_musica and duracion_fade_in_musica > 0:
