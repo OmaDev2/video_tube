@@ -316,8 +316,9 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
             musica = musica.subclipped(0, video_final.duration)
         else:
             # Si la música es más corta que el video, repetirla hasta cubrir todo el video
+            from moviepy.audio.AudioClip import concatenate_audioclips
             repeticiones = int(video_final.duration / musica.duration) + 1
-            musica = concatenate_videoclips([musica] * repeticiones).subclipped(0, video_final.duration)
+            musica = concatenate_audioclips([musica] * repeticiones).subclipped(0, video_final.duration)
         
         # Ajustar el volumen
         musica = musica.with_effects([afx.MultiplyVolume(volumen_musica)])

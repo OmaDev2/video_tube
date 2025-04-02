@@ -1,5 +1,6 @@
 from moviepy import *
 import numpy as np
+from PIL import Image
 
 class TransitionEffect:
     @staticmethod
@@ -32,6 +33,35 @@ class TransitionEffect:
         return concatenate_videoclips(clips)
     
     @staticmethod
+    def _ensure_same_dimensions(frame1, frame2):
+        """Asegura que ambos frames tengan las mismas dimensiones.
+        
+        Redimensiona el frame más grande para que coincida con el más pequeño.
+        """
+        h1, w1 = frame1.shape[:2]
+        h2, w2 = frame2.shape[:2]
+        
+        if h1 == h2 and w1 == w2:
+            return frame1, frame2
+        
+        # Determinar las dimensiones objetivo (usar las más pequeñas)
+        target_height = min(h1, h2)
+        target_width = min(w1, w2)
+        
+        # Redimensionar frames si es necesario
+        if h1 != target_height or w1 != target_width:
+            frame1_pil = Image.fromarray(frame1.astype('uint8'))
+            frame1_resized = frame1_pil.resize((target_width, target_height), Image.LANCZOS)
+            frame1 = np.array(frame1_resized)
+        
+        if h2 != target_height or w2 != target_width:
+            frame2_pil = Image.fromarray(frame2.astype('uint8'))
+            frame2_resized = frame2_pil.resize((target_width, target_height), Image.LANCZOS)
+            frame2 = np.array(frame2_resized)
+        
+        return frame1, frame2
+    
+    @staticmethod
     def _dissolve_transition(clip1, clip2, duration):
         """Crea una transición de disolución entre dos clips."""
         if clip1.duration <= duration or clip2.duration <= duration:
@@ -41,6 +71,8 @@ class TransitionEffect:
         start_time = clip1.duration - duration
         
         def blend(frame1, frame2, progress):
+            # Asegurar que los frames tengan las mismas dimensiones
+            frame1, frame2 = TransitionEffect._ensure_same_dimensions(frame1, frame2)
             return (1 - progress) * frame1 + progress * frame2
         
         def make_frame(t):
