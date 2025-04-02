@@ -113,6 +113,10 @@ class VideoCreatorApp:
         self.aplicar_fade_out_voz = tk.BooleanVar(value=False)
         self.duracion_fade_out_voz = tk.DoubleVar(value=1.0)
         
+        # Variables para las etiquetas de volumen
+        self.etiqueta_volumen_musica = tk.StringVar(value="100")
+        self.etiqueta_volumen_voz = tk.StringVar(value="100")
+        
         # Variables para los ajustes de efectos
         # ZoomEffect
         self.settings_zoom_ratio = tk.DoubleVar(value=0.5)
@@ -621,8 +625,12 @@ class VideoCreatorApp:
         lbl_volumen_musica.grid(row=2, column=0, padx=5, pady=5, sticky="w")
         
         scale_volumen_musica = ttk.Scale(frame_musica, from_=0.0, to=1.0, orient="horizontal", 
-                                       variable=self.volumen_musica, length=200)
+                                       variable=self.volumen_musica, length=200, command=self.actualizar_etiqueta_volumen_musica)
         scale_volumen_musica.grid(row=2, column=1, padx=5, pady=5, sticky="we")
+        
+        self.etiqueta_volumen_musica.set(f"{self.volumen_musica.get()*100:.0f}%")
+        etiqueta_volumen_musica = ttk.Label(frame_musica, textvariable=self.etiqueta_volumen_musica)
+        etiqueta_volumen_musica.grid(row=2, column=2, padx=5, pady=5, sticky="w")
         
         # Fade in/out para música
         frame_fade_musica = ttk.Frame(frame_musica)
@@ -678,8 +686,12 @@ class VideoCreatorApp:
         lbl_volumen_voz.grid(row=2, column=0, padx=5, pady=5, sticky="w")
         
         scale_volumen_voz = ttk.Scale(frame_voz, from_=0.0, to=1.0, orient="horizontal", 
-                                    variable=self.volumen_voz, length=200)
+                                    variable=self.volumen_voz, length=200, command=self.actualizar_etiqueta_volumen_voz)
         scale_volumen_voz.grid(row=2, column=1, padx=5, pady=5, sticky="we")
+        
+        self.etiqueta_volumen_voz.set(f"{self.volumen_voz.get()*100:.0f}%")
+        etiqueta_volumen_voz = ttk.Label(frame_voz, textvariable=self.etiqueta_volumen_voz)
+        etiqueta_volumen_voz.grid(row=2, column=2, padx=5, pady=5, sticky="w")
         
         # Fade in/out para voz
         frame_fade_voz = ttk.Frame(frame_voz)
@@ -713,6 +725,12 @@ class VideoCreatorApp:
         lbl_info = ttk.Label(tab, text="Nota: Los archivos de audio deben estar en formato MP3, WAV o OGG.")
         lbl_info.pack(anchor="w", padx=10, pady=10)
         
+    def actualizar_etiqueta_volumen_musica(self, valor):
+        self.etiqueta_volumen_musica.set(f"{float(valor)*100:.0f}%")
+        
+    def actualizar_etiqueta_volumen_voz(self, valor):
+        self.etiqueta_volumen_voz.set(f"{float(valor)*100:.0f}%")
+    
     def configurar_tab_preview(self, tab):
         # Frame para la vista previa
         frame_preview = ttk.LabelFrame(tab, text="Vista Previa de Imágenes")
