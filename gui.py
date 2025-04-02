@@ -1141,46 +1141,100 @@ class VideoCreatorApp:
             self.mostrar_imagen_actual()
     
     def crear_video(self):
+        """Inicia el proceso de creación del video."""
+        # Verificar si hay imágenes cargadas
         if not self.imagenes:
-            messagebox.showerror("Error", "Por favor, selecciona al menos una imagen")
+            messagebox.showerror("Error", "No se han cargado imágenes. Por favor, selecciona un directorio con imágenes.")
             return
+        
+        # Verificar si se ha seleccionado un archivo de salida
+        if not self.archivo_salida.get():
+            messagebox.showerror("Error", "No se ha seleccionado un archivo de salida. Por favor, selecciona un archivo de salida.")
+            return
+        
+        # Obtener los overlays seleccionados y asegurar que la opción esté activada si hay seleccionados
+        overlays = self.obtener_overlays_seleccionados()
+        if overlays:
+            self.aplicar_overlay.set(True)
+        
+        # Iniciar el proceso en un hilo separado
+        self.proceso_cancelado = False
+        threading.Thread(target=self.procesar_video).start()
+    
+    def procesar_video(self):
+        try:
+            # Actualizar el estado
+            self.root.after(0, lambda: self.lbl_estado.config(
+                text="Creando video... Por favor, espere."
+            ))
 
-        # Recoger los ajustes actuales
-        current_settings = {
-            'zoom_ratio': self.settings_zoom_ratio.get(),
-            'zoom_quality': self.settings_zoom_quality.get(),
-            'pan_scale_factor': self.settings_pan_scale_factor.get(),
-            'pan_easing': self.settings_pan_easing.get(),
-            'pan_quality': self.settings_pan_quality.get(),
-            'kb_zoom_ratio': self.settings_kb_zoom_ratio.get(),
-            'kb_scale_factor': self.settings_kb_scale_factor.get(),
-            'kb_quality': self.settings_kb_quality.get(),
-            'kb_direction': self.settings_kb_direction.get(),
-            'transition_duration': self.settings_transition_duration.get(),
-            'transition_type': self.settings_transition_type.get(),
-            'overlay_opacity': self.settings_overlay_opacity.get(),
-            'overlay_blend_mode': self.settings_overlay_blend_mode.get()
-        }
-
-        # Obtener la secuencia de efectos
-        secuencia_efectos = self.obtener_secuencia_efectos()
-
-        # Crear el hilo para procesar el video
-        thread = threading.Thread(
-            target=self.procesar_video,
-            args=(
-                self.imagenes,
-                self.duracion_img.get(),
-                self.aplicar_efectos.get(),
-                secuencia_efectos,
-                self.aplicar_transicion.get(),
-                self.archivo_musica.get() if self.aplicar_musica.get() else None,
-                self.overlays_seleccionados if hasattr(self, 'overlays_seleccionados') and self.aplicar_overlay.get() else None,
-                current_settings
+            # Configurar parámetros para la función crear_video_desde_imagenes
+            directorio_imagenes = "/Users/olga/Development/proyectosPython/VideoPython/images"
+            archivo_salida = self.archivo_salida.get()
+            
+            # Crear el video
+            crear_video_desde_imagenes(
+                directorio_imagenes=directorio_imagenes,
+                archivo_salida=archivo_salida,
+                duracion_img=self.duracion_img.get(),
+                fps=24,
+                aplicar_efectos=self.aplicar_efectos.get(),
+                secuencia_efectos=self.obtener_secuencia_efectos(),
+                aplicar_transicion=self.aplicar_transicion.get(),
+                tipo_transicion=self.settings_transition_type.get(),
+                duracion_transicion=self.settings_transition_duration.get(),
+                aplicar_overlay=bool(self.obtener_overlays_seleccionados()),
+                archivos_overlay=self.obtener_overlays_seleccionados(),
+                opacidad_overlay=self.settings_overlay_opacity.get(),
+                aplicar_musica=bool(self.archivo_musica.get()),
+                archivo_musica=self.archivo_musica.get(),
+                volumen_musica=self.volumen_musica.get(),
+                aplicar_fade_in_musica=self.aplicar_fade_in_musica.get(),
+                duracion_fade_in_musica=self.duracion_fade_in_musica.get(),
+                aplicar_fade_out_musica=self.aplicar_fade_out_musica.get(),
+                duracion_fade_out_musica=self.duracion_fade_out_musica.get(),
+                # Parámetros para la voz en off
+                aplicar_voz=self.aplicar_voz.get(),
+                archivo_voz=self.archivo_voz.get() if self.aplicar_voz.get() else None,
+                volumen_voz=self.volumen_voz.get(),
+                aplicar_fade_in_voz=self.aplicar_fade_in_voz.get(),
+                duracion_fade_in_voz=self.duracion_fade_in_voz.get(),
+                aplicar_fade_out_voz=self.aplicar_fade_out_voz.get(),
+                duracion_fade_out_voz=self.duracion_fade_out_voz.get(),
+                # Pasar los ajustes personalizados
+                settings={
+                    'zoom_ratio': self.settings_zoom_ratio.get(),
+                    'zoom_quality': self.settings_zoom_quality.get(),
+                    'pan_scale_factor': self.settings_pan_scale_factor.get(),
+                    'pan_easing': self.settings_pan_easing.get(),
+                    'pan_quality': self.settings_pan_quality.get(),
+                    'kb_zoom_ratio': self.settings_kb_zoom_ratio.get(),
+                    'kb_scale_factor': self.settings_kb_scale_factor.get(),
+                    'kb_quality': self.settings_kb_quality.get(),
+                    'kb_direction': self.settings_kb_direction.get(),
+                    'transition_duration': self.settings_transition_duration.get(),
+                    'transition_type': self.settings_transition_type.get(),
+                    'overlay_opacity': self.settings_overlay_opacity.get(),
+                    'overlay_blend_mode': self.settings_overlay_blend_mode.get()
+                },
+                # Parámetros para fade in/out del video
+                aplicar_fade_in=self.aplicar_fade_in.get(),
+                duracion_fade_in=self.duracion_fade_in.get(),
+                aplicar_fade_out=self.aplicar_fade_out.get(),
+                duracion_fade_out=self.duracion_fade_out.get()
             )
-        )
-        thread.daemon = True
-        thread.start()
+
+            # Actualizar el estado al finalizar
+            self.root.after(0, lambda: self.lbl_estado.config(
+                text="¡Video creado con éxito!"
+            ))
+            messagebox.showinfo("Éxito", "El video se ha creado correctamente")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al crear el video: {str(e)}")
+            self.root.after(0, lambda: self.lbl_estado.config(
+                text="Error al crear el video"
+            ))
     
     def obtener_secuencia_efectos(self):
         """Obtiene la lista de efectos seleccionados para la secuencia"""
@@ -1207,68 +1261,6 @@ class VideoCreatorApp:
                 repeticiones = (len(self.imagenes) // len(secuencia)) + 1
                 return (secuencia * repeticiones)[:len(self.imagenes)]
         return None
-    
-    def procesar_video(self, imagenes, duracion_img, aplicar_efectos, efectos, aplicar_transicion, 
-                      audio_file=None, overlays=None, settings=None):
-        try:
-            # Actualizar el estado
-            self.root.after(0, lambda: self.lbl_estado.config(
-                text="Creando video... Por favor, espere."
-            ))
-
-            # Configurar parámetros para la función crear_video_desde_imagenes
-            directorio_imagenes = "/Users/olga/Development/proyectosPython/VideoPython/images"
-            archivo_salida = self.archivo_salida.get()
-            
-            # Crear el video
-            crear_video_desde_imagenes(
-                directorio_imagenes=directorio_imagenes,
-                archivo_salida=archivo_salida,
-                duracion_img=duracion_img,
-                fps=24,
-                aplicar_efectos=aplicar_efectos,
-                secuencia_efectos=efectos,
-                aplicar_transicion=aplicar_transicion,
-                tipo_transicion=settings.get('transition_type', 'dissolve') if settings else 'dissolve',
-                duracion_transicion=settings.get('transition_duration', 1.0) if settings else 1.0,
-                aplicar_overlay=bool(overlays),
-                archivos_overlay=overlays,
-                opacidad_overlay=settings.get('overlay_opacity', 0.3) if settings else 0.3,
-                aplicar_musica=bool(audio_file),
-                archivo_musica=audio_file,
-                volumen_musica=self.volumen_musica.get(),
-                aplicar_fade_in_musica=self.aplicar_fade_in_musica.get(),
-                duracion_fade_in_musica=self.duracion_fade_in_musica.get(),
-                aplicar_fade_out_musica=self.aplicar_fade_out_musica.get(),
-                duracion_fade_out_musica=self.duracion_fade_out_musica.get(),
-                # Parámetros para la voz en off
-                aplicar_voz=self.aplicar_voz.get(),
-                archivo_voz=self.archivo_voz.get() if self.aplicar_voz.get() else None,
-                volumen_voz=self.volumen_voz.get(),
-                aplicar_fade_in_voz=self.aplicar_fade_in_voz.get(),
-                duracion_fade_in_voz=self.duracion_fade_in_voz.get(),
-                aplicar_fade_out_voz=self.aplicar_fade_out_voz.get(),
-                duracion_fade_out_voz=self.duracion_fade_out_voz.get(),
-                # Pasar los ajustes personalizados
-                settings=settings,
-                # Parámetros para fade in/out del video
-                aplicar_fade_in=self.aplicar_fade_in.get(),
-                duracion_fade_in=self.duracion_fade_in.get(),
-                aplicar_fade_out=self.aplicar_fade_out.get(),
-                duracion_fade_out=self.duracion_fade_out.get()
-            )
-
-            # Actualizar el estado al finalizar
-            self.root.after(0, lambda: self.lbl_estado.config(
-                text="¡Video creado con éxito!"
-            ))
-            messagebox.showinfo("Éxito", "El video se ha creado correctamente")
-
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al crear el video: {str(e)}")
-            self.root.after(0, lambda: self.lbl_estado.config(
-                text="Error al crear el video"
-            ))
     
     def finalizar_proceso(self, exito, mensaje):
         # Detener la barra de progreso
@@ -1301,6 +1293,27 @@ class VideoCreatorApp:
         # Cerrar la barra de progreso si existe
         if hasattr(self, 'pbar'):
             self.pbar.close()
+
+    def obtener_overlays_seleccionados(self):
+        """Obtiene la lista de overlays seleccionados y asegura que la opción de aplicar esté activada."""
+        # Verificar si ya tenemos overlays seleccionados
+        if not self.overlays_seleccionados:
+            # Si no hay overlays seleccionados, intentar obtenerlos del listbox
+            indices = self.listbox_overlays.curselection()
+            if indices:
+                overlay_dir = "/Users/olga/Development/proyectosPython/VideoPython/overlays"
+                overlays_disponibles = OverlayEffect.get_available_overlays(overlay_dir)
+                
+                for indice in indices:
+                    if indice < len(overlays_disponibles):
+                        ruta_overlay = os.path.join(overlay_dir, overlays_disponibles[indice])
+                        self.overlays_seleccionados.append(ruta_overlay)
+        
+        # Si hay overlays seleccionados, asegurar que la opción de aplicar overlay esté activada
+        if self.overlays_seleccionados and self.aplicar_overlay.get():
+            return self.overlays_seleccionados
+        else:
+            return []
 
 # Iniciar la aplicación si se ejecuta este archivo directamente
 if __name__ == "__main__":
