@@ -16,11 +16,17 @@ from transiciones import TransitionEffect
 from overlay_effects import OverlayEffect
 from app import crear_video_desde_imagenes
 
+# Importar el gestor de procesamiento por lotes para TTS
+from batch_tts import BatchTTSManager
+
 class VideoCreatorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Video Creator")
         self.root.geometry("900x950")
+        
+        # Inicializar el gestor de procesamiento por lotes para TTS
+        self.batch_tts_manager = BatchTTSManager(root)
         
         # Configurar el tema y estilo
         self.style = ttk.Style()
@@ -156,6 +162,9 @@ class VideoCreatorApp:
         # Cargar automáticamente las imágenes y overlays al iniciar
         self.root.after(500, self.buscar_imagenes)
         self.root.after(1000, self.buscar_y_seleccionar_overlays)
+        
+        # Iniciar el worker para procesar la cola de TTS
+        self.batch_tts_manager.start_worker()
     
     def crear_interfaz(self):
         # Crear un frame superior para el botón de crear video
@@ -202,6 +211,10 @@ class VideoCreatorApp:
         tab_settings = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_settings, text="Ajustes de Efectos")
         
+        # Pestaña de cola de proyectos para TTS
+        tab_batch = ttk.Frame(notebook, style="Card.TFrame")
+        notebook.add(tab_batch, text="Cola de Proyectos")
+        
         # Configurar cada pestaña
         self.configurar_tab_basico(tab_basico)
         self.configurar_tab_efectos(tab_efectos)
@@ -211,6 +224,7 @@ class VideoCreatorApp:
         self.configurar_tab_audio(tab_audio)
         self.configurar_tab_preview(tab_preview)
         self.configurar_tab_settings(tab_settings)
+        self.configurar_tab_batch(tab_batch)
         
         # Barra de progreso
         self.progress = ttk.Progressbar(self.root, orient="horizontal", length=100, mode="indeterminate", style="TProgressbar")
@@ -1339,6 +1353,127 @@ class VideoCreatorApp:
         if hasattr(self, 'pbar'):
             self.pbar.close()
 
+    def configurar_tab_batch(self, tab):
+        """Configura la pestaña de cola de proyectos para TTS."""
+        # --- Sección de Entrada ---
+        frame_input = ttk.LabelFrame(tab, text="Nuevo Proyecto")
+        frame_input.pack(fill="x", padx=10, pady=10)
+
+        # Título del proyecto
+        lbl_title = ttk.Label(frame_input, text="Título:")
+        lbl_title.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.entry_title = ttk.Entry(frame_input, width=60)
+        self.entry_title.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        # Selección de voz
+        lbl_voice = ttk.Label(frame_input, text="Voz:")
+        lbl_voice.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        # Lista de voces disponibles (puedes ampliar esta lista)
+        voces = [
+            "es-EC-LuisNeural",  # Ecuador (masculino)
+            "es-ES-ElviraNeural",  # España (femenino)
+            "es-MX-DaliaNeural",  # México (femenino)
+            "es-AR-ElenaNeural",  # Argentina (femenino)
+            "es-CO-GonzaloNeural",  # Colombia (masculino)
+            "es-CL-CatalinaNeural"  # Chile (femenino)
+        ]
+        
+        self.selected_voice = tk.StringVar(value=voces[0])
+        voice_combo = ttk.Combobox(frame_input, textvariable=self.selected_voice, values=voces, width=30)
+        voice_combo.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+
+        # Guion del proyecto
+        lbl_script = ttk.Label(frame_input, text="Guion:")
+        lbl_script.grid(row=2, column=0, padx=5, pady=5, sticky="nw")
+        
+        # Frame para el Text y Scrollbar
+        frame_text = ttk.Frame(frame_input)
+        frame_text.grid(row=2, column=1, padx=5, pady=5, sticky="nsew")
+        frame_input.grid_columnconfigure(1, weight=1)  # Hacer que columna 1 se expanda
+        frame_input.grid_rowconfigure(2, weight=1)     # Hacer que fila 2 se expanda
+
+        self.txt_script = tk.Text(frame_text, wrap="word", height=15, width=60)
+        scrollbar_script = ttk.Scrollbar(frame_text, orient="vertical", command=self.txt_script.yview)
+        self.txt_script.configure(yscrollcommand=scrollbar_script.set)
+        self.txt_script.pack(side="left", fill="both", expand=True)
+        scrollbar_script.pack(side="right", fill="y")
+
+        # Botones de acción
+        frame_buttons = ttk.Frame(frame_input)
+        frame_buttons.grid(row=3, column=1, padx=5, pady=10, sticky="e")
+        
+        btn_add_queue = ttk.Button(frame_buttons, text="Añadir a la Cola",
+                                  command=self.add_project_to_queue, style="Action.TButton")
+        btn_add_queue.pack(side="right", padx=5)
+        
+        btn_clear = ttk.Button(frame_buttons, text="Limpiar Campos",
+                              command=self.clear_project_fields, style="Secondary.TButton")
+        btn_clear.pack(side="right", padx=5)
+
+        # --- Sección de Cola ---
+        frame_queue = ttk.LabelFrame(tab, text="Cola de Procesamiento")
+        frame_queue.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Usaremos un Treeview para mostrar la cola
+        self.tree_queue = ttk.Treeview(frame_queue, columns=("titulo", "estado", "tiempo"), show="headings", height=10)
+        self.tree_queue.heading("titulo", text="Título del Proyecto")
+        self.tree_queue.heading("estado", text="Estado")
+        self.tree_queue.heading("tiempo", text="Tiempo")
+        self.tree_queue.column("titulo", width=400)
+        self.tree_queue.column("estado", width=150, anchor="center")
+        self.tree_queue.column("tiempo", width=100, anchor="center")
+
+        # Scrollbar para el Treeview
+        scrollbar_queue = ttk.Scrollbar(frame_queue, orient="vertical", command=self.tree_queue.yview)
+        self.tree_queue.configure(yscrollcommand=scrollbar_queue.set)
+
+        self.tree_queue.pack(side="left", fill="both", expand=True)
+        scrollbar_queue.pack(side="right", fill="y")
+        
+        # Asignar el Treeview al gestor de cola
+        self.batch_tts_manager.tree_queue = self.tree_queue
+        
+        # Etiqueta de estado de la cola
+        self.lbl_queue_status = ttk.Label(tab, text="Cola vacía", style="Header.TLabel")
+        self.lbl_queue_status.pack(anchor="w", padx=10, pady=5)
+        
+        # Actualizar el estado de la cola cada 2 segundos
+        self.update_queue_status()
+    
+    def add_project_to_queue(self):
+        """Añade un nuevo proyecto a la cola de procesamiento."""
+        title = self.entry_title.get().strip()
+        script = self.txt_script.get("1.0", tk.END).strip()
+        voice = self.selected_voice.get()
+        
+        success = self.batch_tts_manager.add_project_to_queue(title, script, voice)
+        
+        if success:
+            messagebox.showinfo("Proyecto Añadido", f"El proyecto '{title}' ha sido añadido a la cola.")
+            self.clear_project_fields()
+            self.update_queue_status()
+    
+    def clear_project_fields(self):
+        """Limpia los campos del formulario de proyecto."""
+        self.entry_title.delete(0, tk.END)
+        self.txt_script.delete("1.0", tk.END)
+    
+    def update_queue_status(self):
+        """Actualiza la etiqueta de estado de la cola."""
+        status = self.batch_tts_manager.get_queue_status()
+        
+        if status['total'] == 0:
+            self.lbl_queue_status.config(text="Cola vacía")
+        else:
+            self.lbl_queue_status.config(
+                text=f"Total: {status['total']} | Pendientes: {status['pendientes']} | "
+                     f"Completados: {status['completados']} | Errores: {status['errores']}"
+            )
+        
+        # Programar la próxima actualización
+        self.root.after(2000, self.update_queue_status)
+    
     def obtener_overlays_seleccionados(self):
         """Obtiene la lista de overlays seleccionados y asegura que la opción de aplicar esté activada."""
         # Verificar si ya tenemos overlays seleccionados
