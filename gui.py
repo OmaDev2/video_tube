@@ -6,6 +6,7 @@ import threading
 from PIL import Image, ImageTk
 from glob import glob
 import time
+from pathlib import Path
 
 # Importar tqdm para la barra de progreso
 from tqdm.tk import tqdm as tqdm_tk
@@ -18,6 +19,12 @@ from app import crear_video_desde_imagenes
 
 # Importar el gestor de procesamiento por lotes para TTS
 from batch_tts import BatchTTSManager
+
+# Importar el formato de salida de audio
+try:
+    from tts_generator import OUTPUT_FORMAT
+except ImportError:
+    OUTPUT_FORMAT = "mp3"  # Valor por defecto si no se puede importar
 
 class VideoCreatorApp:
     def __init__(self, root):
@@ -1431,6 +1438,16 @@ class VideoCreatorApp:
         self.tree_queue.pack(side="left", fill="both", expand=True)
         scrollbar_queue.pack(side="right", fill="y")
         
+        # --- NUEVO BOTÓN ---
+        frame_acciones_cola = ttk.Frame(frame_queue)
+        frame_acciones_cola.pack(fill="x", pady=10)
+
+        btn_generate_video = ttk.Button(frame_acciones_cola,
+                                        text="Generar Vídeo del Proyecto Seleccionado",
+                                        command=self.trigger_video_generation_for_selected,
+                                        style="Action.TButton")
+        btn_generate_video.pack(side="right", padx=5)
+        
         # Asignar el Treeview al gestor de cola
         self.batch_tts_manager.tree_queue = self.tree_queue
         
@@ -1447,10 +1464,67 @@ class VideoCreatorApp:
         script = self.txt_script.get("1.0", tk.END).strip()
         voice = self.selected_voice.get()
         
-        success = self.batch_tts_manager.add_project_to_queue(title, script, voice)
+        # Capturar todos los ajustes actuales de la GUI para la creación de video
+        # Obtener secuencia de efectos
+        selected_effects_sequence = self.obtener_secuencia_efectos()
+        
+        # Recoger ajustes específicos de efectos
+        effect_settings = {
+            'zoom_ratio': self.settings_zoom_ratio.get(),
+            'zoom_quality': self.settings_zoom_quality.get(),
+            'pan_scale_factor': self.settings_pan_scale_factor.get(),
+            'pan_easing': self.settings_pan_easing.get(),
+            'pan_quality': self.settings_pan_quality.get(),
+            'kb_zoom_ratio': self.settings_kb_zoom_ratio.get(),
+            'kb_scale_factor': self.settings_kb_scale_factor.get(),
+            'kb_quality': self.settings_kb_quality.get(),
+            'kb_direction': self.settings_kb_direction.get(),
+            'overlay_opacity': self.settings_overlay_opacity.get(),
+            'overlay_blend_mode': self.settings_overlay_blend_mode.get()
+        }
+        
+        # Obtener overlays seleccionados
+        overlays = self.obtener_overlays_seleccionados()
+        
+        # Crear diccionario con todos los ajustes para la creación de video
+        video_settings = {
+            'duracion_img': self.duracion_img.get(),
+            'fps': self.fps.get(),
+            'aplicar_efectos': self.aplicar_efectos.get(),
+            'secuencia_efectos': selected_effects_sequence,
+            'aplicar_transicion': self.aplicar_transicion.get(),
+            'tipo_transicion': self.tipo_transicion.get(),
+            'duracion_transicion': self.duracion_transicion.get(),
+            'aplicar_fade_in': self.aplicar_fade_in.get(),
+            'duracion_fade_in': self.duracion_fade_in.get(),
+            'aplicar_fade_out': self.aplicar_fade_out.get(),
+            'duracion_fade_out': self.duracion_fade_out.get(),
+            'aplicar_overlay': bool(overlays),
+            'archivos_overlay': [str(Path(ov).resolve()) for ov in overlays] if overlays else None,
+            'opacidad_overlay': self.opacidad_overlay.get(),
+            'aplicar_musica': self.aplicar_musica.get(),
+            'archivo_musica': str(Path(self.archivo_musica.get()).resolve()) if self.archivo_musica.get() else None,
+            'volumen_musica': self.volumen_musica.get(),
+            'aplicar_fade_in_musica': self.aplicar_fade_in_musica.get(),
+            'duracion_fade_in_musica': self.duracion_fade_in_musica.get(),
+            'aplicar_fade_out_musica': self.aplicar_fade_out_musica.get(),
+            'duracion_fade_out_musica': self.duracion_fade_out_musica.get(),
+            'volumen_voz': self.volumen_voz.get(),
+            'aplicar_fade_in_voz': self.aplicar_fade_in_voz.get(),
+            'duracion_fade_in_voz': self.duracion_fade_in_voz.get(),
+            'aplicar_fade_out_voz': self.aplicar_fade_out_voz.get(),
+            'duracion_fade_out_voz': self.duracion_fade_out_voz.get(),
+            'aplicar_subtitulos': False,  # Por ahora no soportamos subtítulos automáticos
+            'settings': effect_settings
+        }
+        
+        success = self.batch_tts_manager.add_project_to_queue(title, script, voice, video_settings)
         
         if success:
-            messagebox.showinfo("Proyecto Añadido", f"El proyecto '{title}' ha sido añadido a la cola.")
+            messagebox.showinfo("Proyecto Añadido", 
+                              f"El proyecto '{title}' ha sido añadido a la cola.\n\n" +
+                              "Nota: Para generar el video, crea manualmente una carpeta 'imagenes' " +
+                              "dentro de la carpeta del proyecto y coloca ahí las imágenes que quieres usar.")
             self.clear_project_fields()
             self.update_queue_status()
     
@@ -1473,6 +1547,190 @@ class VideoCreatorApp:
         
         # Programar la próxima actualización
         self.root.after(2000, self.update_queue_status)
+        
+    def trigger_video_generation_for_selected(self):
+        """Inicia la generación de video para el proyecto seleccionado en la cola."""
+        selected_items = self.tree_queue.selection()
+        if not selected_items:
+            messagebox.showerror("Error", "Por favor, selecciona un proyecto de la cola.")
+            return
+        if len(selected_items) > 1:
+            messagebox.showwarning("Advertencia", "Por favor, selecciona solo un proyecto a la vez para generar el vídeo.")
+            return
+
+        job_id = selected_items[0]
+        if job_id not in self.batch_tts_manager.jobs_in_gui:
+            messagebox.showerror("Error", f"No se encontraron datos para el trabajo seleccionado (ID: {job_id}).")
+            return
+
+        job_data = self.batch_tts_manager.jobs_in_gui[job_id]
+        project_folder = job_data['carpeta_salida']
+        expected_audio_file = str(Path(project_folder) / f"voz.{OUTPUT_FORMAT}")
+        image_folder = Path(project_folder) / "imagenes"
+
+        # --- Verificaciones Previas ---
+        if not Path(project_folder).is_dir():
+            messagebox.showerror("Error", f"La carpeta del proyecto no existe:\n{project_folder}")
+            return
+        if not Path(expected_audio_file).is_file():
+            messagebox.showerror("Error", f"No se encontró el archivo de audio generado:\n{expected_audio_file}\nAsegúrate de que el estado sea 'Audio Completo'.")
+            return
+        if not image_folder.is_dir() or not any(image_folder.iterdir()): # Verificar si existe y no está vacía
+            messagebox.showerror("Error", f"No se encontró la carpeta '{image_folder.name}' o está vacía.\nPor favor, crea la carpeta y añade imágenes antes de generar el vídeo.")
+            return
+
+        print(f"\n--- Iniciando generación de vídeo para trabajo {job_id} ---")
+        self.batch_tts_manager.update_job_status_gui(job_id, "Preparando vídeo...")
+
+        # --- Recoger Ajustes ACTUALES de la GUI ---
+        try:
+            # Crear un diccionario con los ajustes de efectos
+            current_settings = {
+                'zoom_ratio': self.settings_zoom_ratio.get(),
+                'zoom_quality': self.settings_zoom_quality.get(),
+                'pan_scale_factor': self.settings_pan_scale_factor.get(),
+                'pan_easing': self.settings_pan_easing.get(),
+                'pan_quality': self.settings_pan_quality.get(),
+                'kb_zoom_ratio': self.settings_kb_zoom_ratio.get(),
+                'kb_scale_factor': self.settings_kb_scale_factor.get(),
+                'kb_quality': self.settings_kb_quality.get(),
+                'kb_direction': self.settings_kb_direction.get(),
+                'overlay_opacity': self.settings_overlay_opacity.get(),
+                'overlay_blend_mode': self.settings_overlay_blend_mode.get(),
+            }
+            
+            # Obtener secuencia de efectos actual
+            current_efectos_sequence = self.obtener_secuencia_efectos_actual()
+
+            # Actualizar el estado en la GUI antes de lanzar el hilo
+            self.batch_tts_manager.update_job_status_gui(job_id, "Generando Vídeo...")
+            self.progress['value'] = 0  # Resetear barra de progreso para este vídeo
+            self.root.update_idletasks()
+
+            # --- Lanzar Creación de Vídeo en un Hilo Separado ---
+            video_thread = threading.Thread(
+                target=self._run_video_generation_thread,
+                args=(
+                    job_id,  # Pasar ID para actualizar estado al final
+                    project_folder,
+                    expected_audio_file,  # Ruta al audio generado
+                ),
+                kwargs={
+                    # Pasar todos los parámetros con nombre para evitar errores de orden
+                    'duracion_img': self.duracion_img.get(),
+                    'fps': self.fps.get(),
+                    'aplicar_efectos': self.aplicar_efectos.get(),
+                    'secuencia_efectos': current_efectos_sequence,
+                    'aplicar_transicion': self.aplicar_transicion.get(),
+                    'tipo_transicion': self.tipo_transicion.get(),
+                    'duracion_transicion': self.duracion_transicion.get(),
+                    'aplicar_fade_in': self.aplicar_fade_in.get(),
+                    'duracion_fade_in': self.duracion_fade_in.get(),
+                    'aplicar_fade_out': self.aplicar_fade_out.get(),
+                    'duracion_fade_out': self.duracion_fade_out.get(),
+                    'aplicar_overlay': self.aplicar_overlay.get(),
+                    'archivos_overlay': self.obtener_overlays_seleccionados(),
+                    'opacidad_overlay': self.opacidad_overlay.get(),
+                    'aplicar_musica': self.aplicar_musica.get(),
+                    'archivo_musica': self.archivo_musica.get() if self.aplicar_musica.get() else None,
+                    'volumen_musica': self.volumen_musica.get(),
+                    'aplicar_fade_in_musica': self.aplicar_fade_in_musica.get(),
+                    'duracion_fade_in_musica': self.duracion_fade_in_musica.get(),
+                    'aplicar_fade_out_musica': self.aplicar_fade_out_musica.get(),
+                    'duracion_fade_out_musica': self.duracion_fade_out_musica.get(),
+                    'volumen_voz': self.volumen_voz.get(),
+                    'aplicar_fade_in_voz': self.aplicar_fade_in_voz.get(),
+                    'duracion_fade_in_voz': self.duracion_fade_in_voz.get(),
+                    'aplicar_fade_out_voz': self.aplicar_fade_out_voz.get(),
+                    'duracion_fade_out_voz': self.duracion_fade_out_voz.get(),
+                    'aplicar_subtitulos': False,  # Lo implementaremos luego
+                    'archivo_subtitulos': None,
+                    'settings': current_settings,
+                    'progress_callback': self.update_progress_bar
+                },
+                daemon=True
+            )
+            video_thread.start()
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al preparar la generación de vídeo: {e}")
+            self.batch_tts_manager.update_job_status_gui(job_id, f"Error Preparación: {e}")
+    
+    def _run_video_generation_thread(self, job_id, project_folder, audio_file, **kwargs):
+        """Función que se ejecuta en un hilo para crear UN video."""
+        success = False
+        message = "Error desconocido"
+        try:
+            # Llamar a la función principal pasándole todos los argumentos con nombre
+            kwargs['archivo_voz'] = audio_file  # Asegurar que archivo_voz esté configurado
+            crear_video_desde_imagenes(project_folder, **kwargs)
+            success = True
+            message = "Vídeo Completo"
+
+        except Exception as e:
+            print(f"Excepción en hilo de vídeo para {job_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            message = f"Error Vídeo: {e}"
+            success = False
+
+        finally:
+            # Notificar al hilo principal de Tkinter para actualizar la GUI
+            self.root.after(0, self._video_thread_complete, job_id, success, message)
+    
+    def _video_thread_complete(self, job_id, success, message):
+        """Actualiza la GUI cuando el hilo de generación de vídeo termina."""
+        print(f"Hilo de vídeo para {job_id} completado. Éxito: {success}, Mensaje: {message}")
+        self.batch_tts_manager.update_job_status_gui(job_id, message)  # Actualiza estado en Treeview
+        if success:
+            # Podrías añadir opción para abrir carpeta o vídeo
+            pass
+        else:
+            # El error ya se muestra en el estado
+            pass
+        # Resetear barra de progreso
+        self.progress['value'] = 0
+        self.lbl_estado.config(text="Listo")
+        
+    def update_progress_bar(self, current_step, total_steps):
+        """Actualiza la barra de progreso durante la generación de vídeo.
+        
+        Args:
+            current_step: Paso actual en el proceso
+            total_steps: Total de pasos a completar
+        """
+        # Asegurar ejecución en el hilo principal de Tkinter
+        # Solo actualiza si el total es válido
+        if total_steps > 0:
+            self.root.after(0, self._update_progress, current_step, total_steps)
+    
+    def _update_progress(self, current_step, total_steps):
+        """Actualiza la barra de progreso en el hilo principal de Tkinter."""
+        # Calcular porcentaje y actualizar la barra determinate
+        percentage = int((current_step / total_steps) * 100)
+        self.progress['value'] = percentage
+        # Actualizar etiqueta de estado
+        self.lbl_estado.config(text=f"Generando Vídeo... {percentage}%")
+        # Forzar actualización de la GUI
+        self.root.update_idletasks()
+    
+    def obtener_secuencia_efectos_actual(self):
+        """Obtiene la secuencia de efectos basada en la selección ACTUAL de la GUI."""
+        if not self.aplicar_efectos.get():
+            return None
+
+        modo = self.modo_efecto.get()
+        if modo == "1":  # Un solo tipo
+            return [self.tipo_efecto.get()]
+        elif modo == "2":  # Secuencia personalizada
+            secuencia = self.secuencia_efectos.get().split(',') if self.secuencia_efectos.get() else []
+            return secuencia if secuencia else ['in']
+        elif modo == "3":  # Alternar
+            return ['in', 'out']
+        elif modo == "4":  # Ken Burns Seq
+            return ['kenburns', 'kenburns1', 'kenburns2', 'kenburns3']
+        else:
+            return None
     
     def obtener_overlays_seleccionados(self):
         """Obtiene la lista de overlays seleccionados y asegura que la opción de aplicar esté activada."""

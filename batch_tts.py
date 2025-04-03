@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from pathlib import Path
 import time
+import traceback
 
 # Importar el generador de voz en off
 try:
@@ -22,6 +23,17 @@ except ImportError:
         Path(output_path).touch()  # Crea un archivo vacío como marcador
         return output_path  # Devuelve la ruta simulada
     OUTPUT_FORMAT = "mp3"
+
+# Importar la función para crear video
+try:
+    from app import crear_video_desde_imagenes
+except ImportError:
+    print("Advertencia: No se pudo importar 'crear_video_desde_imagenes'.")
+    print("Asegúrate de que el archivo app.py esté accesible.")
+    # Define una función simulada si la importación falla
+    def crear_video_desde_imagenes(project_folder, **kwargs):
+        print(f"Simulando: Creando video para el proyecto '{project_folder}'")
+        return None
 
 class BatchTTSManager:
     """Gestor de procesamiento por lotes para la generación de voz en off."""
@@ -62,7 +74,7 @@ class BatchTTSManager:
         # Limitar longitud
         return sanitized[:100]  # Limitar a 100 caracteres
     
-    def add_project_to_queue(self, title, script, voice=None):
+    def add_project_to_queue(self, title, script, voice=None, video_settings=None):
         """
         Añade un nuevo proyecto a la cola de procesamiento.
         
@@ -70,6 +82,7 @@ class BatchTTSManager:
             title: Título del proyecto
             script: Texto del guion para la voz en off
             voice: Voz a utilizar (opcional, usa default_voice si no se especifica)
+            video_settings: Diccionario con ajustes para la creación del video
         
         Returns:
             bool: True si se añadió correctamente, False en caso contrario
@@ -113,7 +126,9 @@ class BatchTTSManager:
             'voz': voice or self.default_voice,
             'estado': 'Pendiente',
             'tiempo_inicio': None,
-            'tiempo_fin': None
+            'tiempo_fin': None,
+            # Guardar ajustes para la creación del video
+            'video_settings': video_settings or {}
         }
         
         self.job_queue.put(job_data)
@@ -141,6 +156,7 @@ class BatchTTSManager:
     
     def _process_queue(self):
         """Procesa los trabajos en la cola de forma secuencial."""
+        print("Worker de Cola iniciado.")
         while self.worker_running:
             try:
                 # Esperar un trabajo con timeout para poder comprobar worker_running
@@ -163,29 +179,40 @@ class BatchTTSManager:
                 
                 print(f"Procesando trabajo {job_id}: '{title}'")
                 
+                final_audio_path = None
+                success_tts = False
+                error_msg = ""
+                
                 try:
                     # Ejecutar la corutina create_voiceover_from_script
-                    final_audio = asyncio.run(create_voiceover_from_script(
+                    final_audio_path = asyncio.run(create_voiceover_from_script(
                         script_path=script_path,
                         output_audio_path=audio_output_path,
                         voice=voice
                     ))
                     
-                    # Calcular tiempo transcurrido
-                    job['tiempo_fin'] = time.time()
-                    tiempo_transcurrido = job['tiempo_fin'] - job['tiempo_inicio']
-                    tiempo_formateado = f"{int(tiempo_transcurrido // 60)}m {int(tiempo_transcurrido % 60)}s"
+                    # Calcular tiempo transcurrido para la generación de audio
+                    audio_tiempo_fin = time.time()
+                    audio_tiempo_transcurrido = audio_tiempo_fin - job['tiempo_inicio']
+                    audio_tiempo_formateado = f"{int(audio_tiempo_transcurrido // 60)}m {int(audio_tiempo_transcurrido % 60)}s"
                     
-                    if final_audio and Path(final_audio).is_file():
-                        print(f"Audio generado para {job_id}: {final_audio}")
-                        self.update_job_status_gui(job_id, "Audio Completo", tiempo_formateado)
+                    if final_audio_path and Path(final_audio_path).is_file():
+                        print(f"Audio generado para {job_id}: {final_audio_path}")
+                        # --- CAMBIO: Estado final del worker es Audio Completo ---
+                        self.update_job_status_gui(job_id, "Audio Completo", audio_tiempo_formateado)
+                        success_tts = True
+                        # Actualizar el job con la ruta del audio generado
+                        job['archivo_voz'] = final_audio_path
+                        job['tiempo_fin'] = audio_tiempo_fin
                     else:
-                        print(f"Fallo al generar audio para {job_id}")
-                        self.update_job_status_gui(job_id, "Error TTS", tiempo_formateado)
+                        error_msg = "Falló generación TTS"
+                        print(f"{error_msg} para {job_id}")
+                        self.update_job_status_gui(job_id, f"Error: {error_msg}", audio_tiempo_formateado)
+                        job['tiempo_fin'] = audio_tiempo_fin
                 
-                except Exception as e:
-                    print(f"Excepción en el worker procesando {job_id}: {e}")
-                    import traceback
+                except Exception as e_tts:
+                    error_msg = f"Excepción TTS: {e_tts}"
+                    print(f"Excepción en el worker (TTS) procesando {job_id}: {e_tts}")
                     traceback.print_exc()
                     
                     # Calcular tiempo transcurrido incluso en caso de error
@@ -193,10 +220,20 @@ class BatchTTSManager:
                     tiempo_transcurrido = job['tiempo_fin'] - job['tiempo_inicio']
                     tiempo_formateado = f"{int(tiempo_transcurrido // 60)}m {int(tiempo_transcurrido % 60)}s"
                     
-                    self.update_job_status_gui(job_id, f"Error: {str(e)[:30]}...", tiempo_formateado)
+                    self.update_job_status_gui(job_id, f"Error: {error_msg}", tiempo_formateado)
                 
                 finally:
-                    self.job_queue.task_done()  # Indicar que este trabajo se ha procesado
+                    # --- Solución temporal error task_done ---
+                    try:
+                        self.job_queue.task_done()
+                    except ValueError as e_td:
+                        if "called too many times" in str(e_td):
+                            print(f"Advertencia: task_done() llamado demasiadas veces para job {job_id}. Ignorando.")
+                        else:
+                            print(f"ValueError inesperado en task_done() para job {job_id}: {e_td}")
+                    except Exception as e_final:
+                        print(f"Excepción inesperada en finally para job {job_id}: {e_final}")
+                    # ----------------------------------------
             
             except Exception as e:
                 print(f"Error inesperado en el worker: {e}")
