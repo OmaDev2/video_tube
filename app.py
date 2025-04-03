@@ -3,14 +3,19 @@ from moviepy import VideoFileClip, ImageClip, AudioFileClip, concatenate_videocl
 from moviepy.audio import fx as afx
 import os
 from glob import glob
+from pathlib import Path
 # Import the custom effects
 from efectos import ZoomEffect, PanUpEffect, PanDownEffect, PanLeftEffect, FlipEffect, PanRightEffect, KenBurnsEffect, VignetteZoomEffect, RotateEffect
 from transiciones import TransitionEffect
 from overlay_effects import OverlayEffect
 from subtitles import SubtitleEffect
 
+# Importar componentes específicos para subtítulos
+from moviepy.video.tools.subtitles import SubtitlesClip
+from moviepy.video.VideoClip import TextClip
 
-def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img=6, fps=24, 
+
+def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24, 
                                aplicar_efectos=True, secuencia_efectos=None,
                                aplicar_transicion=False, tipo_transicion='none', duracion_transicion=2.0,
                                aplicar_fade_in=False, duracion_fade_in=2.0,
@@ -19,28 +24,56 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
                                aplicar_musica=False, archivo_musica=None, volumen_musica=1.0,
                                aplicar_fade_in_musica=False, duracion_fade_in_musica=2.0,
                                aplicar_fade_out_musica=False, duracion_fade_out_musica=2.0,
-                               aplicar_voz=False, archivo_voz=None, volumen_voz=1.0,
+                               archivo_voz=None, volumen_voz=1.0,
                                aplicar_fade_in_voz=False, duracion_fade_in_voz=1.0,
                                aplicar_fade_out_voz=False, duracion_fade_out_voz=1.0,
                                aplicar_subtitulos=False, archivo_subtitulos=None, 
-                               tamano_fuente_subtitulos=24, color_fuente_subtitulos='white',
-                               color_borde_subtitulos='black', grosor_borde_subtitulos=1,
+                               tamano_fuente_subtitulos=None, color_fuente_subtitulos='orange',
+                               color_borde_subtitulos='black', grosor_borde_subtitulos=6,
                                progress_callback=None, settings=None):
     """
-    Crea un video a partir de imágenes en un directorio.
+    Crea un video usando recursos de una carpeta de proyecto específica.
     
     Args:
-        directorio_imagenes: Ruta a la carpeta con imágenes
-        archivo_salida: Nombre del archivo de video de salida
+        project_folder: Ruta a la carpeta raíz del proyecto (ej: ./proyectos_video/MiTitulo)
         duracion_img: Duración en segundos de cada imagen
         fps: Frames por segundo
         aplicar_efectos: Aplicar efectos a las imágenes
-        tipo_zoom: Tipo de zoom a aplicar ('in' o 'out')
+        secuencia_efectos: Lista de efectos a aplicar en secuencia
+        aplicar_transicion: Aplicar transiciones entre clips
+        tipo_transicion: Tipo de transición a aplicar
+        duracion_transicion: Duración de la transición en segundos
+        aplicar_fade_in: Aplicar fade in al inicio del video
+        duracion_fade_in: Duración del fade in en segundos
+        aplicar_fade_out: Aplicar fade out al final del video
+        duracion_fade_out: Duración del fade out en segundos
         aplicar_overlay: Aplicar efecto de superposición
-        archivo_overlay: Ruta al archivo de overlay
+        archivos_overlay: Lista de rutas a los archivos de overlay
         opacidad_overlay: Opacidad del overlay (0.0 a 1.0)
+        aplicar_musica: Aplicar música de fondo
+        archivo_musica: Ruta al archivo de música
+        volumen_musica: Volumen de la música (0.0 a 1.0)
+        aplicar_fade_in_musica: Aplicar fade in a la música
+        duracion_fade_in_musica: Duración del fade in de la música en segundos
+        aplicar_fade_out_musica: Aplicar fade out a la música
+        duracion_fade_out_musica: Duración del fade out de la música en segundos
+        archivo_voz: Ruta al archivo de voz en off
+        volumen_voz: Volumen de la voz (0.0 a 1.0)
+        aplicar_fade_in_voz: Aplicar fade in a la voz
+        duracion_fade_in_voz: Duración del fade in de la voz en segundos
+        aplicar_fade_out_voz: Aplicar fade out a la voz
+        duracion_fade_out_voz: Duración del fade out de la voz en segundos
+        aplicar_subtitulos: Aplicar subtítulos
+        archivo_subtitulos: Ruta al archivo de subtítulos
+        tamano_fuente_subtitulos: Tamaño de la fuente de los subtítulos
+        color_fuente_subtitulos: Color de la fuente de los subtítulos
+        color_borde_subtitulos: Color del borde de los subtítulos
+        grosor_borde_subtitulos: Grosor del borde de los subtítulos
+        progress_callback: Función de callback para mostrar el progreso
         settings: Diccionario con ajustes personalizados para los efectos
     """
+    # Importar Path al principio de la función
+    from pathlib import Path
     # Usar ajustes por defecto si no se proporcionan
     if settings is None:
         settings = {
@@ -55,11 +88,25 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
             'kb_direction': 'random'
         }
     
+    # Configurar rutas del proyecto
+    project_path = Path(project_folder)
+    image_folder = project_path / "imagenes"  # Subcarpeta para imágenes
+    output_filename_base = project_path.name  # Usa el nombre de la carpeta del proyecto
+    output_video_path = project_path / f"{output_filename_base}_final.mp4"
+    
+    print(f"\n--- Iniciando Creación de Vídeo para Proyecto en: {project_folder} ---")
+    
+    # Verificar si existe la carpeta de imágenes
+    if not image_folder.is_dir():
+        print(f"ERROR: No se encontró la subcarpeta de imágenes: {image_folder}")
+        print("Por favor, crea la carpeta 'imagenes' dentro de la carpeta del proyecto y añade imágenes.")
+        return
+    
     # Obtener lista de archivos de imagen
     formatos = ['*.jpg', '*.jpeg', '*.png', '*.bmp']
     archivos = []
     for formato in formatos:
-        archivos.extend(glob(os.path.join(directorio_imagenes, formato)))
+        archivos.extend(glob(str(image_folder / formato)))
     
     # Ordenar archivos por el número que aparece al final del nombre
     def extraer_numero(archivo):
@@ -300,8 +347,8 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
     # Aplicar audio (música de fondo y/o voz en off)
     audio_clips = []
     
-    # Aplicar voz en off primero si se solicita
-    if aplicar_voz and archivo_voz and os.path.exists(archivo_voz):
+    # Aplicar voz en off primero si se proporciona
+    if archivo_voz and os.path.exists(archivo_voz):
         print(f"Aplicando voz en off: {os.path.basename(archivo_voz)}")
         voz = AudioFileClip(archivo_voz)
         
@@ -365,30 +412,101 @@ def crear_video_desde_imagenes(directorio_imagenes, archivo_salida, duracion_img
             audio_final = CompositeAudioClip(audio_clips)
             video_final = video_final.with_audio(audio_final)
     
-    # Aplicar subtítulos si se solicita
-    if aplicar_subtitulos and archivo_subtitulos and os.path.exists(archivo_subtitulos):
-        print(f"Aplicando subtítulos: {os.path.basename(archivo_subtitulos)}")
+    # Mostrar el directorio de trabajo actual para depuración
+    print(f"DEBUG: Directorio de trabajo actual (CWD): {os.getcwd()}")
+    
+    # --- APLICAR SUBTÍTULOS ---
+    # Reemplaza la sección "# --- APLICAR SUBTÍTULOS ---" en tu función crear_video_desde_imagenes
+# con el siguiente código:
+
+    # --- APLICAR SUBTÍTULOS ---
+    if aplicar_subtitulos and archivo_subtitulos and Path(archivo_subtitulos).is_file():
+        print(f"Aplicando subtítulos desde: {archivo_subtitulos}")
         try:
-            # Parsear el archivo de subtítulos
-            subtitulos = SubtitleEffect.parse_srt_file(archivo_subtitulos)
+            # Verificar si el archivo tiene contenido
+            with open(archivo_subtitulos, 'r', encoding='utf-8') as f:
+                contenido = f.read().strip()
+                if not contenido:
+                    print(f"ADVERTENCIA: El archivo de subtítulos está vacío: {archivo_subtitulos}")
+                    raise ValueError("Archivo de subtítulos vacío")
+                else:
+                    print(f"Archivo de subtítulos tiene {len(contenido)} caracteres")
             
-            # Aplicar los subtítulos al video
-            video_final = SubtitleEffect.apply_subtitles(
-                video_final,
-                subtitulos,
-                font_size=tamano_fuente_subtitulos,
-                font_color=color_fuente_subtitulos,
+            # Calculamos el ancho del texto como un entero (no float)
+            text_width = int(video_final.w * 0.8)
+            
+            # Obtener la ruta de la fuente (usar la especificada o intentar una fuente del sistema)
+            font_path = '/Users/olga/Development/proyectosPython/VideoPython/fonts/Roboto-Regular.ttf'
+            if not os.path.exists(font_path):
+                # Intentar con una fuente del sistema como respaldo
+                for system_font in ['/System/Library/Fonts/Helvetica.ttc', '/Library/Fonts/Arial.ttf']:
+                    if os.path.exists(system_font):
+                        font_path = system_font
+                        print(f"Usando fuente del sistema: {font_path}")
+                        break
+            
+            # Generator con los parámetros correctos
+            generator = lambda txt: TextClip(
+                font_path,  # Primer argumento posicional debe ser font
+                text=txt,   # Texto como argumento nombrado
+                font_size=80,  # Usar font_size, no fontsize
+                color=color_fuente_subtitulos,
                 stroke_color=color_borde_subtitulos,
                 stroke_width=grosor_borde_subtitulos,
-                position=('center', 'bottom')
+                method='caption',
+                text_align='center',
+                size=(text_width, None)  # Ancho como entero, no float
             )
-            print(f"Se aplicaron {len(subtitulos)} subtítulos al video")
+
+            # Crear SubtitlesClip
+            print("Creando SubtitlesClip...")
+            subs_clip = SubtitlesClip(
+                archivo_subtitulos,
+                make_textclip=generator,
+                encoding='utf-8'
+            )
+            print("SubtitlesClip creado.")
+            
+            # Verificación de tipo y atributos
+            print(f"Tipo de subs_clip: {type(subs_clip)}")
+            
+            if hasattr(subs_clip, 'duration'):
+                print(f"Duración de subtítulos: {subs_clip.duration}")
+                
+                # IMPORTANTE: Ajustar la duración de los subtítulos a la duración del video
+                if subs_clip.duration > video_final.duration:
+                    print(f"Ajustando duración de subtítulos de {subs_clip.duration}s a {video_final.duration}s")
+                    subs_clip = subs_clip.with_duration(video_final.duration)
+                
+                # Establecer posición para los subtítulos
+                positioned_subs = subs_clip.with_position(('center', 0.9), relative=True)
+                
+                # Crear clip final compuesto
+                print("Componiendo vídeo + subtítulos...")
+                video_final = CompositeVideoClip(
+                    [video_final, positioned_subs],
+                    size=video_final.size
+                )
+                print("Composición exitosa con subtítulos.")
+            else:
+                print("ERROR: SubtitlesClip no tiene atributo 'duration'. No se aplicarán subtítulos.")
+
         except Exception as e:
             print(f"Error al aplicar subtítulos: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            print("Continuando sin subtítulos...")
     
     # Guardar el video
-    video_final.write_videofile(archivo_salida, fps=fps)
-    print(f"Video guardado como {archivo_salida}")
+    print(f"Escribiendo archivo de video final en: {output_video_path}")
+    video_final.write_videofile(
+        str(output_video_path),
+        fps=fps,
+        codec='libx264', audio_codec='aac',
+        threads=os.cpu_count(), preset='medium',
+        ffmpeg_params=['-crf', '23']
+    )
+    print(f"Video guardado como {output_video_path}")
     
     # Indicar que el proceso ha terminado (100% completado)
     if progress_callback:

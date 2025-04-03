@@ -26,6 +26,16 @@ try:
 except ImportError:
     OUTPUT_FORMAT = "mp3"  # Valor por defecto si no se puede importar
 
+# Importar funciones para subtítulos
+from subtitles import generate_srt_with_whisper, WHISPER_AVAILABLE
+
+# Importar Whisper si está disponible
+if WHISPER_AVAILABLE:
+    try:
+        from faster_whisper import WhisperModel
+    except ImportError:
+        print("ADVERTENCIA: No se pudo importar WhisperModel a pesar de que WHISPER_AVAILABLE es True")
+
 class VideoCreatorApp:
     def __init__(self, root):
         self.root = root
@@ -34,6 +44,42 @@ class VideoCreatorApp:
         
         # Inicializar el gestor de procesamiento por lotes para TTS
         self.batch_tts_manager = BatchTTSManager(root)
+        
+        # --- Inicializar variables para subtítulos ---
+        self.settings_subtitles = tk.BooleanVar(value=True)
+        self.settings_subtitles_font_size = tk.IntVar(value=24)
+        self.settings_subtitles_font_color = tk.StringVar(value='white')
+        self.settings_subtitles_stroke_color = tk.StringVar(value='black')
+        self.settings_subtitles_stroke_width = tk.IntVar(value=1)
+        
+        # --- Inicializar variables para configuración de Whisper ---
+        self.whisper_model = None
+        self.whisper_model_size = tk.StringVar(value="base")  # Opciones: "tiny", "base", "small", "medium", "large-v3"
+        self.whisper_device = tk.StringVar(value="cpu")  # Usar "cuda" si tienes GPU compatible
+        self.whisper_compute_type = tk.StringVar(value="int8")  # Optimizado para CPU
+        self.whisper_language = tk.StringVar(value="es")  # Idioma para transcripción
+        self.whisper_word_timestamps = tk.BooleanVar(value=True)  # Usar timestamps por palabra
+        
+        # Cargar el modelo Whisper si está disponible
+        if WHISPER_AVAILABLE:
+            try:
+                print(f"INFO GUI: Cargando modelo Whisper '{self.whisper_model_size.get()}' para {self.whisper_device.get()}...")
+                self.whisper_model = WhisperModel(
+                    self.whisper_model_size.get(),
+                    device=self.whisper_device.get(),
+                    compute_type=self.whisper_compute_type.get()
+                )
+                print("INFO GUI: Modelo Whisper cargado exitosamente.")
+            except Exception as e_load_model:
+                print(f"ERROR GUI: No se pudo cargar el modelo Whisper: {e_load_model}")
+                messagebox.showwarning(
+                    "Advertencia: Modelo Whisper",
+                    f"No se pudo cargar el modelo Whisper '{self.whisper_model_size.get()}'. \n"
+                    f"La generación automática de subtítulos no estará disponible.\n"
+                    f"Error: {e_load_model}"
+                )
+        else:
+            print("INFO GUI: faster-whisper no está disponible. No se cargará el modelo Whisper.")
         
         # Configurar el tema y estilo
         self.style = ttk.Style()
@@ -222,6 +268,10 @@ class VideoCreatorApp:
         tab_batch = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_batch, text="Cola de Proyectos")
         
+        # Pestaña de configuración de subtítulos con Whisper
+        tab_subtitles = ttk.Frame(notebook, style="Card.TFrame")
+        notebook.add(tab_subtitles, text="Subtítulos")
+        
         # Configurar cada pestaña
         self.configurar_tab_basico(tab_basico)
         self.configurar_tab_efectos(tab_efectos)
@@ -232,6 +282,7 @@ class VideoCreatorApp:
         self.configurar_tab_preview(tab_preview)
         self.configurar_tab_settings(tab_settings)
         self.configurar_tab_batch(tab_batch)
+        self.configurar_tab_subtitles(tab_subtitles)
         
         # Barra de progreso
         self.progress = ttk.Progressbar(self.root, orient="horizontal", length=100, mode="indeterminate", style="TProgressbar")
@@ -302,7 +353,7 @@ class VideoCreatorApp:
         btn_buscar.pack(pady=5)
     
     def configurar_tab_efectos(self, tab):
-    # Checkbox para activar efectos
+        # Checkbox para activar efectos
         chk_efectos = ttk.Checkbutton(tab, text="Aplicar efectos de movimiento", variable=self.aplicar_efectos)
         chk_efectos.pack(anchor="w", padx=10, pady=10)
         
@@ -1596,7 +1647,7 @@ class VideoCreatorApp:
                 'kb_quality': self.settings_kb_quality.get(),
                 'kb_direction': self.settings_kb_direction.get(),
                 'overlay_opacity': self.settings_overlay_opacity.get(),
-                'overlay_blend_mode': self.settings_overlay_blend_mode.get(),
+                'overlay_blend_mode': self.settings_overlay_blend_mode.get()
             }
             
             # Obtener secuencia de efectos actual
@@ -1643,9 +1694,14 @@ class VideoCreatorApp:
                     'duracion_fade_in_voz': self.duracion_fade_in_voz.get(),
                     'aplicar_fade_out_voz': self.aplicar_fade_out_voz.get(),
                     'duracion_fade_out_voz': self.duracion_fade_out_voz.get(),
-                    'aplicar_subtitulos': False,  # Lo implementaremos luego
-                    'archivo_subtitulos': None,
+                    # Usar los subtítulos generados si existen
+                    'aplicar_subtitulos': job_data.get('aplicar_subtitulos', False),
+                    'archivo_subtitulos': job_data.get('archivo_subtitulos', None),
                     'settings': current_settings,
+                    'tamano_fuente_subtitulos': 24,  # Valores por defecto, podrían ser configurables
+                    'color_fuente_subtitulos': 'white',
+                    'color_borde_subtitulos': 'black',
+                    'grosor_borde_subtitulos': 1,
                     'progress_callback': self.update_progress_bar
                 },
                 daemon=True
@@ -1663,7 +1719,39 @@ class VideoCreatorApp:
         try:
             # Llamar a la función principal pasándole todos los argumentos con nombre
             kwargs['archivo_voz'] = audio_file  # Asegurar que archivo_voz esté configurado
-            crear_video_desde_imagenes(project_folder, **kwargs)
+            
+            # Verificar si hay subtítulos y asegurarse de que se apliquen
+            archivo_subtitulos = kwargs.get('archivo_subtitulos')
+            if archivo_subtitulos and os.path.exists(archivo_subtitulos):
+                print(f"Encontrado archivo de subtítulos: {archivo_subtitulos}")
+                kwargs['aplicar_subtitulos'] = True
+                # Verificar si el archivo tiene contenido
+                try:
+                    with open(archivo_subtitulos, 'r', encoding='utf-8') as f:
+                        contenido = f.read().strip()
+                        if contenido:
+                            print(f"El archivo de subtítulos tiene {len(contenido)} caracteres")
+                        else:
+                            print("ADVERTENCIA: El archivo de subtítulos está vacío")
+                            kwargs['aplicar_subtitulos'] = False
+                except Exception as e_srt:
+                    print(f"Error al leer archivo de subtítulos: {e_srt}")
+            else:
+                # Buscar archivo de subtítulos en la carpeta del proyecto
+                srt_path = os.path.join(project_folder, "subtitulos.srt")
+                if os.path.exists(srt_path):
+                    print(f"Encontrado archivo de subtítulos en la carpeta del proyecto: {srt_path}")
+                    kwargs['archivo_subtitulos'] = srt_path
+                    kwargs['aplicar_subtitulos'] = True
+            
+            # Imprimir parámetros de subtítulos para depuración
+            print(f"Parámetros de subtítulos: aplicar={kwargs.get('aplicar_subtitulos')}, archivo={kwargs.get('archivo_subtitulos')}")
+            
+            # Crear el video con todos los parámetros
+            crear_video_desde_imagenes(
+                project_folder,
+                **kwargs
+            )
             success = True
             message = "Vídeo Completo"
 
@@ -1752,6 +1840,157 @@ class VideoCreatorApp:
             return self.overlays_seleccionados
         else:
             return []
+    
+    def configurar_tab_subtitles(self, tab):
+        """Configura la pestaña de subtítulos."""
+        # Frame principal con padding
+        main_frame = ttk.Frame(tab, style="Card.TFrame")
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Título de la sección
+        lbl_title = ttk.Label(main_frame, text="Configuración de Subtítulos", 
+                             style="Header.TLabel", font=("Helvetica", 14, "bold"))
+        lbl_title.pack(pady=10)
+        
+        # Mostrar estado de Whisper
+        whisper_status = "Disponible" if WHISPER_AVAILABLE else "No disponible (instala faster-whisper)"
+        whisper_color = "#2ecc71" if WHISPER_AVAILABLE else "#e74c3c"
+        
+        lbl_status = ttk.Label(main_frame, 
+                              text=f"Estado de Whisper: {whisper_status}", 
+                              foreground=whisper_color,
+                              font=("Helvetica", 11))
+        lbl_status.pack(pady=5)
+        
+        # Si Whisper no está disponible, mostrar instrucciones de instalación
+        if not WHISPER_AVAILABLE:
+            lbl_install = ttk.Label(main_frame, 
+                                  text="Para instalar: pip install faster-whisper srt", 
+                                  foreground="#f39c12",
+                                  font=("Helvetica", 10))
+            lbl_install.pack(pady=5)
+            return
+        
+        # Frame para la configuración del modelo
+        frame_model = ttk.LabelFrame(main_frame, text="Configuración del Modelo", style="TLabelframe")
+        frame_model.pack(fill="x", padx=10, pady=10)
+        
+        # Tamaño del modelo
+        frame_size = ttk.Frame(frame_model)
+        frame_size.pack(fill="x", padx=10, pady=5)
+        
+        lbl_size = ttk.Label(frame_size, text="Tamaño del modelo:", width=20)
+        lbl_size.pack(side="left")
+        
+        # Opciones de tamaño del modelo
+        model_sizes = [("tiny", "Tiny (rápido, menos preciso)"), 
+                      ("base", "Base (equilibrado)"), 
+                      ("small", "Small (buena precisión)"), 
+                      ("medium", "Medium (alta precisión, más lento)"), 
+                      ("large-v3", "Large-v3 (máxima precisión, muy lento)")]
+        
+        size_combo = ttk.Combobox(frame_size, textvariable=self.whisper_model_size, state="readonly")
+        size_combo['values'] = [size[0] for size in model_sizes]
+        size_combo.pack(side="left", padx=5)
+        
+        # Descripción del modelo seleccionado
+        self.lbl_model_desc = ttk.Label(frame_size, text="Modelo equilibrado entre velocidad y precisión", 
+                                      foreground="#3498db")
+        self.lbl_model_desc.pack(side="left", padx=10)
+        
+        # Función para actualizar la descripción del modelo
+        def update_model_desc(event):
+            selected = self.whisper_model_size.get()
+            for size, desc in model_sizes:
+                if size == selected:
+                    self.lbl_model_desc.config(text=desc)
+                    break
+        
+        size_combo.bind("<<ComboboxSelected>>", update_model_desc)
+        
+        # Dispositivo (CPU/GPU)
+        frame_device = ttk.Frame(frame_model)
+        frame_device.pack(fill="x", padx=10, pady=5)
+        
+        lbl_device = ttk.Label(frame_device, text="Dispositivo:", width=20)
+        lbl_device.pack(side="left")
+        
+        device_combo = ttk.Combobox(frame_device, textvariable=self.whisper_device, state="readonly")
+        device_combo['values'] = ["cpu", "cuda"]
+        device_combo.pack(side="left", padx=5)
+        
+        lbl_device_info = ttk.Label(frame_device, 
+                                  text="Usar 'cuda' solo si tienes GPU NVIDIA compatible", 
+                                  foreground="#f39c12")
+        lbl_device_info.pack(side="left", padx=10)
+        
+        # Botón para recargar el modelo
+        def reload_whisper_model():
+            try:
+                # Verificar si ya hay un modelo cargado
+                if hasattr(self, 'whisper_model') and self.whisper_model is not None:
+                    # Liberar recursos del modelo anterior
+                    del self.whisper_model
+                    import gc
+                    gc.collect()
+                
+                # Cargar el nuevo modelo
+                print(f"Cargando modelo Whisper '{self.whisper_model_size.get()}' para {self.whisper_device.get()}...")
+                from faster_whisper import WhisperModel
+                self.whisper_model = WhisperModel(
+                    self.whisper_model_size.get(),
+                    device=self.whisper_device.get(),
+                    compute_type=self.whisper_compute_type.get()
+                )
+                messagebox.showinfo(
+                    "Modelo Whisper",
+                    f"Modelo Whisper '{self.whisper_model_size.get()}' cargado exitosamente."
+                )
+            except Exception as e:
+                print(f"Error al cargar el modelo Whisper: {e}")
+                messagebox.showerror(
+                    "Error",
+                    f"No se pudo cargar el modelo Whisper: {e}"
+                )
+        
+        btn_reload = ttk.Button(frame_model, text="Recargar Modelo Whisper", 
+                              command=reload_whisper_model, style="Secondary.TButton")
+        btn_reload.pack(pady=10)
+        
+        # Frame para opciones de subtítulos
+        frame_options = ttk.LabelFrame(main_frame, text="Opciones de Subtítulos", style="TLabelframe")
+        frame_options.pack(fill="x", padx=10, pady=10)
+        
+        # Idioma
+        frame_lang = ttk.Frame(frame_options)
+        frame_lang.pack(fill="x", padx=10, pady=5)
+        
+        lbl_lang = ttk.Label(frame_lang, text="Idioma:", width=20)
+        lbl_lang.pack(side="left")
+        
+        lang_combo = ttk.Combobox(frame_lang, textvariable=self.whisper_language, state="readonly")
+        lang_combo['values'] = ["es", "en", "fr", "de", "it", "pt", "auto"]
+        lang_combo.pack(side="left", padx=5)
+        
+        lbl_lang_info = ttk.Label(frame_lang, 
+                                text="'auto' detecta automáticamente el idioma", 
+                                foreground="#3498db")
+        lbl_lang_info.pack(side="left", padx=10)
+        
+        # Timestamps por palabra
+        frame_word = ttk.Frame(frame_options)
+        frame_word.pack(fill="x", padx=10, pady=5)
+        
+        word_check = ttk.Checkbutton(frame_word, text="Usar timestamps por palabra (más preciso)", 
+                                   variable=self.whisper_word_timestamps)
+        word_check.pack(padx=5, pady=5)
+        
+        # Nota informativa
+        lbl_note = ttk.Label(main_frame, 
+                           text="Nota: Los subtítulos se generarán automáticamente a partir del audio usando Whisper si está disponible.", 
+                           foreground="#e67e22",
+                           font=("Helvetica", 10, "italic"))
+        lbl_note.pack(pady=10)
 
 # Iniciar la aplicación si se ejecuta este archivo directamente
 if __name__ == "__main__":
