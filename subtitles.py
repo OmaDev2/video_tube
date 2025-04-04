@@ -49,7 +49,7 @@ class SubtitleEffect:
         stroke_width: int = 3,
         position: Tuple[str, str] = ('center', 'bottom'),
         video_width: int = 1280,
-        
+        align: str = 'center'
     ) -> TextClip:
         """
         Crea un clip de subtítulo con el texto y estilo especificados.
@@ -63,8 +63,9 @@ class SubtitleEffect:
             font_color: Color del texto
             stroke_color: Color del borde
             stroke_width: Grosor del borde
-            position: Posición del subtítulo
+            position: Posición del subtítulo (horizontal, vertical)
             video_width: Ancho del video para calcular el tamaño del TextClip
+            align: Alineación del texto ('left', 'center', 'right')
         """
         try:
             # Crear TextClip con parámetros específicos
@@ -77,7 +78,7 @@ class SubtitleEffect:
                 stroke_width=stroke_width,
                 method='caption',
                 size=(video_width * 0.9, None),  # Ancho 90% del video
-                align='center'
+                align=align  # Usar el parámetro de alineación
             )
             
             # Establecer duración y posición
@@ -102,7 +103,8 @@ class SubtitleEffect:
         font_color: str = 'white',
         stroke_color: str = 'black',
         stroke_width: int = 1,
-        position: Tuple[str, str] = ('center', 'bottom')
+        position: Tuple[str, str] = ('center', 'bottom'),
+        align: str = 'center'
     ) -> VideoFileClip:
         """
         Aplica subtítulos a un video usando TextClips.
@@ -115,7 +117,8 @@ class SubtitleEffect:
             font_color: Color del texto
             stroke_color: Color del borde
             stroke_width: Grosor del borde
-            position: Posición del subtítulo
+            position: Posición del subtítulo (horizontal, vertical)
+            align: Alineación del texto ('left', 'center', 'right')
             
         Returns:
             VideoFileClip con los subtítulos aplicados
@@ -148,7 +151,8 @@ class SubtitleEffect:
                 stroke_color,
                 stroke_width,
                 position,
-                video_width
+                video_width,
+                align
             )
             
             if clip:

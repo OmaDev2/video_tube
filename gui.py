@@ -47,10 +47,13 @@ class VideoCreatorApp:
         
         # --- Inicializar variables para subtítulos ---
         self.settings_subtitles = tk.BooleanVar(value=True)
-        self.settings_subtitles_font_size = tk.IntVar(value=24)
+        self.settings_subtitles_font_size = tk.IntVar(value=60)
         self.settings_subtitles_font_color = tk.StringVar(value='white')
         self.settings_subtitles_stroke_color = tk.StringVar(value='black')
-        self.settings_subtitles_stroke_width = tk.IntVar(value=1)
+        self.settings_subtitles_stroke_width = tk.IntVar(value=3)
+        self.settings_subtitles_align = tk.StringVar(value='center')
+        self.settings_subtitles_position_h = tk.StringVar(value='center')
+        self.settings_subtitles_position_v = tk.StringVar(value='bottom')
         
         # --- Inicializar variables para configuración de Whisper ---
         self.whisper_model = None
@@ -254,16 +257,12 @@ class VideoCreatorApp:
         # Pestaña de ajustes de efectos
         tab_settings = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_settings, text="Ajustes de Efectos")
-        # Pestaña de vista previa
-        tab_preview = ttk.Frame(notebook, style="Card.TFrame")
-        notebook.add(tab_preview, text="Vista Previa")
         
     
         # Configurar cada pestaña
         self.configurar_tab_basico(tab_basico)
         self.configurar_tab_efectos(tab_efectos)
         self.configurar_tab_audio(tab_audio)
-        self.configurar_tab_preview(tab_preview)
         self.configurar_tab_settings(tab_settings)
         self.configurar_tab_batch(tab_batch)
         self.configurar_tab_subtitles(tab_subtitles)
@@ -939,31 +938,7 @@ class VideoCreatorApp:
     def actualizar_etiqueta_volumen_voz(self, valor):
         self.etiqueta_volumen_voz.set(f"{float(valor)*100:.0f}%")
     
-    def configurar_tab_preview(self, tab):
-        # Frame para la vista previa
-        frame_preview = ttk.LabelFrame(tab, text="Vista Previa de Imágenes")
-        frame_preview.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Canvas para mostrar la imagen
-        self.canvas = tk.Canvas(frame_preview, bg="black", width=640, height=360)
-        self.canvas.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        # Frame para los controles
-        frame_controles = ttk.Frame(tab)
-        frame_controles.pack(fill="x", padx=10, pady=10)
-        
-        # Botones para navegar entre imágenes
-        btn_anterior = ttk.Button(frame_controles, text="Anterior", command=self.mostrar_imagen_anterior)
-        btn_anterior.pack(side="left", padx=5)
-        
-        btn_siguiente = ttk.Button(frame_controles, text="Siguiente", command=self.mostrar_imagen_siguiente)
-        btn_siguiente.pack(side="left", padx=5)
-        
-        # Variable para almacenar el índice de la imagen actual
-        self.indice_imagen_actual = 0
-        
-        # Variable para almacenar la imagen actual (para evitar que sea eliminada por el recolector de basura)
-        self.imagen_actual = None
+
     
     def configurar_tab_settings(self, tab):
         """Configura la pestaña de ajustes de efectos"""
@@ -1184,10 +1159,9 @@ class VideoCreatorApp:
         # Actualizar el estado
         self.lbl_estado.config(text=f"Se encontraron {len(self.imagenes)} imágenes")
         
-        # Mostrar la primera imagen en la vista previa si hay imágenes
+        # Actualizar el estado con el número de imágenes encontradas
         if self.imagenes:
-            self.indice_imagen_actual = 0
-            self.mostrar_imagen_actual()
+            self.lbl_estado.config(text=f"Se encontraron {len(self.imagenes)} imágenes")
     
     def buscar_overlays(self):
         # Directorio de overlays
@@ -2105,7 +2079,7 @@ class VideoCreatorApp:
         lbl_font_size = ttk.Label(frame_font_size, text="Tamaño de fuente:", width=20)
         lbl_font_size.pack(side="left")
         
-        spin_font_size = ttk.Spinbox(frame_font_size, from_=12, to=72, increment=2, 
+        spin_font_size = ttk.Spinbox(frame_font_size, from_=12, to=120, increment=2, 
                                     textvariable=self.settings_subtitles_font_size, width=5)
         spin_font_size.pack(side="left", padx=5)
         
@@ -2141,6 +2115,39 @@ class VideoCreatorApp:
         spin_stroke_width = ttk.Spinbox(frame_stroke_width, from_=0, to=5, increment=1, 
                                       textvariable=self.settings_subtitles_stroke_width, width=5)
         spin_stroke_width.pack(side="left", padx=5)
+        
+        # Alineación horizontal del texto
+        frame_align = ttk.Frame(frame_style)
+        frame_align.pack(fill="x", padx=10, pady=5)
+        
+        lbl_align = ttk.Label(frame_align, text="Alineación de texto:", width=20)
+        lbl_align.pack(side="left")
+        
+        align_combo = ttk.Combobox(frame_align, textvariable=self.settings_subtitles_align, state="readonly")
+        align_combo['values'] = ["left", "center", "right"]
+        align_combo.pack(side="left", padx=5)
+        
+        # Posición vertical
+        frame_position_v = ttk.Frame(frame_style)
+        frame_position_v.pack(fill="x", padx=10, pady=5)
+        
+        lbl_position_v = ttk.Label(frame_position_v, text="Posición vertical:", width=20)
+        lbl_position_v.pack(side="left")
+        
+        position_v_combo = ttk.Combobox(frame_position_v, textvariable=self.settings_subtitles_position_v, state="readonly")
+        position_v_combo['values'] = ["top", "center", "bottom"]
+        position_v_combo.pack(side="left", padx=5)
+        
+        # Posición horizontal
+        frame_position_h = ttk.Frame(frame_style)
+        frame_position_h.pack(fill="x", padx=10, pady=5)
+        
+        lbl_position_h = ttk.Label(frame_position_h, text="Posición horizontal:", width=20)
+        lbl_position_h.pack(side="left")
+        
+        position_h_combo = ttk.Combobox(frame_position_h, textvariable=self.settings_subtitles_position_h, state="readonly")
+        position_h_combo['values'] = ["left", "center", "right"]
+        position_h_combo.pack(side="left", padx=5)
         
         # Nota informativa
         lbl_note = ttk.Label(main_frame, 

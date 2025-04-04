@@ -30,6 +30,7 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
                                aplicar_subtitulos=False, archivo_subtitulos=None, 
                                tamano_fuente_subtitulos=None, color_fuente_subtitulos='orange',
                                color_borde_subtitulos='black', grosor_borde_subtitulos=6,
+                               subtitulos_align='center', subtitulos_position_h='center', subtitulos_position_v='bottom',
                                progress_callback=None, settings=None):
     """
     Crea un video usando recursos de una carpeta de proyecto específica.
@@ -447,14 +448,14 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
             
             # Generator con los parámetros correctos
             generator = lambda txt: TextClip(
-                font_path,  # Primer argumento posicional debe ser font
-                text=txt,   # Texto como argumento nombrado
-                font_size=80,  # Usar font_size, no fontsize
+                txt,   # Primer argumento es el texto
+                font=font_path,  # Fuente como argumento nombrado
+                fontsize=tamano_fuente_subtitulos,  # Usar el tamaño de fuente configurable
                 color=color_fuente_subtitulos,
                 stroke_color=color_borde_subtitulos,
                 stroke_width=grosor_borde_subtitulos,
                 method='caption',
-                text_align='center',
+                align=subtitulos_align,  # Usar la alineación configurable
                 size=(text_width, None)  # Ancho como entero, no float
             )
 
@@ -478,8 +479,8 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
                     print(f"Ajustando duración de subtítulos de {subs_clip.duration}s a {video_final.duration}s")
                     subs_clip = subs_clip.with_duration(video_final.duration)
                 
-                # Establecer posición para los subtítulos
-                positioned_subs = subs_clip.with_position(('center', 0.9), relative=True)
+                # Establecer posición para los subtítulos usando los valores configurables
+                positioned_subs = subs_clip.with_position((subtitulos_position_h, subtitulos_position_v), relative=True)
                 
                 # Crear clip final compuesto
                 print("Componiendo vídeo + subtítulos...")
