@@ -240,16 +240,9 @@ class VideoCreatorApp:
         tab_subtitles = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_subtitles, text="Subtítulos")
         
-        # Pestaña de efectos
+        # Pestaña de efectos visuales (incluye efectos, transiciones y fade in/out)
         tab_efectos = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_efectos, text="Efectos Visuales")
-        
-         # Pestaña de transiciones
-        tab_transiciones = ttk.Frame(notebook, style="Card.TFrame")
-        notebook.add(tab_transiciones, text="Transiciones")
-         # Pestaña de fade in/out
-        tab_fade = ttk.Frame(notebook, style="Card.TFrame")
-        notebook.add(tab_fade, text="Fade In/Out")
         
         # Pestaña de configuración básica
         tab_basico = ttk.Frame(notebook, style="Card.TFrame")
@@ -272,8 +265,6 @@ class VideoCreatorApp:
         # Configurar cada pestaña
         self.configurar_tab_basico(tab_basico)
         self.configurar_tab_efectos(tab_efectos)
-        self.configurar_tab_transiciones(tab_transiciones)
-        self.configurar_tab_fade(tab_fade)
         self.configurar_tab_overlay(tab_overlay)
         self.configurar_tab_audio(tab_audio)
         self.configurar_tab_preview(tab_preview)
@@ -350,7 +341,29 @@ class VideoCreatorApp:
         btn_buscar.pack(pady=5)
     
     def configurar_tab_efectos(self, tab):
-        """Configura la interfaz de usuario para la pestaña de efectos."""
+        """Configura la interfaz de usuario para la pestaña de efectos visuales, transiciones y fade in/out."""
+
+        # Crear un notebook interno para organizar las secciones
+        notebook_efectos = ttk.Notebook(tab)
+        notebook_efectos.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Crear las subpestañas
+        tab_movimiento = ttk.Frame(notebook_efectos, style="Card.TFrame")
+        tab_transiciones = ttk.Frame(notebook_efectos, style="Card.TFrame")
+        tab_fade = ttk.Frame(notebook_efectos, style="Card.TFrame")
+        
+        # Añadir las subpestañas al notebook
+        notebook_efectos.add(tab_movimiento, text="Efectos de Movimiento")
+        notebook_efectos.add(tab_transiciones, text="Transiciones")
+        notebook_efectos.add(tab_fade, text="Fade In/Out")
+        
+        # Configurar cada subpestaña
+        self.configurar_tab_efectos_movimiento(tab_movimiento)
+        self.configurar_tab_transiciones(tab_transiciones)
+        self.configurar_tab_fade(tab_fade)
+    
+    def configurar_tab_efectos_movimiento(self, tab):
+        """Configura la interfaz de usuario para la subpestaña de efectos de movimiento."""
 
         # --- Contenedor Principal ---
         frame_principal = ttk.Frame(tab)
