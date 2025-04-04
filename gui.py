@@ -251,10 +251,7 @@ class VideoCreatorApp:
         tab_audio = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_audio, text="Audio")
         
-        # Pestaña de overlays
-        tab_overlay = ttk.Frame(notebook, style="Card.TFrame")
-        notebook.add(tab_overlay, text="Overlays")
-                # Pestaña de ajustes de efectos
+        # Pestaña de ajustes de efectos
         tab_settings = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_settings, text="Ajustes de Efectos")
         # Pestaña de vista previa
@@ -265,7 +262,6 @@ class VideoCreatorApp:
         # Configurar cada pestaña
         self.configurar_tab_basico(tab_basico)
         self.configurar_tab_efectos(tab_efectos)
-        self.configurar_tab_overlay(tab_overlay)
         self.configurar_tab_audio(tab_audio)
         self.configurar_tab_preview(tab_preview)
         self.configurar_tab_settings(tab_settings)
@@ -351,16 +347,19 @@ class VideoCreatorApp:
         tab_movimiento = ttk.Frame(notebook_efectos, style="Card.TFrame")
         tab_transiciones = ttk.Frame(notebook_efectos, style="Card.TFrame")
         tab_fade = ttk.Frame(notebook_efectos, style="Card.TFrame")
+        tab_overlay = ttk.Frame(notebook_efectos, style="Card.TFrame")  # Nueva subpestaña para overlays
         
         # Añadir las subpestañas al notebook
         notebook_efectos.add(tab_movimiento, text="Efectos de Movimiento")
         notebook_efectos.add(tab_transiciones, text="Transiciones")
         notebook_efectos.add(tab_fade, text="Fade In/Out")
+        notebook_efectos.add(tab_overlay, text="Overlays")  # Añadir la nueva subpestaña
         
         # Configurar cada subpestaña
         self.configurar_tab_efectos_movimiento(tab_movimiento)
         self.configurar_tab_transiciones(tab_transiciones)
         self.configurar_tab_fade(tab_fade)
+        self.configurar_tab_efectos_overlay(tab_overlay)  # Configurar la nueva subpestaña
     
     def configurar_tab_efectos_movimiento(self, tab):
         """Configura la interfaz de usuario para la subpestaña de efectos de movimiento."""
@@ -634,6 +633,79 @@ class VideoCreatorApp:
         
         spin_duracion_out = ttk.Spinbox(frame_fade_out, from_=0.5, to=5.0, increment=0.5, textvariable=self.duracion_fade_out, width=5)
         spin_duracion_out.pack(anchor="w", padx=5, pady=5)
+    
+    def configurar_tab_efectos_overlay(self, tab):
+        """Configura la interfaz de usuario para la subpestaña de overlays dentro de efectos visuales."""
+        # Frame para overlays
+        frame_overlay = ttk.LabelFrame(tab, text="Efectos de Overlay")
+        frame_overlay.pack(fill="x", padx=10, pady=10)
+        
+        # Checkbox para activar overlay
+        chk_overlay = ttk.Checkbutton(frame_overlay, text="Aplicar overlay", variable=self.aplicar_overlay)
+        chk_overlay.pack(anchor="w", padx=5, pady=5)
+        
+        # Frame para la lista de overlays
+        frame_lista = ttk.Frame(frame_overlay)
+        frame_lista.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Listbox con scrollbar para overlays
+        scrollbar = ttk.Scrollbar(frame_lista)
+        scrollbar.pack(side="right", fill="y")
+        
+        self.listbox_overlays = tk.Listbox(frame_lista, selectmode="multiple", yscrollcommand=scrollbar.set,
+                                          height=6, activestyle="none", bg="#e0e0e0", fg="black",
+                                          selectbackground="#d35400", selectforeground="white")
+        self.listbox_overlays.pack(side="left", fill="both", expand=True)
+        
+        # Agregar binding para actualizar automáticamente cuando se hace clic
+        self.listbox_overlays.bind('<<ListboxSelect>>', lambda e: self.actualizar_overlays_seleccionados())
+        
+        scrollbar.config(command=self.listbox_overlays.yview)
+        
+        # Frame para botones
+        frame_botones = ttk.Frame(frame_overlay)
+        frame_botones.pack(fill="x", padx=5, pady=5)
+        
+        # Botón para buscar overlays
+        btn_buscar = ttk.Button(frame_botones, text="Buscar Overlays", command=self.buscar_overlays)
+        btn_buscar.pack(side="left", padx=5)
+        
+        # Botón para seleccionar overlays (más prominente)
+        btn_seleccionar = ttk.Button(frame_botones, text="Aplicar Overlays Seleccionados", 
+                                   command=self.seleccionar_overlays, style="Action.TButton")
+        btn_seleccionar.pack(side="left", padx=5)
+        
+        # Control de opacidad
+        frame_opacidad = ttk.Frame(frame_overlay)
+        frame_opacidad.pack(fill="x", padx=5, pady=5)
+        
+        lbl_opacidad = ttk.Label(frame_opacidad, text="Opacidad:")
+        lbl_opacidad.pack(side="left", padx=5)
+        
+        # Etiqueta para mostrar el valor actual de opacidad
+        self.lbl_valor_opacidad = ttk.Label(frame_opacidad, text=f"{self.opacidad_overlay.get():.2f}")
+        self.lbl_valor_opacidad.pack(side="right", padx=5)
+        
+        # Función para actualizar la etiqueta cuando cambia el valor
+        def actualizar_valor_opacidad(*args):
+            self.lbl_valor_opacidad.config(text=f"{self.opacidad_overlay.get():.2f}")
+        
+        # Vincular la función al cambio de valor
+        self.opacidad_overlay.trace_add("write", actualizar_valor_opacidad)
+        
+        scale_opacidad = ttk.Scale(frame_opacidad, from_=0.0, to=1.0, orient="horizontal", 
+                                  variable=self.opacidad_overlay)
+        scale_opacidad.pack(side="left", fill="x", expand=True, padx=5)
+        
+        # Etiqueta para mostrar los overlays seleccionados
+        self.lbl_overlays_seleccionados = ttk.Label(frame_overlay, text="No hay overlays seleccionados", 
+                                                 foreground="#e74c3c")
+        self.lbl_overlays_seleccionados.pack(anchor="w", padx=5, pady=5)
+        
+        # Etiqueta informativa
+        lbl_info = ttk.Label(frame_overlay, 
+                            text="Haz clic en los overlays que deseas aplicar. Se actualizarán automáticamente.")
+        lbl_info.pack(anchor="w", padx=5, pady=5)
     
     def configurar_tab_overlay(self, tab):
         # Frame para overlays
