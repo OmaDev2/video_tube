@@ -24,6 +24,20 @@ except ImportError:
         return output_path  # Devuelve la ruta simulada
     OUTPUT_FORMAT = "mp3"
 
+# Importar generador de subtítulos
+try:
+    from subtitles import generate_srt_with_whisper, WHISPER_AVAILABLE
+    if WHISPER_AVAILABLE:
+        try:
+            from faster_whisper import WhisperModel
+        except ImportError:
+            print("Advertencia: No se pudo importar WhisperModel a pesar de que WHISPER_AVAILABLE es True")
+            WHISPER_AVAILABLE = False
+except ImportError:
+    print("Advertencia: No se pudo importar 'generate_srt_with_whisper' o 'WHISPER_AVAILABLE'.")
+    print("Asegúrate de que el archivo subtitles.py esté accesible.")
+    WHISPER_AVAILABLE = False
+
 # Importar la función para crear video
 try:
     from app import crear_video_desde_imagenes
@@ -198,12 +212,89 @@ class BatchTTSManager:
                     
                     if final_audio_path and Path(final_audio_path).is_file():
                         print(f"Audio generado para {job_id}: {final_audio_path}")
-                        # --- CAMBIO: Estado final del worker es Audio Completo ---
-                        self.update_job_status_gui(job_id, "Audio Completo", audio_tiempo_formateado)
-                        success_tts = True
                         # Actualizar el job con la ruta del audio generado
                         job['archivo_voz'] = final_audio_path
-                        job['tiempo_fin'] = audio_tiempo_fin
+                        success_tts = True
+                        
+                        # --- Generar subtítulos con Whisper ---
+                        if WHISPER_AVAILABLE:
+                            self.update_job_status_gui(job_id, "Audio OK. Generando SRT...", audio_tiempo_formateado)
+                            
+                            # Buscar el modelo Whisper en la GUI
+                            whisper_model = None
+                            try:
+                                # Intentar obtener el modelo Whisper directamente
+                                if WHISPER_AVAILABLE:
+                                    # Primero, buscar en la instancia actual de la aplicación
+                                    app_instance = None
+                                    for widget in self.root.winfo_children():
+                                        if hasattr(widget, 'whisper_model'):
+                                            app_instance = widget
+                                            break
+                                    
+                                    if app_instance and hasattr(app_instance, 'whisper_model') and app_instance.whisper_model is not None:
+                                        print("Usando modelo Whisper de la instancia de la aplicación")
+                                        whisper_model = app_instance.whisper_model
+                                    else:
+                                        # Si no se encuentra en la GUI, crear un nuevo modelo
+                                        print("No se encontró modelo Whisper en la GUI. Creando uno nuevo...")
+                                        try:
+                                            from faster_whisper import WhisperModel
+                                            # Usar un modelo base por defecto
+                                            whisper_model = WhisperModel("base", device="cpu", compute_type="int8")
+                                            print("Modelo Whisper creado exitosamente")
+                                        except Exception as e_model:
+                                            print(f"Error al crear modelo Whisper: {e_model}")
+                            except Exception as e_gui:
+                                print(f"Error al buscar modelo Whisper: {e_gui}")
+                            
+                            # Generar subtítulos si tenemos el modelo
+                            srt_output_path = str(output_folder / "subtitulos.srt")
+                            srt_success = False
+                            
+                            if whisper_model:
+                                try:
+                                    # Obtener configuración del modelo Whisper de la GUI
+                                    whisper_language = "es"  # Valor por defecto
+                                    word_timestamps = True  # Valor por defecto
+                                    
+                                    # Intentar obtener configuración de la GUI
+                                    if hasattr(app_instance, 'whisper_language') and hasattr(app_instance.whisper_language, 'get'):
+                                        whisper_language = app_instance.whisper_language.get()
+                                    
+                                    if hasattr(app_instance, 'whisper_word_timestamps') and hasattr(app_instance.whisper_word_timestamps, 'get'):
+                                        word_timestamps = app_instance.whisper_word_timestamps.get()
+                                    
+                                    print(f"Generando subtítulos con idioma: {whisper_language}, timestamps por palabra: {word_timestamps}")
+                                    
+                                    # Generar subtítulos con la configuración
+                                    srt_success = generate_srt_with_whisper(
+                                        whisper_model,
+                                        final_audio_path,
+                                        srt_output_path,
+                                        language=whisper_language,
+                                        word_timestamps=word_timestamps
+                                    )
+                                except Exception as e_srt:
+                                    print(f"Error al generar subtítulos: {e_srt}")
+                            else:
+                                print("No se encontró el modelo Whisper para generar subtítulos.")
+                            
+                            # Actualizar el job con la información de subtítulos
+                            if srt_success:
+                                self.update_job_status_gui(job_id, "Audio y SRT OK", audio_tiempo_formateado)
+                                job['archivo_subtitulos'] = srt_output_path
+                                job['aplicar_subtitulos'] = True
+                                print(f"Subtítulos generados exitosamente en: {srt_output_path}")
+                            else:
+                                self.update_job_status_gui(job_id, "Audio OK. Error SRT", audio_tiempo_formateado)
+                                job['aplicar_subtitulos'] = False
+                        else:
+                            # Si Whisper no está disponible, solo actualizar estado de audio
+                            self.update_job_status_gui(job_id, "Audio Completo", audio_tiempo_formateado)
+                        
+                        # Guardar tiempo de finalización
+                        job['tiempo_fin'] = time.time()
                     else:
                         error_msg = "Falló generación TTS"
                         print(f"{error_msg} para {job_id}")

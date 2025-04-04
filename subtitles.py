@@ -43,12 +43,13 @@ class SubtitleEffect:
         start_time: float,
         end_time: float,
         font: str,
-        font_size: int = 24,
+        font_size: int = 80,
         font_color: str = 'white',
         stroke_color: str = 'black',
-        stroke_width: int = 1,
+        stroke_width: int = 3,
         position: Tuple[str, str] = ('center', 'bottom'),
-        video_width: int = 1280
+        video_width: int = 1280,
+        
     ) -> TextClip:
         """
         Crea un clip de subtítulo con el texto y estilo especificados.

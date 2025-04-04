@@ -17,6 +17,12 @@ env/
 .idea/
 .vscode/
 
+proyectos_video/
+pruebas_de_voz_es/
+images/
+guiones/
+pruebas_de_voz_es_texto_largo/
+*.txt
 # Generated files
 *.mp4
 
@@ -30,3 +36,30 @@ Thumbs.db
 overlays/
 musica/
 voz en off/
+images/
+images2/
+videos/
+*.pyc
+*.pyo
+*.pyd
+*.exe
+*.dll
+*.so
+*.dylib
+*.obj
+*.o
+*.a
+*.lib
+*.dll.a
+*.so
+*.dylib
+*.la
+*.lo
+*.al
+*.sl
+*.bl
+*.gyp
+*.pc
+*.pc.in
+*.rules
+*.gypi
