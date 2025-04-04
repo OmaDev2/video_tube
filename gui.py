@@ -236,42 +236,39 @@ class VideoCreatorApp:
         tab_batch = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_batch, text="Cola de Proyectos")
         
-        # Pestaña de configuración básica
-        tab_basico = ttk.Frame(notebook, style="Card.TFrame")
-        notebook.add(tab_basico, text="Configuración Básica")
+        # Pestaña de configuración de subtítulos con Whisper
+        tab_subtitles = ttk.Frame(notebook, style="Card.TFrame")
+        notebook.add(tab_subtitles, text="Subtítulos")
         
         # Pestaña de efectos
         tab_efectos = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_efectos, text="Efectos Visuales")
         
-        # Pestaña de transiciones
+         # Pestaña de transiciones
         tab_transiciones = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_transiciones, text="Transiciones")
-        
-        # Pestaña de fade in/out
+         # Pestaña de fade in/out
         tab_fade = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_fade, text="Fade In/Out")
+        
+        # Pestaña de configuración básica
+        tab_basico = ttk.Frame(notebook, style="Card.TFrame")
+        notebook.add(tab_basico, text="Configuración Básica")
+           # Pestaña de audio
+        tab_audio = ttk.Frame(notebook, style="Card.TFrame")
+        notebook.add(tab_audio, text="Audio")
         
         # Pestaña de overlays
         tab_overlay = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_overlay, text="Overlays")
-        
-        # Pestaña de audio
-        tab_audio = ttk.Frame(notebook, style="Card.TFrame")
-        notebook.add(tab_audio, text="Audio")
-        
+                # Pestaña de ajustes de efectos
+        tab_settings = ttk.Frame(notebook, style="Card.TFrame")
+        notebook.add(tab_settings, text="Ajustes de Efectos")
         # Pestaña de vista previa
         tab_preview = ttk.Frame(notebook, style="Card.TFrame")
         notebook.add(tab_preview, text="Vista Previa")
         
-        # Pestaña de ajustes de efectos
-        tab_settings = ttk.Frame(notebook, style="Card.TFrame")
-        notebook.add(tab_settings, text="Ajustes de Efectos")
-      
-        # Pestaña de configuración de subtítulos con Whisper
-        tab_subtitles = ttk.Frame(notebook, style="Card.TFrame")
-        notebook.add(tab_subtitles, text="Subtítulos")
-        
+    
         # Configurar cada pestaña
         self.configurar_tab_basico(tab_basico)
         self.configurar_tab_efectos(tab_efectos)
@@ -353,138 +350,127 @@ class VideoCreatorApp:
         btn_buscar.pack(pady=5)
     
     def configurar_tab_efectos(self, tab):
-        # Checkbox para activar efectos
-        chk_efectos = ttk.Checkbutton(tab, text="Aplicar efectos de movimiento", variable=self.aplicar_efectos)
-        chk_efectos.pack(anchor="w", padx=10, pady=10)
-        
-        # Frame para las opciones de efectos
-        frame_opciones = ttk.LabelFrame(tab, text="Opciones de Efectos")
-        frame_opciones.pack(fill="x", padx=10, pady=10)
-        
-        # Opciones de modo de efecto
-        lbl_modo = ttk.Label(frame_opciones, text="Modo de efecto:")
-        lbl_modo.grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        
-        # Radiobuttons para el modo
-        rb_modo1 = ttk.Radiobutton(frame_opciones, text="Un solo tipo de efecto", variable=self.modo_efecto, value="1")
-        rb_modo1.grid(row=0, column=1, padx=5, pady=5, sticky="w")
-        
-        rb_modo2 = ttk.Radiobutton(frame_opciones, text="Secuencia personalizada", variable=self.modo_efecto, value="2")
-        rb_modo2.grid(row=1, column=1, padx=5, pady=5, sticky="w")
-        
-        rb_modo3 = ttk.Radiobutton(frame_opciones, text="Alternar automáticamente (in/out)", variable=self.modo_efecto, value="3")
-        rb_modo3.grid(row=2, column=1, padx=5, pady=5, sticky="w")
-        
-        rb_modo4 = ttk.Radiobutton(frame_opciones, text="Secuencia Ken Burns", variable=self.modo_efecto, value="4")
-        rb_modo4.grid(row=3, column=1, padx=5, pady=5, sticky="w")
-       
-        
-        # Frame para un solo tipo de efecto
-        frame_tipo = ttk.LabelFrame(tab, text="Un Solo Tipo de Efecto")
-        frame_tipo.pack(fill="x", padx=10, pady=10)
-        
-        # Radiobuttons para el tipo de efecto
-        tipos_efectos = [
-            ("Zoom In (acercamiento)", "in"),
-            ("Zoom Out (alejamiento)", "out"),
-            ("Pan Up (movimiento hacia arriba)", "panup"),
-            ("Pan Down (movimiento hacia abajo)", "pandown"),
-            ("Pan Left (movimiento hacia la izquierda)", "panleft"),
-            ("Pan Right (movimiento hacia la derecha)", "panright"),
-            ("Ken Burns (efecto cinematográfico)", "kenburns"),
-            ("Viñeta Zoom In (acercamiento con viñeta)", "vignette_zoom_in"),
-            ("Viñeta Zoom Out (alejamiento con viñeta)", "vignette_zoom_out"),
-            ("Rotación Horaria", "rotate_clockwise"),
-            ("Rotación Antihoraria", "rotate_counter_clockwise")
-        ]
-        row_num = 0
-        for texto, valor in tipos_efectos:
-            rb = ttk.Radiobutton(frame_tipo, text=texto, variable=self.tipo_efecto, value=valor)
-            rb.grid(row=row_num, column=0, padx=5, pady=3, sticky="w")
-            row_num += 1
-        # Dentro del frame_tipo en configurar_tab_efectos
-        rb_flip_h = ttk.Radiobutton(frame_tipo, text="Voltear Horizontalmente", variable=self.tipo_efecto, value="flip_horizontal")
-        rb_flip_h.grid(row=row_num, column=0, padx=5, pady=3, sticky="w") # Ajusta el número de fila
+        """Configura la interfaz de usuario para la pestaña de efectos."""
 
-        rb_flip_v = ttk.Radiobutton(frame_tipo, text="Voltear Verticalmente", variable=self.tipo_efecto, value="flip_vertical")
-        rb_flip_v.grid(row=row_num, column=0, padx=5, pady=3, sticky="w") # Ajusta el número de fila
+        # --- Contenedor Principal ---
+        frame_principal = ttk.Frame(tab)
+        frame_principal.pack(fill="both", expand=True)
+        frame_principal.columnconfigure(0, weight=1) # Hacer que la columna se expanda
+
+        # --- Checkbox General ---
+        chk_efectos = ttk.Checkbutton(frame_principal, text="Aplicar efectos de movimiento",
+                                      variable=self.aplicar_efectos, command=self._actualizar_estado_controles)
+        # Usamos grid para mejor control dentro del frame_principal
+        chk_efectos.grid(row=0, column=0, padx=5, pady=(0, 10), sticky="w")
+
+        # --- Frame para Modos ---
+        self.frame_opciones = ttk.LabelFrame(frame_principal, text="Modo de Efecto")
+        self.frame_opciones.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
+        self.frame_opciones.columnconfigure(1, weight=1) # Columna de radiobuttons se expande un poco
+
+        modos = [
+            ("Un solo tipo de efecto", "1"),
+            ("Secuencia personalizada", "2"),
+            ("Alternar automáticamente (in/out)", "3"),
+            ("Secuencia Ken Burns (Preset)", "4") # Cambiado nombre para claridad
+        ]
+
+        for i, (texto, valor) in enumerate(modos):
+            rb = ttk.Radiobutton(self.frame_opciones, text=texto, variable=self.modo_efecto,
+                                 value=valor, command=self._actualizar_visibilidad_paneles)
+            # Colocar en una sola columna para claridad
+            rb.grid(row=i, column=0, columnspan=2, padx=10, pady=3, sticky="w")
+
+
+        # --- Frame para "Un Solo Tipo de Efecto" ---
+        self.frame_tipo = ttk.LabelFrame(frame_principal, text="Seleccionar Tipo Único")
+        # Se añadirá con grid más adelante, inicialmente oculto si no es el modo 1
+        self.frame_tipo.grid(row=2, column=0, padx=5, pady=10, sticky="ew")
+        self.frame_tipo.columnconfigure(0, weight=1)
+        self.frame_tipo.columnconfigure(1, weight=1)
+        self.frame_tipo.columnconfigure(2, weight=1) # Tres columnas para radio buttons
+
+        tipos_efectos = [
+            ("Zoom In", "in"), ("Zoom Out", "out"),
+            ("Pan Up", "panup"), ("Pan Down", "pandown"),
+            ("Pan Left", "panleft"), ("Pan Right", "panright"),
+            ("Ken Burns", "kenburns"),
+            ("Viñeta Zoom In", "vignette_zoom_in"), ("Viñeta Zoom Out", "vignette_zoom_out"),
+            ("Rotación Horaria", "rotate_clockwise"), ("Rotación Antihoraria", "rotate_counter_clockwise"),
+            ("Voltear Horizontal", "flip_horizontal"), ("Voltear Vertical", "flip_vertical")
+        ]
+
+        num_cols_tipo = 3
+        for i, (texto, valor) in enumerate(tipos_efectos):
+            rb = ttk.Radiobutton(self.frame_tipo, text=texto, variable=self.tipo_efecto, value=valor)
+            row_num = i // num_cols_tipo
+            col_num = i % num_cols_tipo
+            rb.grid(row=row_num, column=col_num, padx=10, pady=3, sticky="w")
+
+        # --- Frame para "Secuencia Personalizada" ---
+        self.frame_secuencia = ttk.LabelFrame(frame_principal, text="Configurar Secuencia")
+        # Se añadirá con grid más adelante, inicialmente oculto si no es el modo 2
+        self.frame_secuencia.grid(row=2, column=0, padx=5, pady=10, sticky="ew")
+        self.frame_secuencia.columnconfigure(0, weight=1) # Hacer que la columna 0 se expanda
         
-        # Frame para secuencia personalizada
-        frame_secuencia = ttk.LabelFrame(tab, text="Secuencia Personalizada")
-        frame_secuencia.pack(fill="x", padx=10, pady=10)
-        
-        lbl_secuencia = ttk.Label(frame_secuencia, text="Selecciona los efectos para la secuencia:")
-        lbl_secuencia.pack(anchor="w", padx=5, pady=5)
-        
-        # Frame para contener los checkboxes en dos columnas
-        frame_checkboxes = ttk.Frame(frame_secuencia)
-        frame_checkboxes.pack(fill="x", padx=5, pady=5)
-        
-        # Variables para los checkboxes
-        self.efecto_checkboxes = {
-            'in': tk.BooleanVar(),
-            'out': tk.BooleanVar(),
-            'panup': tk.BooleanVar(),
-            'pandown': tk.BooleanVar(),
-            'panleft': tk.BooleanVar(),
-            'panright': tk.BooleanVar(),
-            'kenburns': tk.BooleanVar(),
-            'kenburns1': tk.BooleanVar(),
-            'kenburns2': tk.BooleanVar(),
-            'kenburns3': tk.BooleanVar(),
-            'flip_horizontal': tk.BooleanVar(),
-            'flip_vertical': tk.BooleanVar(),
-            'vignette_zoom_in': tk.BooleanVar(),
-            'vignette_zoom_out': tk.BooleanVar(),
-            'rotate_clockwise': tk.BooleanVar(),
-            'rotate_counter_clockwise': tk.BooleanVar()
-        }
+        # Inicializar variables para los checkboxes si no existen
+        if not hasattr(self, 'efecto_checkboxes'):
+            self.efecto_checkboxes = {
+                'in': tk.BooleanVar(), 'out': tk.BooleanVar(), 'panup': tk.BooleanVar(),
+                'pandown': tk.BooleanVar(), 'panleft': tk.BooleanVar(), 'panright': tk.BooleanVar(),
+                'kenburns': tk.BooleanVar(), 'kenburns1': tk.BooleanVar(), 'kenburns2': tk.BooleanVar(),
+                'kenburns3': tk.BooleanVar(), 'flip_horizontal': tk.BooleanVar(), 'flip_vertical': tk.BooleanVar(),
+                'vignette_zoom_in': tk.BooleanVar(), 'vignette_zoom_out': tk.BooleanVar(),
+                'rotate_clockwise': tk.BooleanVar(), 'rotate_counter_clockwise': tk.BooleanVar()
+            }
+            
+        # Lista ordenada para mantener el orden visual y de selección
+        self._efectos_ordenados_secuencia = list(self.efecto_checkboxes.keys())
+        self._efectos_ordenados_secuencia.sort() # Ordenar alfabéticamente
         
         # Textos descriptivos para los efectos
-        efectos_texto = {
-            'in': 'Zoom In (acercamiento)',
-            'out': 'Zoom Out (alejamiento)',
-            'panup': 'Pan Up (hacia arriba)',
-            'pandown': 'Pan Down (hacia abajo)',
-            'panleft': 'Pan Left (hacia la izquierda)',
-            'panright': 'Pan Right (hacia la derecha)',
-            'kenburns': 'Ken Burns (clásico)',
-            'kenburns1': 'Ken Burns 1',
-            'kenburns2': 'Ken Burns 2',
-            'kenburns3': 'Ken Burns 3',
-            'flip_horizontal': 'Voltear Horizontal',
-            'flip_vertical': 'Voltear Vertical',
-            'vignette_zoom_in': 'Viñeta Zoom In',
-            'vignette_zoom_out': 'Viñeta Zoom Out',
-            'rotate_clockwise': 'Rotación Horaria',
-            'rotate_counter_clockwise': 'Rotación Antihoraria'
+        self.efectos_texto = {
+            'in': 'Zoom In', 'out': 'Zoom Out', 'panup': 'Pan Up',
+            'pandown': 'Pan Down', 'panleft': 'Pan Left', 'panright': 'Pan Right',
+            'kenburns': 'Ken Burns (Clásico)', 'kenburns1': 'Ken Burns 1',
+            'kenburns2': 'Ken Burns 2', 'kenburns3': 'Ken Burns 3',
+            'flip_horizontal': 'Voltear Horizontal', 'flip_vertical': 'Voltear Vertical',
+            'vignette_zoom_in': 'Viñeta Zoom In', 'vignette_zoom_out': 'Viñeta Zoom Out',
+            'rotate_clockwise': 'Rotación Horaria', 'rotate_counter_clockwise': 'Rotación Antihoraria'
         }
         
-        # Crear checkboxes en dos columnas
-        efectos_lista = list(self.efecto_checkboxes.keys())
-        efectos_lista.sort()
-        mitad = len(efectos_lista) // 2
+        # Etiqueta para la secuencia
+        lbl_secuencia = ttk.Label(self.frame_secuencia, text="Selecciona los efectos para la secuencia:")
+        lbl_secuencia.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        # Frame para contener los checkboxes en columnas
+        frame_checkboxes = ttk.Frame(self.frame_secuencia)
+        frame_checkboxes.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
+        
+        # Crear checkboxes en tres columnas para mejor organización
+        num_cols = 3
+        efectos_lista = self._efectos_ordenados_secuencia
         
         for i, efecto in enumerate(efectos_lista):
-            col = 0 if i < mitad else 1
-            row = i if i < mitad else i - mitad
+            col = i % num_cols
+            row = i // num_cols
             
             chk = ttk.Checkbutton(frame_checkboxes, 
-                                 text=efectos_texto[efecto],
+                                 text=self.efectos_texto[efecto],
                                  variable=self.efecto_checkboxes[efecto],
                                  command=self.actualizar_secuencia_efectos)
-            chk.grid(row=row, column=col, padx=5, pady=2, sticky="w")
+            chk.grid(row=row, column=col, padx=10, pady=2, sticky="w")
         
         # Etiqueta para mostrar la secuencia actual
-        lbl_secuencia_actual = ttk.Label(frame_secuencia, text="Secuencia actual:")
-        lbl_secuencia_actual.pack(anchor="w", padx=5, pady=(10,0))
+        lbl_secuencia_actual = ttk.Label(self.frame_secuencia, text="Secuencia actual:")
+        lbl_secuencia_actual.grid(row=2, column=0, padx=5, pady=(10,0), sticky="w")
         
-        self.lbl_secuencia_preview = ttk.Label(frame_secuencia, text="", wraplength=400)
-        self.lbl_secuencia_preview.pack(anchor="w", padx=5, pady=(0,5))
+        self.lbl_secuencia_preview = ttk.Label(self.frame_secuencia, text="", wraplength=400)
+        self.lbl_secuencia_preview.grid(row=3, column=0, padx=5, pady=(0,5), sticky="w")
         
         # Botones para manipular el orden
-        frame_botones = ttk.Frame(frame_secuencia)
-        frame_botones.pack(fill="x", padx=5, pady=5)
+        frame_botones = ttk.Frame(self.frame_secuencia)
+        frame_botones.grid(row=4, column=0, padx=5, pady=5, sticky="ew")
         
         btn_mover_arriba = ttk.Button(frame_botones, text="↑ Mover Arriba", 
                                     command=lambda: self.mover_efecto(-1))
@@ -493,6 +479,44 @@ class VideoCreatorApp:
         btn_mover_abajo = ttk.Button(frame_botones, text="↓ Mover Abajo", 
                                    command=lambda: self.mover_efecto(1))
         btn_mover_abajo.pack(side="left", padx=5)
+        
+        # Inicialmente, mostrar el panel correcto según el modo seleccionado
+        self._actualizar_visibilidad_paneles()
+    
+    def _actualizar_visibilidad_paneles(self):
+        """Actualiza la visibilidad de los paneles según el modo seleccionado."""
+        modo = self.modo_efecto.get()
+        
+        # Ocultar todos los paneles primero
+        self.frame_tipo.grid_remove()
+        self.frame_secuencia.grid_remove()
+        
+        # Mostrar el panel correspondiente al modo seleccionado
+        if modo == "1":  # Un solo tipo de efecto
+            self.frame_tipo.grid()
+        elif modo == "2":  # Secuencia personalizada
+            self.frame_secuencia.grid()
+        # Los modos 3 y 4 no tienen paneles específicos adicionales
+    
+    def _actualizar_estado_controles(self):
+        """Actualiza el estado de los controles según si los efectos están activados."""
+        estado = "normal" if self.aplicar_efectos.get() else "disabled"
+        
+        # Actualizar estado de los controles en el frame de opciones
+        for child in self.frame_opciones.winfo_children():
+            child.configure(state=estado)
+        
+        # Actualizar estado de los controles en el frame de tipo único
+        for child in self.frame_tipo.winfo_children():
+            child.configure(state=estado)
+        
+        # Actualizar estado de los controles en el frame de secuencia
+        for child in self.frame_secuencia.winfo_children():
+            if isinstance(child, ttk.Frame):  # Para frames anidados
+                for subchild in child.winfo_children():
+                    subchild.configure(state=estado)
+            else:
+                child.configure(state=estado)
     
     def actualizar_secuencia_efectos(self):
         # Obtener los efectos seleccionados en orden
