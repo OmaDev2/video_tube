@@ -462,7 +462,7 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
             
             # Definir la posición con margen personalizado
             # Ajuste para margen inferior cuando los subtítulos están abajo
-            margen_inferior = 0.08  # 8% de margen desde abajo (ajusta este valor según necesites)
+            margen_inferior = 0.25  # 8% de margen desde abajo (ajusta este valor según necesites)
             posicion_v_ajustada = subtitulos_position_v
             
             # Si la posición es 'bottom', convertirla a valor numérico con margen

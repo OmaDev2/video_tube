@@ -13,6 +13,7 @@ import asyncio
 from typing import List, Dict, Any
 from moviepy import *
 from prompt_generator import GEMINI_AVAILABLE, generar_prompts_con_gemini
+from image_generator import generar_imagen_con_replicate, REPLICATE_AVAILABLE
 
 # Importar el generador de voz en off
 try:
@@ -163,7 +164,7 @@ class BatchTTSManager:
         """Inicia el hilo trabajador si no está en ejecución."""
         if not self.worker_running:
             self.worker_running = True
-            self.worker_thread = threading.Thread(target=self._process_queue, daemon=True)
+            self.worker_thread = threading.Thread(target=self._process_queue, args=(None,), daemon=True)
             self.worker_thread.start()
             print("Worker de cola iniciado.")
     
@@ -172,7 +173,7 @@ class BatchTTSManager:
         self.worker_running = False
         print("Worker de cola detenido. Completará el trabajo actual antes de terminar.")
     
-    def _process_queue(self):
+    def _process_queue(self, whisper_model_loaded=None):
         """Procesa los trabajos en la cola de forma secuencial."""
         print("Worker de Cola iniciado.")
         while self.worker_running:
@@ -328,6 +329,39 @@ class BatchTTSManager:
                                             
                                             print(f"Prompts guardados en {prompt_file_path}")
                                             self.update_job_status_gui(job_id, "Prompts OK. Esperando Vídeo/Imágenes.")
+
+                                            # --- Generación de Imágenes con Replicate ---
+                                            try:
+                                                if REPLICATE_AVAILABLE:
+                                                    self.update_job_status_gui(job_id, "Generando imágenes...", "")
+                                                    imagenes_generadas = []
+                                                    image_output_folder = output_folder / "imagenes"
+                                                    image_output_folder.mkdir(parents=True, exist_ok=True)
+
+                                                    for idx, prompt_data in enumerate(lista_prompts):
+                                                        prompt_en = prompt_data['prompt_en']
+                                                        if prompt_en.startswith("Error"):
+                                                            continue
+
+                                                        self.update_job_status_gui(job_id, f"Generando imagen {idx+1}/{len(lista_prompts)}...", "")
+
+                                                        img_filename = f"{output_folder.name}_{idx+1:03d}.png"
+                                                        img_path = generar_imagen_con_replicate(prompt_en, str(image_output_folder / img_filename))
+
+                                                        if img_path:
+                                                            imagenes_generadas.append(img_path)
+                                                            print(f"Imagen {idx+1} generada: {img_path}")
+                                                        else:
+                                                            print(f"Error generando imagen {idx+1}")
+
+                                                    if imagenes_generadas:
+                                                        job['imagenes_generadas'] = imagenes_generadas
+                                                        self.update_job_status_gui(job_id, "Imágenes generadas OK", "")
+                                                    else:
+                                                        self.update_job_status_gui(job_id, "Error generando imágenes", "")
+                                            except Exception as e:
+                                                print(f"Error generando imágenes con Replicate: {e}")
+                                                self.update_job_status_gui(job_id, "Error generando imágenes", str(e))
                                         else:
                                             print(f"Fallo al generar prompts para {job_id}")
                                             self.update_job_status_gui(job_id, "Audio/SRT OK. Error Prompts.")
