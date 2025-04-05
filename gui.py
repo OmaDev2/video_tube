@@ -1925,14 +1925,14 @@ class VideoCreatorApp:
             return []
     
     def configurar_tab_subtitles(self, tab):
-        """Configura la pestaña de subtítulos."""
-        # Frame principal con padding
+
+    # Frame principal con padding
         main_frame = ttk.Frame(tab, style="Card.TFrame")
         main_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Título de la sección
         lbl_title = ttk.Label(main_frame, text="Configuración de Subtítulos", 
-                             style="Header.TLabel", font=("Helvetica", 14, "bold"))
+                            style="Header.TLabel", font=("Helvetica", 14, "bold"))
         lbl_title.pack(pady=10)
         
         # Mostrar estado de Whisper
@@ -1940,17 +1940,17 @@ class VideoCreatorApp:
         whisper_color = "#2ecc71" if WHISPER_AVAILABLE else "#e74c3c"
         
         lbl_status = ttk.Label(main_frame, 
-                              text=f"Estado de Whisper: {whisper_status}", 
-                              foreground=whisper_color,
-                              font=("Helvetica", 11))
+                            text=f"Estado de Whisper: {whisper_status}", 
+                            foreground=whisper_color,
+                            font=("Helvetica", 11))
         lbl_status.pack(pady=5)
         
         # Si Whisper no está disponible, mostrar instrucciones de instalación
         if not WHISPER_AVAILABLE:
             lbl_install = ttk.Label(main_frame, 
-                                  text="Para instalar: pip install faster-whisper srt", 
-                                  foreground="#f39c12",
-                                  font=("Helvetica", 10))
+                                text="Para instalar: pip install faster-whisper srt", 
+                                foreground="#f39c12",
+                                font=("Helvetica", 10))
             lbl_install.pack(pady=5)
             return
         
@@ -1967,10 +1967,10 @@ class VideoCreatorApp:
         
         # Opciones de tamaño del modelo
         model_sizes = [("tiny", "Tiny (rápido, menos preciso)"), 
-                      ("base", "Base (equilibrado)"), 
-                      ("small", "Small (buena precisión)"), 
-                      ("medium", "Medium (alta precisión, más lento)"), 
-                      ("large-v3", "Large-v3 (máxima precisión, muy lento)")]
+                    ("base", "Base (equilibrado)"), 
+                    ("small", "Small (buena precisión)"), 
+                    ("medium", "Medium (alta precisión, más lento)"), 
+                    ("large-v3", "Large-v3 (máxima precisión, muy lento)")]
         
         size_combo = ttk.Combobox(frame_size, textvariable=self.whisper_model_size, state="readonly")
         size_combo['values'] = [size[0] for size in model_sizes]
@@ -1978,7 +1978,7 @@ class VideoCreatorApp:
         
         # Descripción del modelo seleccionado
         self.lbl_model_desc = ttk.Label(frame_size, text="Modelo equilibrado entre velocidad y precisión", 
-                                      foreground="#3498db")
+                                    foreground="#3498db")
         self.lbl_model_desc.pack(side="left", padx=10)
         
         # Función para actualizar la descripción del modelo
@@ -2003,8 +2003,8 @@ class VideoCreatorApp:
         device_combo.pack(side="left", padx=5)
         
         lbl_device_info = ttk.Label(frame_device, 
-                                  text="Usar 'cuda' solo si tienes GPU NVIDIA compatible", 
-                                  foreground="#f39c12")
+                                text="Usar 'cuda' solo si tienes GPU NVIDIA compatible", 
+                                foreground="#f39c12")
         lbl_device_info.pack(side="left", padx=10)
         
         # Botón para recargar el modelo
@@ -2037,7 +2037,7 @@ class VideoCreatorApp:
                 )
         
         btn_reload = ttk.Button(frame_model, text="Recargar Modelo Whisper", 
-                              command=reload_whisper_model, style="Secondary.TButton")
+                            command=reload_whisper_model, style="Secondary.TButton")
         btn_reload.pack(pady=10)
         
         # Frame para opciones de subtítulos
@@ -2065,7 +2065,7 @@ class VideoCreatorApp:
         frame_word.pack(fill="x", padx=10, pady=5)
         
         word_check = ttk.Checkbutton(frame_word, text="Usar timestamps por palabra (más preciso)", 
-                                   variable=self.whisper_word_timestamps)
+                                variable=self.whisper_word_timestamps)
         word_check.pack(padx=5, pady=5)
         
         # Frame para el estilo de subtítulos
@@ -2113,7 +2113,7 @@ class VideoCreatorApp:
         lbl_stroke_width.pack(side="left")
         
         spin_stroke_width = ttk.Spinbox(frame_stroke_width, from_=0, to=5, increment=1, 
-                                      textvariable=self.settings_subtitles_stroke_width, width=5)
+                                    textvariable=self.settings_subtitles_stroke_width, width=5)
         spin_stroke_width.pack(side="left", padx=5)
         
         # Alineación horizontal del texto
@@ -2149,11 +2149,41 @@ class VideoCreatorApp:
         position_h_combo['values'] = ["left", "center", "right"]
         position_h_combo.pack(side="left", padx=5)
         
+        # Margen de subtítulos
+        frame_margin = ttk.Frame(frame_style)
+        frame_margin.pack(fill="x", padx=10, pady=5)
+        
+        lbl_margin = ttk.Label(frame_margin, text="Margen desde borde:", width=20)
+        lbl_margin.pack(side="left")
+        
+        # Crear la variable si no existe
+        if not hasattr(self, 'settings_subtitles_margin'):
+            self.settings_subtitles_margin = tk.DoubleVar(value=0.08)  # Valor predeterminado 8%
+        
+        # Spinbox para el margen (0% a 25%)
+        margin_spinbox = ttk.Spinbox(
+            frame_margin, 
+            from_=0.0, 
+            to=0.25, 
+            increment=0.01, 
+            textvariable=self.settings_subtitles_margin, 
+            width=5,
+            format="%.2f"
+        )
+        margin_spinbox.pack(side="left", padx=5)
+        
+        lbl_margin_info = ttk.Label(
+            frame_margin, 
+            text="(0.08 = 8% de margen desde el borde)",
+            foreground="#3498db"
+        )
+        lbl_margin_info.pack(side="left", padx=10)
+        
         # Nota informativa
         lbl_note = ttk.Label(main_frame, 
-                           text="Nota: Los subtítulos se generarán automáticamente a partir del audio usando Whisper si está disponible.", 
-                           foreground="#e67e22",
-                           font=("Helvetica", 10, "italic"))
+                        text="Nota: Los subtítulos se generarán automáticamente a partir del audio usando Whisper si está disponible.", 
+                        foreground="#e67e22",
+                        font=("Helvetica", 10, "italic"))
         lbl_note.pack(pady=10)
 
 # Iniciar la aplicación si se ejecuta este archivo directamente

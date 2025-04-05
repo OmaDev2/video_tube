@@ -30,7 +30,10 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
                                aplicar_subtitulos=False, archivo_subtitulos=None, 
                                tamano_fuente_subtitulos=None, color_fuente_subtitulos='orange',
                                color_borde_subtitulos='black', grosor_borde_subtitulos=6,
-                               subtitulos_align='center', subtitulos_position_h='center', subtitulos_position_v='bottom',
+                               subtitulos_align='center', 
+                               subtitulos_position_h='center', 
+                               subtitulos_position_v='bottom', subtitulos_margen=0.05,
+                               
                                progress_callback=None, settings=None):
     """
     Crea un video usando recursos de una carpeta de proyecto específica.
@@ -421,6 +424,10 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
 # con el siguiente código:
 
     # --- APLICAR SUBTÍTULOS ---
+    # Reemplaza la sección "# --- APLICAR SUBTÍTULOS ---" en tu función crear_video_desde_imagenes
+# con el siguiente código:
+
+    # --- APLICAR SUBTÍTULOS ---
     if aplicar_subtitulos and archivo_subtitulos and Path(archivo_subtitulos).is_file():
         print(f"Aplicando subtítulos desde: {archivo_subtitulos}")
         try:
@@ -433,8 +440,15 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
                 else:
                     print(f"Archivo de subtítulos tiene {len(contenido)} caracteres")
             
+            # Calcular tamaño de fuente si no se especifica
+            if tamano_fuente_subtitulos is None:
+                # Ajustar automáticamente según la resolución del video
+                base_height = 1080  # Altura base de referencia
+                tamano_fuente_subtitulos = int((video_final.h / base_height) * 60)  # 60pt para 1080p
+                print(f"Tamaño de fuente de subtítulos ajustado automáticamente: {tamano_fuente_subtitulos}")
+            
             # Calculamos el ancho del texto como un entero (no float)
-            text_width = int(video_final.w * 0.8)
+            text_width = int(video_final.w * 0.9)
             
             # Obtener la ruta de la fuente (usar la especificada o intentar una fuente del sistema)
             font_path = '/Users/olga/Development/proyectosPython/VideoPython/fonts/Roboto-Regular.ttf'
@@ -446,17 +460,32 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
                         print(f"Usando fuente del sistema: {font_path}")
                         break
             
+            # Definir la posición con margen personalizado
+            # Ajuste para margen inferior cuando los subtítulos están abajo
+            margen_inferior = 0.08  # 8% de margen desde abajo (ajusta este valor según necesites)
+            posicion_v_ajustada = subtitulos_position_v
+            
+            # Si la posición es 'bottom', convertirla a valor numérico con margen
+            if subtitulos_position_v == 'bottom':
+                posicion_v_ajustada = 1.0 - margen_inferior  # Por ejemplo: 0.92 en lugar de 1.0
+            elif subtitulos_position_v == 'top':
+                posicion_v_ajustada = 0.0 + margen_inferior  # Añadir margen desde arriba también
+            
+            # Crear la tupla de posición
+            subtitulos_position = (subtitulos_position_h, posicion_v_ajustada)
+            print(f"Posición de subtítulos ajustada: {subtitulos_position}")
+            
             # Generator con los parámetros correctos
             generator = lambda txt: TextClip(
-                txt,   # Primer argumento es el texto
-                font=font_path,  # Fuente como argumento nombrado
-                fontsize=tamano_fuente_subtitulos,  # Usar el tamaño de fuente configurable
+                font_path,  # Primer argumento posicional debe ser font
+                text=txt,   # Texto como argumento nombrado
+                font_size=tamano_fuente_subtitulos,
                 color=color_fuente_subtitulos,
                 stroke_color=color_borde_subtitulos,
                 stroke_width=grosor_borde_subtitulos,
                 method='caption',
-                align=subtitulos_align,  # Usar la alineación configurable
-                size=(text_width, None)  # Ancho como entero, no float
+                size=(text_width, None),  # Ancho como entero, no float
+                #align=subtitulos_align    # Usar el parámetro de alineación del texto
             )
 
             # Crear SubtitlesClip
@@ -479,8 +508,8 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
                     print(f"Ajustando duración de subtítulos de {subs_clip.duration}s a {video_final.duration}s")
                     subs_clip = subs_clip.with_duration(video_final.duration)
                 
-                # Establecer posición para los subtítulos usando los valores configurables
-                positioned_subs = subs_clip.with_position((subtitulos_position_h, subtitulos_position_v), relative=True)
+                # Establecer posición para los subtítulos
+                positioned_subs = subs_clip.with_position(subtitulos_position, relative=True)
                 
                 # Crear clip final compuesto
                 print("Componiendo vídeo + subtítulos...")
