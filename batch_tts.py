@@ -1,14 +1,18 @@
-#!/usr/bin/env python3
-import asyncio
+import traceback
+import logging
 import queue
 import threading
 import os
-import re
 import tkinter as tk
 from tkinter import ttk, messagebox
 from pathlib import Path
 import time
-import traceback
+import re
+import math
+import asyncio
+from typing import List, Dict, Any
+from moviepy import *
+from prompt_generator import GEMINI_AVAILABLE, generar_prompts_con_gemini
 
 # Importar el generador de voz en off
 try:
@@ -286,6 +290,52 @@ class BatchTTSManager:
                                 job['archivo_subtitulos'] = srt_output_path
                                 job['aplicar_subtitulos'] = True
                                 print(f"Subtítulos generados exitosamente en: {srt_output_path}")
+
+                                # --- NUEVO: Generación de Prompts ---
+                                if GEMINI_AVAILABLE and srt_success:
+                                    self.update_job_status_gui(job_id, "Audio/SRT OK. Generando Prompts...")
+                                    try:
+                                        # Leer guion
+                                        with open(script_path, 'r', encoding='utf-8') as f:
+                                            script_content = f.read()
+
+                                        # Calcular número de imágenes
+                                        temp_audio_clip = AudioFileClip(final_audio_path)
+                                        audio_duration = temp_audio_clip.duration
+                                        temp_audio_clip.close()
+                                        duracion_por_imagen = job.get('duracion_img', 6.0)
+                                        num_imagenes_necesarias = math.ceil(audio_duration / duracion_por_imagen)
+
+                                        # Llamar a la función de generación de prompts
+                                        estilo = job.get('settings', {}).get('estilo_imagenes', 'cinematográfico')
+                                        lista_prompts = generar_prompts_con_gemini(
+                                            script_content,
+                                            num_imagenes_necesarias,
+                                            job['titulo'],  # <--- Pasar el título del proyecto
+                                            estilo_base=estilo
+                                        )
+
+                                        if lista_prompts:
+                                            job['prompts_data'] = lista_prompts
+                                            job['num_imagenes'] = len(lista_prompts)
+                                            prompt_file_path = Path(output_folder) / "prompts.txt"
+                                            with open(prompt_file_path, "w", encoding="utf-8") as f:
+                                                for p_idx, data in enumerate(lista_prompts):
+                                                    f.write(f"--- Imagen {p_idx+1} ---\n")
+                                                    f.write(f"Segmento Guion (ES):\n{data['segmento_es']}\n\n")
+                                                    f.write(f"Prompt Generado (EN):\n{data['prompt_en']}\n")
+                                                    f.write("="*30 + "\n\n")
+                                            
+                                            print(f"Prompts guardados en {prompt_file_path}")
+                                            self.update_job_status_gui(job_id, "Prompts OK. Esperando Vídeo/Imágenes.")
+                                        else:
+                                            print(f"Fallo al generar prompts para {job_id}")
+                                            self.update_job_status_gui(job_id, "Audio/SRT OK. Error Prompts.")
+
+                                    except Exception as e_prompt:
+                                        print(f"Error durante la generación de prompts para {job_id}: {e_prompt}")
+                                        self.update_job_status_gui(job_id, "Audio/SRT OK. Error Prompts.")
+                                # --- FIN NUEVO ---
                             else:
                                 self.update_job_status_gui(job_id, "Audio OK. Error SRT", audio_tiempo_formateado)
                                 job['aplicar_subtitulos'] = False
@@ -304,6 +354,7 @@ class BatchTTSManager:
                 except Exception as e_tts:
                     error_msg = f"Excepción TTS: {e_tts}"
                     print(f"Excepción en el worker (TTS) procesando {job_id}: {e_tts}")
+                    logging.error('Error procesando trabajo: %s', job_id)
                     traceback.print_exc()
                     
                     # Calcular tiempo transcurrido incluso en caso de error
@@ -328,7 +379,7 @@ class BatchTTSManager:
             
             except Exception as e:
                 print(f"Error inesperado en el worker: {e}")
-                import traceback
+                logging.error('Error en worker: %s', str(e))
                 traceback.print_exc()
         
         print("Worker de cola finalizado.")

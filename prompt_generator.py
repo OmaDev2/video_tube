@@ -4,6 +4,7 @@ import os
 import math
 import re
 from pathlib import Path
+from typing import List, Dict, Any # Importar Dict, Any, List
 
 # --- Configuración API Key (Leer desde entorno) ---
 # (Asegúrate de que esta configuración se ejecute ANTES de llamar a generar_prompts...)
@@ -47,8 +48,10 @@ def segmentar_script(texto_completo: str, num_segmentos: int) -> list[str]:
     return segmentos
 
 
-def generar_prompts_con_gemini(script_text: str, num_imagenes: int, estilo_base: str = "cinematográfico") -> list[str] | None:
-    """Genera prompts de imagen usando Gemini para segmentos de un guion."""
+def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title: str, estilo_base: str = "cinematográfico") -> List[Dict[str, str]] | None:
+    """Genera prompts de imagen en INGLÉS usando Gemini para segmentos de un guion,
+    incluyendo el título del vídeo como contexto. Devuelve una lista de diccionarios
+    con el segmento original y el prompt generado."""
     if not GEMINI_AVAILABLE:
         print("ERROR: La API de Gemini no está configurada o disponible.")
         return None
@@ -66,44 +69,66 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, estilo_base:
 
     # Configurar modelo Gemini (ej: gemini-pro, verifica modelos disponibles)
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp')
     except Exception as e:
          print(f"Error al inicializar el modelo Gemini: {e}")
          return None
 
-    prompts_generados = []
+    resultados_prompts = []  # Lista para almacenar resultados
     for i, segmento in enumerate(segmentos):
         print(f" - Generando prompt para segmento {i+1}/{len(segmentos)}...")
 
         # Crear el "meta-prompt"
-        meta_prompt = f"""Eres un asistente experto en visualización creativa para vídeos. A partir del siguiente fragmento de texto de un guion, genera un prompt conciso y descriptivo (máximo 60 palabras) para un modelo de generación de imágenes como Flux Schnell o Stable Diffusion. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El estilo visual general es {estilo_base}. El aspect ratio es 16:9. Describe la escena, los elementos principales, la iluminación y la atmósfera.
+        meta_prompt = f"""Eres un asistente experto en visualización creativa para vídeos. El título general del vídeo es "{video_title}". A partir del siguiente fragmento de texto de ese guion, genera un prompt conciso y descriptivo (máximo 60 palabras) **en INGLÉS** para un modelo de generación de imágenes como Flux Schnell o Stable Diffusion. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El estilo visual general es {estilo_base}. El aspect ratio es 16:9. Describe la escena, los elementos principales, la iluminación y la atmósfera.
 
 Fragmento del Guion:
 "{segmento}"
 
-Prompt generado:""" # Gemini continuará a partir de aquí
+Generated English Prompt:""" # Pedimos que continúe en inglés
 
         try:
+            
             # Llamar a la API de Gemini
-            response = model.generate_content(meta_prompt)
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+            ]
+            response = model.generate_content(meta_prompt, safety_settings=safety_settings)
+            
+                         
 
-            # Extraer y limpiar el prompt generado
-            # A veces Gemini añade el propio prompt o texto extra, intentamos limpiarlo.
-            generated_prompt = response.text.strip()
-            # Eliminar posibles ecos del prompt o frases introductorias
-            generated_prompt = re.sub(r'^(Prompt generado:|Prompt:|Aquí tienes el prompt:)\s*', '', generated_prompt, flags=re.IGNORECASE).strip()
-
-            if generated_prompt:
-                print(f"   - Prompt: {generated_prompt}")
-                prompts_generados.append(generated_prompt)
+           # Intentar extraer texto, manejar posible bloqueo de seguridad
+            if response.parts:
+                 generated_prompt_en = response.text.strip()
+                 generated_prompt_en = re.sub(r'^(Generated English Prompt:|Prompt:|Aquí tienes el prompt:)\s*', '', generated_prompt_en, flags=re.IGNORECASE).strip()
+            elif response.prompt_feedback.block_reason:
+                 print(f"   - ADVERTENCIA: Respuesta bloqueada por seguridad ({response.prompt_feedback.block_reason}).")
+                 generated_prompt_en = f"Error: Respuesta bloqueada ({response.prompt_feedback.block_reason})"
             else:
-                print("   - ADVERTENCIA: Gemini no devolvió un prompt para este segmento.")
-                prompts_generados.append(f"Error generando prompt para: {segmento[:50]}...") # Añadir placeholder
+                 # Caso raro: no hay partes ni bloqueo
+                 print("   - ADVERTENCIA: Gemini no devolvió contenido ni razón de bloqueo.")
+                 generated_prompt_en = f"Error: Respuesta vacía de Gemini."
+
+
+            if generated_prompt_en and not generated_prompt_en.startswith("Error"):
+                print(f"   - Prompt (EN): {generated_prompt_en}")
+                prompt_actual_en = generated_prompt_en # Guardar el bueno
+            else:
+                # Mantener el prompt de error si no se generó bien
+                 print(f"   - INFO: Se usará prompt de error para segmento {i+1}")
+
 
         except Exception as e:
             print(f"   - ERROR al llamar a la API de Gemini para segmento {i+1}: {e}")
-            # Considera reintentos o añadir un prompt de error
-            prompts_generados.append(f"ERROR API Gemini para: {segmento[:50]}...")
+            prompt_actual_en = f"ERROR API Gemini para: {segmento[:50]}..."
 
-    print(f"Generados {len(prompts_generados)} prompts.")
-    return prompts_generados
+        # Guardar el resultado (segmento original y prompt generado en inglés)
+        resultados_prompts.append({
+            "segmento_es": segmento,
+            "prompt_en": prompt_actual_en
+        })
+
+    print(f"Generados {len(resultados_prompts)} prompts.")
+    return resultados_prompts # Devuelve lista de diccionarios
