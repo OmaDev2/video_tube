@@ -451,7 +451,7 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
             text_width = int(video_final.w * 0.9)
             
             # Obtener la ruta de la fuente (usar la especificada o intentar una fuente del sistema)
-            font_path = '/Users/olga/Development/proyectosPython/VideoPython/fonts/Roboto-Regular.ttf'
+            font_path = '/Users/olga/Development/proyectosPython/VideoPython/fonts/BungeeTint-Regular.ttf'
             if not os.path.exists(font_path):
                 # Intentar con una fuente del sistema como respaldo
                 for system_font in ['/System/Library/Fonts/Helvetica.ttc', '/Library/Fonts/Arial.ttf']:
@@ -462,14 +462,14 @@ def crear_video_desde_imagenes(project_folder, duracion_img=6, fps=24,
             
             # Definir la posición con margen personalizado
             # Ajuste para margen inferior cuando los subtítulos están abajo
-            margen_inferior = 0.25  # 8% de margen desde abajo (ajusta este valor según necesites)
+            # Usar el valor de subtitulos_margen pasado como parámetro
             posicion_v_ajustada = subtitulos_position_v
             
             # Si la posición es 'bottom', convertirla a valor numérico con margen
             if subtitulos_position_v == 'bottom':
-                posicion_v_ajustada = 1.0 - margen_inferior  # Por ejemplo: 0.92 en lugar de 1.0
+                posicion_v_ajustada = 1.0 - subtitulos_margen  # Usar el margen pasado como parámetro
             elif subtitulos_position_v == 'top':
-                posicion_v_ajustada = 0.0 + margen_inferior  # Añadir margen desde arriba también
+                posicion_v_ajustada = 0.0 + subtitulos_margen  # Añadir margen desde arriba también
             
             # Crear la tupla de posición
             subtitulos_position = (subtitulos_position_h, posicion_v_ajustada)
@@ -743,5 +743,3 @@ def main():
                               aplicar_fade_in, duracion_fade_in, aplicar_fade_out, duracion_fade_out,
                               aplicar_overlay, archivos_overlay, opacidad_overlay)
 
-if __name__ == "__main__":
-    main()

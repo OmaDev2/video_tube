@@ -150,6 +150,27 @@ class BatchTTSManager:
             'video_settings': video_settings or {}
         }
         
+        # Guardar configuración del proyecto en un archivo JSON
+        settings_file_path = project_folder / "settings.json"
+        try:
+            import json
+            with open(settings_file_path, "w", encoding="utf-8") as f:
+                # Asegurarse de que los datos sean serializables
+                serializable_settings = {}
+                if video_settings:
+                    serializable_settings = video_settings.copy()
+                    # Convertir rutas a strings si es necesario
+                    for key, value in serializable_settings.items():
+                        if isinstance(value, Path):
+                            serializable_settings[key] = str(value)
+                        elif isinstance(value, list) and value and isinstance(value[0], Path):
+                            serializable_settings[key] = [str(p) for p in value]
+                json.dump(serializable_settings, f, indent=4, ensure_ascii=False)
+            print(f"Configuración guardada en {settings_file_path}")
+        except Exception as e:
+            print(f"Error al guardar la configuración: {e}")
+            # Continuamos aunque falle el guardado de la configuración
+        
         self.job_queue.put(job_data)
         
         # Añadir a la GUI (Treeview) si ya existe
