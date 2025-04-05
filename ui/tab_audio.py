@@ -81,11 +81,11 @@ class AudioTabFrame(ttk.Frame):
             self.app.etiqueta_volumen_musica.set(f"{valor_real*100:.1f}%")
         
         # Usar un slider con escala visual lineal pero que internamente usa valores logarítmicos
-        scale_volumen_musica = ttk.Scale(frame_musica, from_=0.0, to=1.0, orient="horizontal", 
+        self.scale_volumen_musica = ttk.Scale(frame_musica, from_=0.0, to=1.0, orient="horizontal", 
                                        length=200, command=actualizar_volumen_musica)
         # Valor inicial del slider muy bajo para volumen ambiental (3%)
-        scale_volumen_musica.set(0.0)
-        scale_volumen_musica.grid(row=2, column=1, padx=5, pady=5, sticky="we")
+        self.scale_volumen_musica.set(0.0)
+        self.scale_volumen_musica.grid(row=2, column=1, padx=5, pady=5, sticky="we")
         
         # Inicializar el valor real y la etiqueta
         valor_inicial = self._convertir_volumen_musica(0.0)  # 3% de volumen
@@ -151,10 +151,10 @@ class AudioTabFrame(ttk.Frame):
         def actualizar_etiqueta_volumen_voz(valor):
             self.app.etiqueta_volumen_voz.set(f"{float(valor)*100:.0f}%")
         
-        scale_volumen_voz = ttk.Scale(frame_voz, from_=0.0, to=1.0, orient="horizontal", 
+        self.scale_volumen_voz = ttk.Scale(frame_voz, from_=0.0, to=1.0, orient="horizontal", 
                                     variable=self.app.volumen_voz, length=200, 
                                     command=actualizar_etiqueta_volumen_voz)
-        scale_volumen_voz.grid(row=2, column=1, padx=5, pady=5, sticky="we")
+        self.scale_volumen_voz.grid(row=2, column=1, padx=5, pady=5, sticky="we")
         
         self.app.etiqueta_volumen_voz.set(f"{self.app.volumen_voz.get()*100:.0f}%")
         etiqueta_volumen_voz = ttk.Label(frame_voz, textvariable=self.app.etiqueta_volumen_voz)

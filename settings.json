@@ -1,0 +1,173 @@
+{
+  "default_settings": {
+    "basic": {
+      "duracion_img": 10.0,
+      "fps": 24,
+      "directorio_imagenes": "images",
+      "archivo_salida": "video_salida.mp4"
+    },
+    "effects": {
+      "zoom": {
+        "zoom_ratio": 0.5,
+        "zoom_quality": "high"
+      },
+      "pan": {
+        "pan_scale_factor": 1.2,
+        "pan_easing": true,
+        "pan_quality": "high"
+      },
+      "kenburns": {
+        "kb_zoom_ratio": 0.3,
+        "kb_scale_factor": 1.3,
+        "kb_quality": "high",
+        "kb_direction": "random"
+      },
+      "transition": {
+        "tipo_transicion": "dissolve",
+        "duracion_transicion": 1.0
+      },
+      "fade": {
+        "duracion_fade_in": 2.0,
+        "duracion_fade_out": 2.0
+      },
+      "overlay": {
+        "opacidad_overlay": 0.25,
+        "overlay_blend_mode": "normal"
+      }
+    },
+    "audio": {
+      "musica": {
+        "volumen_musica": 0.65,
+        "duracion_fade_in_musica": 1.0,
+        "duracion_fade_out_musica": 2.0
+      },
+      "voz": {
+        "volumen_voz": 0.75,
+        "duracion_fade_in_voz": 2.0,
+        "duracion_fade_out_voz": 2.0
+      }
+    },
+    "subtitles": {
+      "font_size": 54,
+      "font_color": "white",
+      "stroke_color": "black",
+      "stroke_width": 3,
+      "align": "center",
+      "position_h": "center",
+      "position_v": "bottom"
+    },
+    "whisper": {
+      "model_size": "medium",
+      "device": "cpu",
+      "compute_type": "int8",
+      "language": "es",
+      "word_timestamps": true
+    }
+  },
+  "templates": {
+    "basic": {
+     "duracion_img": 30.0,
+      "fps": 24,
+      "aplicar_efectos": true,
+      "secuencia_efectos": "in,out,panright,panleft,panup,pandown",
+      "aplicar_transicion": true,
+      "tipo_transicion": "dissolve",
+      "duracion_transicion": 2.0,
+      "aplicar_fade_in": false,
+      "duracion_fade_in": 1.0,
+      "aplicar_fade_out": false,
+      "duracion_fade_out": 1.0,
+      "aplicar_musica": true,
+      "volumen_musica": 0.3,
+      "aplicar_fade_in_musica": true,
+      "duracion_fade_in_musica": 1.0,
+      "aplicar_fade_out_musica": true,
+      "duracion_fade_out_musica": 1.0,
+      "aplicar_voz": false,
+      "volumen_voz": 0.75,
+      "aplicar_fade_in_voz": true,
+      "duracion_fade_in_voz": 1.0,
+      "aplicar_fade_out_voz": true,
+      "duracion_fade_out_voz": 1.0,
+      "aplicar_overlay": false,
+      "opacidad_overlay": 0.25,
+      "overlay_blend_mode": "normal",
+      "aplicar_subtitulos": false,
+      "subtitles_font_size": 54,
+      "subtitles_font_color": "orange",
+      "subtitles_stroke_color": "black",
+      "subtitles_stroke_width": 3,
+      "subtitles_align": "center",
+      "subtitles_position_h": "center",
+      "subtitles_position_v": "bottom"
+    },
+    "professional": {
+      "aplicar_efectos": true,
+      "secuencia_efectos": "kb,zoom,pan",
+      "aplicar_transicion": true,
+      "tipo_transicion": "slide",
+      "duracion_transicion": 1.5,
+      "aplicar_fade_in": true,
+      "duracion_fade_in": 1.0,
+      "aplicar_fade_out": true,
+      "duracion_fade_out": 1.0,
+      "aplicar_musica": true,
+      "volumen_musica": 0.3,
+      "aplicar_fade_in_musica": true,
+      "duracion_fade_in_musica": 1.0,
+      "aplicar_fade_out_musica": true,
+      "duracion_fade_out_musica": 2.0,
+      "aplicar_voz": true,
+      "volumen_voz": 0.75,
+      "aplicar_fade_in_voz": false,
+      "duracion_fade_in_voz": 2.0,
+      "aplicar_fade_out_voz": true,
+      "duracion_fade_out_voz": 2.0,
+      "aplicar_overlay": true,
+      "opacidad_overlay": 0.2,
+      "overlay_blend_mode": "normal",
+      "aplicar_subtitulos": true,
+      "subtitles_font_size": 64,
+      "subtitles_font_color": "white",
+      "subtitles_stroke_color": "black",
+      "subtitles_stroke_width": 3,
+      "subtitles_align": "center",
+      "subtitles_position_h": "center",
+      "subtitles_position_v": "bottom"
+    },
+    "minimal": {
+      "aplicar_efectos": false,
+      "secuencia_efectos": "",
+      "aplicar_transicion": false,
+      "tipo_transicion": "dissolve",
+      "duracion_transicion": 1.0,
+      "aplicar_fade_in": false,
+      "duracion_fade_in": 1.0,
+      "aplicar_fade_out": false,
+      "duracion_fade_out": 1.0,
+      "aplicar_musica": false,
+      "volumen_musica": 0.0,
+      "aplicar_fade_in_musica": false,
+      "duracion_fade_in_musica": 1.0,
+      "aplicar_fade_out_musica": false,
+      "duracion_fade_out_musica": 2.0,
+      "aplicar_voz": false,
+      "volumen_voz": 0.75,
+      "aplicar_fade_in_voz": false,
+      "duracion_fade_in_voz": 2.0,
+      "aplicar_fade_out_voz": false,
+      "duracion_fade_out_voz": 2.0,
+      "aplicar_overlay": false,
+      "opacidad_overlay": 0.25,
+      "overlay_blend_mode": "normal",
+      "aplicar_subtitulos": false,
+      "subtitles_font_size": 54,
+      "subtitles_font_color": "white",
+      "subtitles_stroke_color": "black",
+      "subtitles_stroke_width": 3,
+      "subtitles_align": "center",
+      "subtitles_position_h": "center",
+      "subtitles_position_v": "bottom"
+    }
+  }
+}

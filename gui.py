@@ -172,6 +172,14 @@ class VideoCreatorApp:
         self.duracion_img = tk.DoubleVar(value=20.0)
         self.fps = tk.IntVar(value=24)
         
+        # Variable para plantillas
+        self.template_seleccionado = tk.StringVar()
+        self.templates = {
+            "basic": "Básico",
+            "professional": "Profesional",
+            "minimal": "Mínimo"
+        }
+        
         # Variables Configuración Tab Efectos y Transiciones    
         self.aplicar_efectos = tk.BooleanVar(value=True)
         self.tipo_efecto = tk.StringVar(value="in")
@@ -244,12 +252,67 @@ class VideoCreatorApp:
         # Crear la interfaz
         self.crear_interfaz()
         
+        # Cargar plantillas
+        self.cargar_plantillas()
+        
+        # Cargar plantillas
+        self.cargar_plantillas()
+        
         # Cargar automáticamente las imágenes y overlays al iniciar
         self.root.after(500, self.buscar_imagenes)
         self.root.after(1000, lambda: self.tab_efectos.buscar_y_seleccionar_overlays() if hasattr(self, 'tab_efectos') else None)
         
         # Iniciar el worker para procesar la cola de TTS
         self.batch_tts_manager.start_worker()
+        
+    def cargar_plantillas(self):
+        """Carga las plantillas desde settings.json."""
+        try:
+            import json
+            with open('settings.json', 'r') as f:
+                settings = json.load(f)
+                
+            if 'templates' in settings:
+                self.templates = {}
+                for key, value in settings['templates'].items():
+                    if key == 'basic':
+                        self.templates[key] = "Básico"
+                    elif key == 'professional':
+                        self.templates[key] = "Profesional"
+                    elif key == 'minimal':
+                        self.templates[key] = "Mínimo"
+                    else:
+                        self.templates[key] = key.capitalize()
+                
+        except Exception as e:
+            print(f"Error al cargar plantillas: {e}")
+            
+    def aplicar_plantilla(self, event=None):
+        """Aplica la configuración de la plantilla seleccionada."""
+        template_name = self.template_seleccionado.get()
+        if template_name in self.templates:
+            template = self.templates[template_name]
+            
+            # Aplicar configuración básica
+            self.aplicar_efectos.set(template.get('aplicar_efectos', False))
+            self.secuencia_efectos.set(template.get('secuencia_efectos', ''))
+            self.aplicar_transicion.set(template.get('aplicar_transicion', False))
+            self.tipo_transicion.set(template.get('tipo_transicion', 'dissolve'))
+            self.duracion_transicion.set(template.get('duracion_transicion', 1.0))
+            
+            # Aplicar configuración de fade
+            self.aplicar_fade_in.set(template.get('aplicar_fade_in', False))
+            self.duracion_fade_in.set(template.get('duracion_fade_in', 1.0))
+            self.aplicar_fade_out.set(template.get('aplicar_fade_out', False))
+            self.duracion_fade_out.set(template.get('duracion_fade_out', 1.0))
+            
+            # Aplicar configuración de audio
+            self.aplicar_musica.set(template.get('aplicar_musica', False))
+            self.volumen_musica.set(template.get('volumen_musica', 0.5))
+            
+            # Aplicar configuración de overlay
+            self.aplicar_overlay.set(template.get('aplicar_overlay', False))
+            self.opacidad_overlay.set(template.get('opacidad_overlay', 0.25))
     
     def crear_interfaz(self):
         # Crear un frame superior para el botón de crear video
