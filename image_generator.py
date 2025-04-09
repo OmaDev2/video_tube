@@ -64,7 +64,7 @@ def generar_imagen_con_replicate(
         # Llamar a la API de Replicate
         # NOTA: replicate.run() puede ser BLOQUEANTE y tardar MUCHO.
         output = replicate.run(
-            "black-forest-labs/flux-schnell:eb593c936bf6a0758a94f184258074a101f7601284897dd653b83f8b64bb190e", # ID del modelo/versión
+            "black-forest-labs/flux-schnell", # ID del modelo/versión
             input=input_data
         )
         end_time = time.time()

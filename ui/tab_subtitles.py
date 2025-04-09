@@ -266,7 +266,7 @@ class SubtitlesTabFrame(ttk.Frame):
         
         # Crear la variable si no existe
         if not hasattr(self.app, 'settings_subtitles_margin'):
-            self.app.settings_subtitles_margin = tk.DoubleVar(value=0.08)  # Valor predeterminado 8%
+            self.app.settings_subtitles_margin = tk.DoubleVar(value=0.12)  # Valor predeterminado 15%
         
         # Spinbox para el margen (0% a 25%)
         margin_spinbox = ttk.Spinbox(

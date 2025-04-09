@@ -926,7 +926,7 @@ class VideoCreatorApp:
                     'color_fuente_subtitulos': self.settings_subtitles_font_color.get(),
                     'color_borde_subtitulos': self.settings_subtitles_stroke_color.get(),
                     'grosor_borde_subtitulos': self.settings_subtitles_stroke_width.get(),
-                    'subtitulos_margen': self.settings_subtitles_margin.get() if hasattr(self, 'settings_subtitles_margin') else 0.15,
+                    'subtitulos_margen': self.settings_subtitles_margin.get() if hasattr(self, 'settings_subtitles_margin') else 0.12,
                     'progress_callback': self.update_progress_bar
                 },
                 daemon=True
