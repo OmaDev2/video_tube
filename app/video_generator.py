@@ -84,6 +84,47 @@ class VideoGenerator:
         
         # Progreso de generación
         self.progress_callback = None
+        
+    # Añade esta función al inicio de video_generator.py para detectar y manejar diferentes versiones de MoviePy
+
+    def get_moviepy_version():
+        """
+        Detecta la versión de MoviePy instalada y devuelve información sobre cómo manejar ciertas funciones.
+        
+        Returns:
+            dict: Diccionario con información sobre cómo manejar las funciones de MoviePy
+        """
+        try:
+            from moviepy import __version__ as moviepy_version
+            print(f"Versión de MoviePy: {moviepy_version}")
+            
+            # Convertir a tupla de componentes de versión
+            version_components = tuple(int(x) for x in moviepy_version.split('.'))
+            
+            # Preparar info de compatibilidad
+            info = {
+                'version': moviepy_version,
+                'text_clip_font_param': 'font',  # Por defecto
+                'text_clip_fontsize_param': 'font_size',  # Por defecto
+            }
+            
+            # En MoviePy >= 1.0.0, el parámetro para fuente es 'font'
+            # En versiones más antiguas, puede ser 'font'
+            if version_components[0] >= 1:
+                info['text_clip_font_param'] = 'font'
+                info['text_clip_fontsize_param'] = 'font_size'
+            
+            return info
+        except (ImportError, AttributeError):
+            # Si no podemos determinar la versión, asumimos la más común
+            return {
+                'version': 'unknown',
+                'text_clip_font_param': 'font',
+                'text_clip_fontsize_param': 'font_size',
+            }
+
+    # Obtener info de compatibilidad con MoviePy
+    MOVIEPY_INFO = get_moviepy_version()
     
     def set_progress_callback(self, callback):
         """
@@ -180,6 +221,14 @@ class VideoGenerator:
         subtitulos_position_v = kwargs.get('subtitulos_position_v', 'bottom')
         subtitulos_margen = kwargs.get('subtitulos_margen', 0.05)
         
+        # Parámetros de fuente para subtítulos
+        font_name = kwargs.get('font_name', None)
+        use_system_font = kwargs.get('use_system_font', False)
+        
+        # Imprimir información de fuente para depuración
+        if font_name:
+            print(f"GENERATE_VIDEO: Fuente seleccionada: {font_name}, Sistema: {use_system_font}")
+        
         # Actualizar la función de progreso si se proporciona
         if 'progress_callback' in kwargs:
             self.set_progress_callback(kwargs['progress_callback'])
@@ -250,7 +299,9 @@ class VideoGenerator:
             subtitulos_align=subtitulos_align,
             subtitulos_position_h=subtitulos_position_h,
             subtitulos_position_v=subtitulos_position_v,
-            subtitulos_margen=subtitulos_margen
+            subtitulos_margen=subtitulos_margen,
+            font_name=font_name,                 # Pasar el nombre de la fuente
+            use_system_font=use_system_font      # Pasar si es fuente del sistema
         )
         
         # Guardar el video
@@ -666,10 +717,11 @@ class VideoGenerator:
         return video  
     
     def _apply_subtitles(self, video, aplicar_subtitulos, archivo_subtitulos, 
-                       tamano_fuente_subtitulos, color_fuente_subtitulos,
-                       color_borde_subtitulos, grosor_borde_subtitulos,
-                       subtitulos_align, subtitulos_position_h, 
-                       subtitulos_position_v, subtitulos_margen):
+                  tamano_fuente_subtitulos, color_fuente_subtitulos,
+                  color_borde_subtitulos, grosor_borde_subtitulos,
+                  subtitulos_align, subtitulos_position_h, 
+                  subtitulos_position_v, subtitulos_margen,
+                  font_name=None, use_system_font=False):
         """
         Aplica subtítulos al video si se solicita.
         
@@ -685,6 +737,8 @@ class VideoGenerator:
             subtitulos_position_h: Posición horizontal de los subtítulos
             subtitulos_position_v: Posición vertical de los subtítulos
             subtitulos_margen: Margen desde el borde para los subtítulos
+            font_name: Nombre de la fuente a utilizar
+            use_system_font: Si es True, usa una fuente del sistema, si es False busca en la carpeta fonts
             
         Returns:
             VideoClip: Video con subtítulos aplicados
@@ -708,19 +762,106 @@ class VideoGenerator:
                     tamano_fuente_subtitulos = int((video.h / base_height) * 60)  # 60pt para 1080p
                     print(f"Tamaño de fuente de subtítulos ajustado automáticamente: {tamano_fuente_subtitulos}")
                 
+                # Obtener el ancho real del video
+                video_width = video.w
                 # Calculamos el ancho del texto como un entero (no float)
-                text_width = int(video.w * 0.9)
+                text_width = int(video_width * 0.9)
+                print(f"Ancho real del video: {video_width}, ancho para subtítulos: {text_width}")
                 
-                # Obtener la ruta de la fuente (usar la especificada o intentar una fuente del sistema)
-                font_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                       'fonts', 'Roboto-Regular.ttf')
-                if not os.path.exists(font_path):
-                    # Intentar con una fuente del sistema como respaldo
-                    for system_font in ['/System/Library/Fonts/Helvetica.ttc', '/Library/Fonts/Arial.ttf']:
-                        if os.path.exists(system_font):
-                            font_path = system_font
-                            print(f"Usando fuente del sistema: {font_path}")
-                            break
+                # Determinar la ruta de la fuente
+                font_path = None
+                
+                # Si se proporcionó un nombre de fuente
+                if font_name:
+                    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    print(f"Buscando fuente: {font_name}, use_system_font={use_system_font}")
+                    
+                    if use_system_font:
+                        # Usar fuente del sistema
+                        # Para macOS, necesitamos verificar si la fuente existe en el sistema
+                        font_path = font_name
+                        print(f"Usando fuente del sistema: {font_name}")
+                        
+                        # En macOS, las fuentes del sistema pueden estar en varias ubicaciones
+                        system_font_dirs = [
+                            '/System/Library/Fonts',
+                            '/Library/Fonts',
+                            os.path.expanduser('~/Library/Fonts')
+                        ]
+                        
+                        # Verificar si podemos encontrar la fuente en el sistema
+                        system_font_found = False
+                        for font_dir in system_font_dirs:
+                            if os.path.exists(font_dir):
+                                print(f"Buscando en directorio de fuentes del sistema: {font_dir}")
+                                for font_file in os.listdir(font_dir):
+                                    # Verificar si el nombre de la fuente está en el nombre del archivo
+                                    if font_name.lower() in font_file.lower() and font_file.endswith(('.ttf', '.otf', '.ttc', '.TTF', '.OTF', '.TTC')):
+                                        system_font_path = os.path.join(font_dir, font_file)
+                                        print(f"Encontrada fuente del sistema: {system_font_path}")
+                                        system_font_found = True
+                                        # No cambiamos font_path aquí, mantenemos el nombre para usar con TextClip
+                                        break
+                            if system_font_found:
+                                break
+                                
+                        if not system_font_found:
+                            print(f"ADVERTENCIA: No se encontró la fuente '{font_name}' en el sistema, pero se intentará usar el nombre directamente")
+                    else:
+                        # Buscar en la carpeta de fuentes personalizadas
+                        fonts_dir = os.path.join(base_dir, 'fonts')
+                        print(f"Buscando en directorio de fuentes: {fonts_dir}")
+                        
+                        if os.path.exists(fonts_dir) and os.path.isdir(fonts_dir):
+                            # Listar todas las fuentes disponibles para depuración
+                            print("Fuentes disponibles:")
+                            for font_file in os.listdir(fonts_dir):
+                                if font_file.endswith(('.ttf', '.otf', '.TTF', '.OTF')):
+                                    print(f"  - {font_file}")
+                            
+                            # Buscar coincidencia exacta primero
+                            font_found = False
+                            for ext in ['.ttf', '.otf', '.TTF', '.OTF']:
+                                possible_font = os.path.join(fonts_dir, f"{font_name}{ext}")
+                                if os.path.exists(possible_font):
+                                    font_path = possible_font
+                                    font_found = True
+                                    print(f"Encontrada fuente personalizada (coincidencia exacta): {font_path}")
+                                    break
+                            
+                            # Si no se encuentra, buscar coincidencia parcial
+                            if not font_found:
+                                print(f"No se encontró coincidencia exacta para '{font_name}', buscando coincidencia parcial...")
+                                for font_file in os.listdir(fonts_dir):
+                                    if font_file.endswith(('.ttf', '.otf', '.TTF', '.OTF')) and font_name.lower() in font_file.lower():
+                                        font_path = os.path.join(fonts_dir, font_file)
+                                        font_found = True
+                                        print(f"Encontrada fuente personalizada (coincidencia parcial): {font_path}")
+                                        break
+                        else:
+                            print(f"ERROR: Directorio de fuentes no encontrado: {fonts_dir}")
+                
+                # Si es una fuente del sistema, no necesitamos buscar la ruta del archivo
+                # Simplemente usamos el nombre directamente
+                if use_system_font and font_name:
+                    # Mantener el nombre de la fuente como está
+                    font_path = font_name
+                    print(f"IMPORTANTE: Usando fuente del sistema por nombre: {font_name}")
+                # Si no se encontró la fuente específica y no es una fuente del sistema, usar una fuente por defecto
+                elif not font_path:
+                    # Primero intentar con Roboto-Regular
+                    default_font = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                                            'fonts', 'Roboto-Regular.ttf')
+                    if os.path.exists(default_font):
+                        font_path = default_font
+                        print(f"Usando fuente por defecto: {default_font}")
+                    else:
+                        # Intentar con una fuente del sistema como respaldo
+                        for system_font in ['/System/Library/Fonts/Helvetica.ttc', '/Library/Fonts/Arial.ttf']:
+                            if os.path.exists(system_font):
+                                font_path = system_font
+                                print(f"Usando fuente del sistema como respaldo: {system_font}")
+                                break
                 
                 # Definir la posición con margen personalizado
                 posicion_v_ajustada = subtitulos_position_v
@@ -735,18 +876,126 @@ class VideoGenerator:
                 subtitulos_position = (subtitulos_position_h, posicion_v_ajustada)
                 print(f"Posición de subtítulos ajustada: {subtitulos_position}")
                 
-                # Generator con los parámetros correctos
-                generator = lambda txt: TextClip(
-                    font_path,  # Primer argumento posicional debe ser font
-                    text=txt,   # Texto como argumento nombrado
-                    font_size=tamano_fuente_subtitulos,
-                    color=color_fuente_subtitulos,
-                    stroke_color=color_borde_subtitulos,
-                    stroke_width=grosor_borde_subtitulos,
-                    method='caption',
-                    size=(text_width, None),  # Ancho como entero, no float
-                    #align=subtitulos_align    # Usar el parámetro de alineación del texto
-                )
+                print(f"Creando TextClip con fuente: {font_path}")
+                
+                # Si font_path es un objeto o variable especial, convertirlo a string para imprimirlo
+                font_path_str = str(font_path) if font_path is not None else "None"
+                
+                # Crear la función generadora basada en test_subtitles.py que funciona con MoviePy 2.x
+                print(f"Usando fuente: {font_path_str} con tamaño {tamano_fuente_subtitulos}")
+                
+                # Intentar usar SubtitleEffect para crear los subtítulos
+                try:
+                    # Primero intentar usar la clase SubtitleEffect que ya tiene implementada
+                    # la lógica para crear subtítulos con el ancho correcto del video
+                    print(f"Intentando crear subtítulos con SubtitleEffect usando ancho de video: {video_width}")
+                    
+                    def generator(txt):
+                        # Si es una fuente del sistema, usar directamente el nombre
+                        if use_system_font and font_name:
+                            font_to_use = font_name
+                            print(f"FORZANDO uso de fuente del sistema: {font_to_use}")
+                        else:
+                            # Para fuentes personalizadas, usar la ruta completa
+                            font_to_use = font_path_str
+                            print(f"Usando fuente personalizada: {font_to_use}")
+                        
+                        try:
+                            # Usar SubtitleEffect para crear el clip de subtítulo
+                            # Esto asegura que se use el ancho correcto del video
+                            return SubtitleEffect.create_subtitle_clip(
+                                text=txt,
+                                start_time=0,  # Estos tiempos serán ajustados por SubtitlesClip
+                                end_time=1,    # Estos tiempos serán ajustados por SubtitlesClip
+                                font=font_to_use,
+                                font_size=tamano_fuente_subtitulos,
+                                font_color=color_fuente_subtitulos,
+                                stroke_color=color_borde_subtitulos,
+                                stroke_width=grosor_borde_subtitulos,
+                                position=(subtitulos_position_h, subtitulos_position_v),
+                                video_width=video_width,  # Pasar el ancho real del video
+                                align=subtitulos_align
+                            )
+                        except Exception as e:
+                            print(f"Error al usar SubtitleEffect: {e}")
+                            # Fallback a la implementación original
+                            return fallback_generator(txt)
+                except Exception as e:
+                    print(f"Error al configurar generador con SubtitleEffect: {e}")
+                    # Si falla, usar el generador de respaldo
+                    generator = fallback_generator
+                
+                # Función de respaldo por si falla SubtitleEffect
+                def fallback_generator(txt):
+                    # Si es una fuente del sistema, usar directamente el nombre
+                    if use_system_font and font_name:
+                        font_to_use = font_name
+                        print(f"FALLBACK: Usando fuente del sistema: {font_to_use}")
+                    else:
+                        # Para fuentes personalizadas, usar la ruta completa
+                        font_to_use = font_path_str
+                        print(f"FALLBACK: Usando fuente personalizada: {font_to_use}")
+                    
+                    # Intentar crear el TextClip con la fuente seleccionada
+                    try:
+                        # Para fuentes del sistema, usar un enfoque simplificado
+                        if use_system_font and font_name:
+                            print(f"FALLBACK: Creando TextClip con fuente del sistema: {font_name}")
+                            return TextClip(
+                                font=font_name,               # Nombre de la fuente del sistema
+                                text=txt,                     # Texto
+                                font_size=tamano_fuente_subtitulos,  # Tamaño
+                                color=color_fuente_subtitulos,       # Color
+                                stroke_color=color_borde_subtitulos,  # Borde
+                                stroke_width=grosor_borde_subtitulos, # Grosor
+                                method='caption',                     # Método
+                                size=(text_width, None),              # Tamaño
+                                text_align=subtitulos_align           # Alineación
+                            )
+                        else:
+                            # Para fuentes personalizadas, usar todos los parámetros
+                            return TextClip(
+                                font=font_to_use,                      # Ruta o nombre
+                                text=txt,                             # Texto
+                                font_size=tamano_fuente_subtitulos,   # Tamaño
+                                color=color_fuente_subtitulos,        # Color
+                                stroke_color=color_borde_subtitulos,  # Borde
+                                stroke_width=grosor_borde_subtitulos, # Grosor
+                                method='caption',                     # Método
+                                size=(text_width, None),              # Tamaño
+                                text_align=subtitulos_align,          # Alineación
+                                horizontal_align='center',            # Alineación H
+                                vertical_align='center',              # Alineación V
+                                transparent=True                      # Transparencia
+                            )
+                    except Exception as e:
+                        print(f"Error al crear TextClip (intento 1): {e}")
+                        
+                        # Segundo intento: parámetros reducidos
+                        try:
+                            print(f"Segundo intento con parámetros reducidos")
+                            return TextClip(
+                                font=font_to_use,
+                                text=txt,
+                                font_size=tamano_fuente_subtitulos,
+                                color=color_fuente_subtitulos
+                            )
+                        except Exception as e2:
+                            print(f"Error al crear TextClip (intento 2): {e2}")
+                            
+                            # Tercer intento: sin especificar fuente
+                            try:
+                                print("Tercer intento sin especificar fuente")
+                                return TextClip(
+                                    text=txt,
+                                    font_size=tamano_fuente_subtitulos,
+                                    color=color_fuente_subtitulos
+                                )
+                            except Exception as e3:
+                                print(f"Error al crear TextClip (intento 3): {e3}")
+                                # Último intento: solo con texto
+                                print("Último intento: solo texto")
+                                return TextClip(text=txt)
 
                 # Crear SubtitlesClip
                 print("Creando SubtitlesClip...")

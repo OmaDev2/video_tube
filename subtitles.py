@@ -48,7 +48,7 @@ class SubtitleEffect:
         stroke_color: str = 'black',
         stroke_width: int = 3,
         position: Tuple[str, str] = ('center', 'bottom'),
-        video_width: int = 1280,
+        video_width: int = None,  # Ahora es opcional
         align: str = 'center'
     ) -> TextClip:
         """
@@ -68,23 +68,38 @@ class SubtitleEffect:
             align: Alineación del texto ('left', 'center', 'right')
         """
         try:
-            # Crear TextClip con parámetros específicos
+            # Determinar el ancho a utilizar
+            if video_width is None:
+                # Si no se especifica el ancho, usar un valor predeterminado
+                # pero imprimir una advertencia
+                video_width = 1280
+                print(f"ADVERTENCIA: No se especificó el ancho del video para los subtítulos. Usando valor por defecto: {video_width}")
+            
+            # Calcular el ancho del texto como un 90% del ancho del video
+            text_width = int(video_width * 0.9)
+            print(f"Creando subtítulo con ancho: {text_width} (90% del ancho del video: {video_width})")
+            
+            # Crear TextClip con parámetros específicos según la documentación de MoviePy 2.x
+            print(f"Creando TextClip con: font={font}, text={text[:20]}..., font_size={font_size}")
             subtitle_clip = TextClip(
-                text,
-                font=font,
-                fontsize=font_size,
-                color=font_color,
-                stroke_color=stroke_color,
-                stroke_width=stroke_width,
-                method='caption',
-                size=(video_width * 0.9, None),  # Ancho 90% del video
-                align=align  # Usar el parámetro de alineación
+                font=font,                     # Ruta a la fuente a usar
+                text=text,                     # Texto a mostrar
+                font_size=font_size,           # Tamaño de la fuente
+                color=font_color,              # Color del texto
+                stroke_color=stroke_color,     # Color del borde
+                stroke_width=stroke_width,     # Grosor del borde
+                method='caption',              # Método caption para mejor control
+                size=(text_width, None),       # Ancho fijo, altura automática
+                text_align=align,              # Alineación del texto
+                horizontal_align='center',     # Alineación horizontal del bloque
+                vertical_align='center',       # Alineación vertical del bloque
+                transparent=True               # Permitir transparencia
             )
             
-            # Establecer duración y posición
-            subtitle_clip = subtitle_clip.set_duration(end_time - start_time)
-            subtitle_clip = subtitle_clip.set_start(start_time)
-            subtitle_clip = subtitle_clip.set_position(position)
+            # Establecer duración y posición usando los métodos correctos para MoviePy 2.x
+            subtitle_clip = subtitle_clip.with_duration(end_time - start_time)
+            subtitle_clip = subtitle_clip.with_start(start_time)
+            subtitle_clip = subtitle_clip.with_position(position)
             
             return subtitle_clip
             

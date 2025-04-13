@@ -8,6 +8,8 @@ from glob import glob
 import time
 from pathlib import Path
 from ui.tab_basico import BasicTabFrame
+from ui.tab_project import ProjectTabFrame  # Nueva pestaña de gestión de proyectos
+from project_manager import ProjectManager  # Gestor de proyectos
 
 # Importar tqdm para la barra de progreso
 from tqdm.tk import tqdm as tqdm_tk
@@ -45,6 +47,7 @@ class VideoCreatorApp:
         
         # Inicializar el gestor de procesamiento por lotes para TTS
         self.batch_tts_manager = BatchTTSManager(root)
+        self.project_manager = ProjectManager(self)
         
         # --- Inicializar variables para subtítulos ---
         self.settings_subtitles = tk.BooleanVar(value=True)
@@ -55,6 +58,8 @@ class VideoCreatorApp:
         self.settings_subtitles_align = tk.StringVar(value='center')
         self.settings_subtitles_position_h = tk.StringVar(value='center')
         self.settings_subtitles_position_v = tk.StringVar(value='bottom')
+        self.settings_subtitles_font_name = tk.StringVar(value="Roboto-Regular")
+        self.settings_use_system_font = tk.BooleanVar(value=False)
         
         # --- Inicializar variables para configuración de Whisper ---
         self.whisper_model = None
@@ -315,6 +320,7 @@ class VideoCreatorApp:
             self.opacidad_overlay.set(template.get('opacidad_overlay', 0.25))
     
     def crear_interfaz(self):
+        
         # Crear un frame superior para el botón de crear video
         frame_superior = ttk.Frame(self.root)
         frame_superior.pack(fill="x", padx=10, pady=5)
@@ -337,6 +343,10 @@ class VideoCreatorApp:
         # Pestaña de cola de proyectos para TTS
         self.tab_batch = BatchTabFrame(notebook, self)
         notebook.add(self.tab_batch, text="Cola de Proyectos")
+        
+        # Pestaña de gestión de proyectos para TTS
+        self.tab_project = ProjectTabFrame(notebook, self)
+        notebook.add(self.tab_project, text="Proyecto")
         
         # Pestaña de configuración de subtítulos con Whisper
         self.tab_subtitles = SubtitlesTabFrame(notebook,self)
@@ -577,6 +587,9 @@ class VideoCreatorApp:
                 duracion_fade_out_voz=self.duracion_fade_out_voz.get(),
                 # Parámetros para subtítulos
                 subtitulos_margen=self.settings_subtitles_margin.get() if hasattr(self, 'settings_subtitles_margin') else 0.15,
+                # Parámetros para fuentes de subtítulos
+                font_name=self.settings_subtitles_font_name.get() if hasattr(self, 'settings_subtitles_font_name') else None,
+                use_system_font=self.settings_use_system_font.get() if hasattr(self, 'settings_use_system_font') else False,
                 # Pasar los ajustes personalizados
                 settings={
                     'zoom_ratio': self.settings_zoom_ratio.get(),
@@ -611,6 +624,8 @@ class VideoCreatorApp:
             self.root.after(0, lambda: self.lbl_estado.config(
                 text="Error al crear el video"
             ))
+
+            
     
     def obtener_secuencia_efectos(self):
         """Obtiene la lista de efectos seleccionados para la secuencia"""
@@ -926,7 +941,7 @@ class VideoCreatorApp:
                     'color_fuente_subtitulos': self.settings_subtitles_font_color.get(),
                     'color_borde_subtitulos': self.settings_subtitles_stroke_color.get(),
                     'grosor_borde_subtitulos': self.settings_subtitles_stroke_width.get(),
-                    'subtitulos_margen': self.settings_subtitles_margin.get() if hasattr(self, 'settings_subtitles_margin') else 0.12,
+                    'subtitulos_margen': self.settings_subtitles_margin.get() if hasattr(self, 'settings_subtitles_margin') else 0.18,
                     'progress_callback': self.update_progress_bar
                 },
                 daemon=True
@@ -946,7 +961,8 @@ class VideoCreatorApp:
             kwargs['archivo_voz'] = audio_file  # Asegurar que archivo_voz esté configurado
             
             # Verificar si hay subtítulos y asegurarse de que se apliquen
-            archivo_subtitulos = kwargs.get('archivo_subtitulos')
+            archivo_subtitulos = kwargs.get('archivo_subtitulos', False)
+            
             if archivo_subtitulos and os.path.exists(archivo_subtitulos):
                 print(f"Encontrado archivo de subtítulos: {archivo_subtitulos}")
                 kwargs['aplicar_subtitulos'] = True
@@ -971,6 +987,15 @@ class VideoCreatorApp:
             
             # Imprimir parámetros de subtítulos para depuración
             print(f"Parámetros de subtítulos: aplicar={kwargs.get('aplicar_subtitulos')}, archivo={kwargs.get('archivo_subtitulos')}")
+            
+            # Asegurarse de pasar los parámetros de fuente para los subtítulos
+            if kwargs.get('aplicar_subtitulos', False):
+                print("Configurando fuentes para subtítulos...")
+                # Pasar la fuente seleccionada y si es del sistema o personalizada
+                if hasattr(self, 'settings_subtitles_font_name') and hasattr(self, 'settings_use_system_font'):
+                    kwargs['font_name'] = self.settings_subtitles_font_name.get()
+                    kwargs['use_system_font'] = self.settings_use_system_font.get()
+                    print(f"Fuente para subtítulos: {kwargs['font_name']}, Sistema: {kwargs['use_system_font']}")
             
             # Crear el video con todos los parámetros
             crear_video_desde_imagenes(

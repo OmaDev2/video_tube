@@ -4,12 +4,11 @@
 VideoPython/
 ├── .gitignore
 ├── README.md
-├── app.py                  # Punto de entrada principal de la aplicación
 ├── batch_tts.py            # Procesamiento por lotes de texto a voz
 ├── check.py                # Script de verificación
 ├── efectos.py              # Efectos para videos
 ├── gemini_models.py        # Integración con modelos Gemini
-├── gui.py                  # Interfaz gráfica de usuario
+├── gui.py                  # Interfaz gráfica de usuario u punto de entrada de la app
 ├── image_generator.py      # Generador de imágenes
 ├── overlay_effects.py      # Efectos de superposición
 ├── prompt_generator.py     # Generador de prompts
@@ -42,8 +41,8 @@ VideoPython/
 ## Descripción de los componentes principales
 
 ### Archivos principales
-- **app.py**: Punto de entrada principal de la aplicación
-- **gui.py**: Interfaz gráfica de usuario
+
+- **gui.py**: Interfaz gráfica de usuario y punto de entrada de la app 
 - **subtitles.py**: Manejo de subtítulos y generación automática con Whisper
 - **tts_generator.py**: Generación de voz a partir de texto
 - **image_generator.py**: Generación de imágenes para videos

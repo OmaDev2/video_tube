@@ -2,7 +2,9 @@
 # Archivo: ui/tab_subtitles.py
 
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, font
+import os
+from pathlib import Path
 
 # Importar funciones para subtítulos
 from subtitles import WHISPER_AVAILABLE
@@ -29,8 +31,38 @@ class SubtitlesTabFrame(ttk.Frame):
         super().__init__(parent_notebook, style="Card.TFrame", **kwargs)
         self.app = app_instance  # Guardamos la referencia a la app principal (VideoCreatorApp)
 
+        # Crear variables para la fuente si no existen
+        if not hasattr(self.app, 'settings_subtitles_font_name'):
+            self.app.settings_subtitles_font_name = tk.StringVar(value="Roboto-Regular")
+        
+        if not hasattr(self.app, 'settings_use_system_font'):
+            self.app.settings_use_system_font = tk.BooleanVar(value=False)
+
         # Llamar al método que crea y posiciona los widgets
         self._setup_widgets()
+
+    def _get_available_fonts(self):
+        """
+        Obtiene una lista de fuentes disponibles en el sistema y en la carpeta fonts.
+        
+        Returns:
+            tuple: (fuentes_sistema, fuentes_custom)
+        """
+        # Obtener las fuentes del sistema usando tkinter
+        fuentes_sistema = sorted(list(font.families()))
+        
+        # Obtener las fuentes personalizadas de la carpeta fonts
+        base_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        fonts_dir = base_dir / "fonts"
+        fuentes_custom = []
+        
+        if fonts_dir.exists() and fonts_dir.is_dir():
+            # Buscar archivos TTF y OTF
+            for ext in ['.ttf', '.otf', '.TTF', '.OTF']:
+                for fuente in fonts_dir.glob(f"*{ext}"):
+                    fuentes_custom.append(fuente.stem)
+        
+        return fuentes_sistema, fuentes_custom
 
     def _setup_widgets(self):
         """Configura la interfaz de usuario para la pestaña de subtítulos."""
@@ -179,6 +211,103 @@ class SubtitlesTabFrame(ttk.Frame):
         # Frame para el estilo de subtítulos
         frame_style = ttk.LabelFrame(main_frame, text="Estilo de Subtítulos", style="TLabelframe")
         frame_style.pack(fill="x", padx=10, pady=10)
+        
+        # SELECTOR DE FUENTES (NUEVA FUNCIONALIDAD)
+        frame_font = ttk.LabelFrame(frame_style, text="Selección de Fuente")
+        frame_font.pack(fill="x", padx=10, pady=5)
+        
+        # Obtener las fuentes disponibles
+        system_fonts, custom_fonts = self._get_available_fonts()
+        
+        # Opción para elegir entre fuentes del sistema o personalizadas
+        frame_font_type = ttk.Frame(frame_font)
+        frame_font_type.pack(fill="x", padx=5, pady=5)
+        
+        # Radio buttons para elegir entre fuentes del sistema o personalizadas
+        def update_font_dropdown():
+            font_dropdown['values'] = system_fonts if self.app.settings_use_system_font.get() else custom_fonts
+            if len(font_dropdown['values']) > 0:
+                font_dropdown.current(0)
+                self.app.settings_subtitles_font_name.set(font_dropdown.get())
+        
+        rb_system = ttk.Radiobutton(frame_font_type, text="Fuentes del Sistema", 
+                                  variable=self.app.settings_use_system_font, value=True,
+                                  command=update_font_dropdown)
+        rb_system.grid(row=0, column=0, padx=5, pady=2, sticky="w")
+        
+        rb_custom = ttk.Radiobutton(frame_font_type, text="Fuentes Personalizadas", 
+                                  variable=self.app.settings_use_system_font, value=False,
+                                  command=update_font_dropdown)
+        rb_custom.grid(row=0, column=1, padx=5, pady=2, sticky="w")
+        
+        # Dropdown para seleccionar la fuente
+        frame_font_select = ttk.Frame(frame_font)
+        frame_font_select.pack(fill="x", padx=5, pady=5)
+        
+        lbl_font = ttk.Label(frame_font_select, text="Fuente:", width=10)
+        lbl_font.pack(side="left", padx=5)
+        
+        font_dropdown = ttk.Combobox(frame_font_select, textvariable=self.app.settings_subtitles_font_name, 
+                                    width=30, state="readonly")
+        
+        # Inicializar el dropdown con las fuentes apropiadas
+        font_dropdown['values'] = custom_fonts if not self.app.settings_use_system_font.get() else system_fonts
+        
+        # Si la fuente actual no está en la lista, seleccionar la primera
+        current_font = self.app.settings_subtitles_font_name.get()
+        if current_font not in font_dropdown['values'] and len(font_dropdown['values']) > 0:
+            self.app.settings_subtitles_font_name.set(font_dropdown['values'][0])
+        
+        font_dropdown.pack(side="left", padx=5, fill="x", expand=True)
+        
+        # Mostrar vista previa de la fuente seleccionada
+        def update_font_preview(event=None):
+            try:
+                font_name = self.app.settings_subtitles_font_name.get()
+                if self.app.settings_use_system_font.get():
+                    # Fuente del sistema
+                    preview_font = (font_name, 12)
+                else:
+                    # Fuente personalizada (cargar desde la carpeta fonts)
+                    base_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                    fonts_dir = base_dir / "fonts"
+                    # Buscar el archivo correspondiente
+                    font_file = None
+                    for ext in ['.ttf', '.otf', '.TTF', '.OTF']:
+                        possible_file = fonts_dir / f"{font_name}{ext}"
+                        if possible_file.exists():
+                            font_file = possible_file
+                            break
+                    
+                    if font_file:
+                        # Registrar la fuente temporalmente para la vista previa
+                        try:
+                            temp_font = font.Font(family="PreviewFont", file=str(font_file), size=12)
+                            preview_font = ("PreviewFont", 12)
+                        except:
+                            # Si hay error al cargar la fuente personalizada, usar una del sistema
+                            preview_font = ("Helvetica", 12)
+                    else:
+                        preview_font = ("Helvetica", 12)
+                
+                # Actualizar la vista previa
+                lbl_preview.config(font=preview_font)
+                
+            except Exception as e:
+                print(f"Error al actualizar vista previa de fuente: {e}")
+        
+        font_dropdown.bind("<<ComboboxSelected>>", update_font_preview)
+        
+        # Vista previa de la fuente
+        frame_preview = ttk.LabelFrame(frame_font, text="Vista previa")
+        frame_preview.pack(fill="x", padx=5, pady=5)
+        
+        lbl_preview = ttk.Label(frame_preview, text="Texto de ejemplo con la fuente seleccionada", 
+                              foreground="#2c3e50", background="#ecf0f1", padding=10)
+        lbl_preview.pack(fill="x", padx=5, pady=5)
+        
+        # Actualizar la vista previa inicial
+        update_font_preview()
         
         # Tamaño de fuente
         frame_font_size = ttk.Frame(frame_style)
