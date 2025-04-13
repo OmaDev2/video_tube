@@ -2,7 +2,7 @@
   "default_settings": {
     "basic": {
       "duracion_img": 10.0,
-      "fps": 24,
+      "fps": 30,
       "directorio_imagenes": "images",
       "archivo_salida": "video_salida.mp4"
     },
@@ -66,8 +66,8 @@
   },
   "templates": {
     "basic": {
-     "duracion_img": 25.0,
-      "fps": 24,
+     "duracion_img": 10.0,
+      "fps": 30,
       "aplicar_efectos": true,
       "secuencia_efectos": "out,in,panright,panleft,panup,pandown",
       "aplicar_transicion": true,
@@ -78,7 +78,7 @@
       "aplicar_fade_out": true,
       "duracion_fade_out": 2.0,
       "aplicar_musica": true,
-      "volumen_musica": 0.032,
+      "volumen_musica": 0.05,
       "aplicar_fade_in_musica": false,
       "duracion_fade_in_musica": 1.0,
       "aplicar_fade_out_musica": true,

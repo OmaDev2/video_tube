@@ -212,9 +212,21 @@ class SubtitlesTabFrame(ttk.Frame):
         frame_style = ttk.LabelFrame(main_frame, text="Estilo de Subtítulos", style="TLabelframe")
         frame_style.pack(fill="x", padx=10, pady=10)
         
+        # Crear un frame para organizar en dos columnas
+        frame_columns = ttk.Frame(frame_style)
+        frame_columns.pack(fill="x", padx=5, pady=5)
+        
+        # Columna izquierda
+        frame_left_column = ttk.Frame(frame_columns)
+        frame_left_column.pack(side="left", fill="both", expand=True)
+        
+        # Columna derecha
+        frame_right_column = ttk.Frame(frame_columns)
+        frame_right_column.pack(side="left", fill="both", expand=True, padx=5)
+        
         # SELECTOR DE FUENTES (NUEVA FUNCIONALIDAD)
-        frame_font = ttk.LabelFrame(frame_style, text="Selección de Fuente")
-        frame_font.pack(fill="x", padx=10, pady=5)
+        frame_font = ttk.LabelFrame(frame_left_column, text="Selección de Fuente")
+        frame_font.pack(fill="x", padx=5, pady=5)
         
         # Obtener las fuentes disponibles
         system_fonts, custom_fonts = self._get_available_fonts()
@@ -303,15 +315,15 @@ class SubtitlesTabFrame(ttk.Frame):
         frame_preview.pack(fill="x", padx=5, pady=5)
         
         lbl_preview = ttk.Label(frame_preview, text="Texto de ejemplo con la fuente seleccionada", 
-                              foreground="#2c3e50", background="#ecf0f1", padding=10)
+                              foreground="#ffffff", background="#333333", padding=10)
         lbl_preview.pack(fill="x", padx=5, pady=5)
         
         # Actualizar la vista previa inicial
         update_font_preview()
         
         # Tamaño de fuente
-        frame_font_size = ttk.Frame(frame_style)
-        frame_font_size.pack(fill="x", padx=10, pady=5)
+        frame_font_size = ttk.Frame(frame_left_column)
+        frame_font_size.pack(fill="x", padx=5, pady=5)
         
         lbl_font_size = ttk.Label(frame_font_size, text="Tamaño de fuente:", width=20)
         lbl_font_size.pack(side="left")
@@ -320,8 +332,8 @@ class SubtitlesTabFrame(ttk.Frame):
                                    textvariable=self.app.settings_subtitles_font_size, width=5)
         spin_font_size.pack(side="left", padx=5)
         
-        # Color de fuente
-        frame_font_color = ttk.Frame(frame_style)
+        # Color de fuente - Columna izquierda
+        frame_font_color = ttk.Frame(frame_left_column)
         frame_font_color.pack(fill="x", padx=10, pady=5)
         
         lbl_font_color = ttk.Label(frame_font_color, text="Color de texto:", width=20)
@@ -331,8 +343,8 @@ class SubtitlesTabFrame(ttk.Frame):
         color_combo['values'] = ["white", "yellow", "black", "red", "blue", "green", "orange"]
         color_combo.pack(side="left", padx=5)
         
-        # Color de borde
-        frame_stroke_color = ttk.Frame(frame_style)
+        # Color de borde - Columna izquierda
+        frame_stroke_color = ttk.Frame(frame_left_column)
         frame_stroke_color.pack(fill="x", padx=10, pady=5)
         
         lbl_stroke_color = ttk.Label(frame_stroke_color, text="Color de borde:", width=20)
@@ -342,19 +354,19 @@ class SubtitlesTabFrame(ttk.Frame):
         stroke_combo['values'] = ["black", "white", "yellow", "red", "blue", "green", "orange"]
         stroke_combo.pack(side="left", padx=5)
         
-        # Grosor de borde
-        frame_stroke_width = ttk.Frame(frame_style)
+        # Grosor de borde - Columna izquierda
+        frame_stroke_width = ttk.Frame(frame_left_column)
         frame_stroke_width.pack(fill="x", padx=10, pady=5)
         
         lbl_stroke_width = ttk.Label(frame_stroke_width, text="Grosor de borde:", width=20)
         lbl_stroke_width.pack(side="left")
         
         spin_stroke_width = ttk.Spinbox(frame_stroke_width, from_=0, to=5, increment=1, 
-                                      textvariable=self.app.settings_subtitles_stroke_width, width=5)
+                                       textvariable=self.app.settings_subtitles_stroke_width, width=5)
         spin_stroke_width.pack(side="left", padx=5)
         
-        # Alineación horizontal del texto
-        frame_align = ttk.Frame(frame_style)
+        # Alineación horizontal del texto - Columna derecha
+        frame_align = ttk.Frame(frame_right_column)
         frame_align.pack(fill="x", padx=10, pady=5)
         
         lbl_align = ttk.Label(frame_align, text="Alineación de texto:", width=20)
@@ -364,8 +376,8 @@ class SubtitlesTabFrame(ttk.Frame):
         align_combo['values'] = ["left", "center", "right"]
         align_combo.pack(side="left", padx=5)
         
-        # Posición vertical
-        frame_position_v = ttk.Frame(frame_style)
+        # Posición vertical - Columna derecha
+        frame_position_v = ttk.Frame(frame_right_column)
         frame_position_v.pack(fill="x", padx=10, pady=5)
         
         lbl_position_v = ttk.Label(frame_position_v, text="Posición vertical:", width=20)
@@ -375,8 +387,8 @@ class SubtitlesTabFrame(ttk.Frame):
         position_v_combo['values'] = ["top", "center", "bottom"]
         position_v_combo.pack(side="left", padx=5)
         
-        # Posición horizontal
-        frame_position_h = ttk.Frame(frame_style)
+        # Posición horizontal - Columna derecha
+        frame_position_h = ttk.Frame(frame_right_column)
         frame_position_h.pack(fill="x", padx=10, pady=5)
         
         lbl_position_h = ttk.Label(frame_position_h, text="Posición horizontal:", width=20)
@@ -386,8 +398,8 @@ class SubtitlesTabFrame(ttk.Frame):
         position_h_combo['values'] = ["left", "center", "right"]
         position_h_combo.pack(side="left", padx=5)
         
-        # Margen de subtítulos
-        frame_margin = ttk.Frame(frame_style)
+        # Margen de subtítulos - Columna derecha
+        frame_margin = ttk.Frame(frame_right_column)
         frame_margin.pack(fill="x", padx=10, pady=5)
         
         lbl_margin = ttk.Label(frame_margin, text="Margen desde borde:", width=20)

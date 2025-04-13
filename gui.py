@@ -340,6 +340,11 @@ class VideoCreatorApp:
         from ui.tab_batch import BatchTabFrame
         from ui.tab_settings import SettingsTabFrame
         
+        
+        # Pestaña de configuración básica (ya refactorizada)
+        self.tab_basico = BasicTabFrame(notebook, self)
+        notebook.add(self.tab_basico, text="Configuración Básica")
+        
         # Pestaña de cola de proyectos para TTS
         self.tab_batch = BatchTabFrame(notebook, self)
         notebook.add(self.tab_batch, text="Cola de Proyectos")
@@ -356,9 +361,7 @@ class VideoCreatorApp:
         self.tab_efectos = EffectsTabFrame(notebook, self)
         notebook.add(self.tab_efectos, text="Efectos Visuales")
         
-        # Pestaña de configuración básica (ya refactorizada)
-        self.tab_basico = BasicTabFrame(notebook, self)
-        notebook.add(self.tab_basico, text="Configuración Básica")
+        
            # Pestaña de audio (ya refactorizada)
         self.tab_audio = AudioTabFrame(notebook, self)  # Usar la nueva clase
         notebook.add(self.tab_audio, text="Audio")
