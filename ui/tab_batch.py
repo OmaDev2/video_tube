@@ -5,6 +5,13 @@ import tkinter as tk
 from tkinter import ttk
 from pathlib import Path
 
+# Importar el gestor de prompts
+try:
+    from prompt_manager import PromptManager
+    PROMPT_MANAGER_AVAILABLE = True
+except ImportError:
+    PROMPT_MANAGER_AVAILABLE = False
+
 class BatchTabFrame(ttk.Frame):
     """
     Frame que contiene todos los widgets para la pestaña de 'Cola de Proyectos'.
@@ -49,19 +56,64 @@ class BatchTabFrame(ttk.Frame):
             "es-CL-CatalinaNeural"  # Chile (femenino)
         ]
         
+        # Selección de estilo de prompts
+        lbl_prompt_style = ttk.Label(frame_input, text="Estilo de Imágenes:")
+        lbl_prompt_style.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        
+        # Crear variable para el estilo de prompts si no existe
+        if not hasattr(self.app, 'selected_prompt_style'):
+            self.app.selected_prompt_style = tk.StringVar(value="Cinematográfico")  # Usar el nombre mostrado, no el ID
+        
+        # Obtener estilos de prompts disponibles
+        prompt_styles = [("default", "Cinematográfico")]
+        if PROMPT_MANAGER_AVAILABLE:
+            try:
+                prompt_manager = PromptManager()
+                prompt_styles = prompt_manager.get_prompt_names()
+                
+                # Imprimir información de depuración sobre los estilos disponibles
+                print("\n\n=== ESTILOS DE PROMPTS DISPONIBLES ===")
+                for i, (id, name) in enumerate(prompt_styles):
+                    print(f"  {i+1}. ID: '{id}', Nombre: '{name}'")
+            except Exception as e:
+                print(f"Error al cargar estilos de prompts: {e}")
+        
         self.app.selected_voice = tk.StringVar(value=voces[0])
         voice_combo = ttk.Combobox(frame_input, textvariable=self.app.selected_voice, values=voces, width=30)
         voice_combo.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        
+        # Dropdown para estilos de prompts
+        prompt_style_values = [name for _, name in prompt_styles]
+        prompt_style_ids = [id for id, _ in prompt_styles]
+        self.prompt_style_dropdown = ttk.Combobox(frame_input, textvariable=self.app.selected_prompt_style, 
+                                              values=prompt_style_values, width=30, state="readonly")
+        self.prompt_style_dropdown.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        
+        # Mapeo de nombres a IDs para recuperar el ID correcto
+        self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
+        
+        # Imprimir el mapeo para depuración
+        print("\n=== MAPEO DE NOMBRES A IDS ===")
+        for name, id in self.prompt_style_map.items():
+            print(f"  Nombre: '{name}' -> ID: '{id}'")
+            
+        # Configurar un callback para cuando cambie el estilo seleccionado
+        def on_prompt_style_change(event):
+            selected_name = self.prompt_style_dropdown.get()
+            selected_id = self.prompt_style_map.get(selected_name, "default")
+            print(f"\nEstilo seleccionado: Nombre='{selected_name}', ID='{selected_id}'")
+            
+        self.prompt_style_dropdown.bind("<<ComboboxSelected>>", on_prompt_style_change)
 
         # Guion del proyecto
         lbl_script = ttk.Label(frame_input, text="Guion:")
-        lbl_script.grid(row=2, column=0, padx=5, pady=5, sticky="nw")
+        lbl_script.grid(row=3, column=0, padx=5, pady=5, sticky="nw")
         
         # Frame para el Text y Scrollbar
         frame_text = ttk.Frame(frame_input)
-        frame_text.grid(row=2, column=1, padx=5, pady=5, sticky="nsew")
+        frame_text.grid(row=3, column=1, padx=5, pady=5, sticky="nsew")
         frame_input.grid_columnconfigure(1, weight=1)  # Hacer que columna 1 se expanda
-        frame_input.grid_rowconfigure(2, weight=1)     # Hacer que fila 2 se expanda
+        frame_input.grid_rowconfigure(3, weight=1)     # Hacer que fila 3 se expanda
 
         self.txt_script = tk.Text(frame_text, wrap="word", height=15, width=60)
         scrollbar_script = ttk.Scrollbar(frame_text, orient="vertical", command=self.txt_script.yview)
@@ -71,7 +123,7 @@ class BatchTabFrame(ttk.Frame):
 
         # Botones de acción
         frame_buttons = ttk.Frame(frame_input)
-        frame_buttons.grid(row=3, column=1, padx=5, pady=10, sticky="e")
+        frame_buttons.grid(row=4, column=1, padx=5, pady=10, sticky="e")
         
         btn_add_queue = ttk.Button(frame_buttons, text="Añadir a la Cola",
                                   command=self._add_project_to_queue, style="Action.TButton")
@@ -175,9 +227,19 @@ class BatchTabFrame(ttk.Frame):
             'duracion_fade_in_voz': self.app.duracion_fade_in_voz.get(),
             'aplicar_fade_out_voz': self.app.aplicar_fade_out_voz.get(),
             'duracion_fade_out_voz': self.app.duracion_fade_out_voz.get(),
-            'aplicar_subtitulos': False,  # Por ahora no soportamos subtítulos automáticos
+            'aplicar_subtitulos': self.app.aplicar_subtitulos.get() if hasattr(self.app, 'aplicar_subtitulos') else False,
+            # Estilo de prompts para la generación de imágenes
+            # Obtener el ID del estilo a partir del nombre seleccionado en el dropdown
+            'estilo_imagenes': self.prompt_style_map.get(self.prompt_style_dropdown.get(), 'default'),
+            # Guardar también el nombre del estilo para depuración
+            'nombre_estilo': self.prompt_style_dropdown.get(),
             'settings': effect_settings
         }
+        
+        # Imprimir información de depuración sobre el estilo seleccionado
+        print(f"\n=== ESTILO SELECCIONADO PARA EL PROYECTO ===")
+        print(f"  Nombre mostrado: '{self.prompt_style_dropdown.get()}'")
+        print(f"  ID interno: '{self.prompt_style_map.get(self.prompt_style_dropdown.get(), 'default')}'")        
         
         success = self.app.batch_tts_manager.add_project_to_queue(title, script, voice, video_settings)
         
@@ -190,6 +252,46 @@ class BatchTabFrame(ttk.Frame):
             self._clear_project_fields()
             self.app.update_queue_status()
 
+    def update_prompt_styles_dropdown(self):
+        """Actualiza el dropdown de estilos de prompts con los estilos disponibles"""
+        # Obtener estilos de prompts disponibles
+        prompt_styles = [("default", "Cinematográfico")]
+        if PROMPT_MANAGER_AVAILABLE:
+            try:
+                prompt_manager = PromptManager()
+                prompt_styles = prompt_manager.get_prompt_names()
+                
+                # Imprimir información de depuración sobre los estilos disponibles
+                print("\n\n=== ACTUALIZANDO ESTILOS DE PROMPTS ===")
+                for i, (id, name) in enumerate(prompt_styles):
+                    print(f"  {i+1}. ID: '{id}', Nombre: '{name}'")
+            except Exception as e:
+                print(f"Error al cargar estilos de prompts: {e}")
+        
+        # Actualizar el dropdown
+        prompt_style_values = [name for _, name in prompt_styles]
+        prompt_style_ids = [id for id, _ in prompt_styles]
+        
+        # Guardar el valor actual para restaurarlo si es posible
+        current_value = self.app.selected_prompt_style.get()
+        
+        # Actualizar los valores del dropdown
+        self.prompt_style_dropdown['values'] = prompt_style_values
+        
+        # Actualizar el mapeo de nombres a IDs
+        self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
+        
+        # Restaurar el valor seleccionado si aún existe, o seleccionar el primero
+        if current_value in prompt_style_values:
+            self.app.selected_prompt_style.set(current_value)
+        elif prompt_style_values:
+            self.app.selected_prompt_style.set(prompt_style_values[0])
+        
+        # Imprimir el mapeo actualizado para depuración
+        print("\n=== MAPEO DE NOMBRES A IDS ACTUALIZADO ===")
+        for name, id in self.prompt_style_map.items():
+            print(f"  Nombre: '{name}' -> ID: '{id}'")
+    
     def _clear_project_fields(self):
         """Limpia los campos del formulario de proyecto."""
         self.entry_title.delete(0, tk.END)

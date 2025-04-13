@@ -339,6 +339,7 @@ class VideoCreatorApp:
         from ui.tab_subtitles import SubtitlesTabFrame
         from ui.tab_batch import BatchTabFrame
         from ui.tab_settings import SettingsTabFrame
+        from ui.tab_prompts import PromptsTabFrame
         
         
         # Pestaña de configuración básica (ya refactorizada)
@@ -369,6 +370,10 @@ class VideoCreatorApp:
         # Pestaña de ajustes de efectos
         self.tab_settings = SettingsTabFrame(notebook, self)
         notebook.add(self.tab_settings, text="Ajustes de Efectos")
+        
+        # Pestaña de gestión de prompts
+        self.tab_prompts = PromptsTabFrame(notebook, self)
+        notebook.add(self.tab_prompts, text="Gestor de Prompts")
           
         # Barra de progreso
         self.progress = ttk.Progressbar(self.root, orient="horizontal", length=100, mode="indeterminate", style="TProgressbar")

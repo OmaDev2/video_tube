@@ -109,7 +109,7 @@ def segmentar_script(texto_completo: str, num_segmentos: int, tiempos_imagenes: 
     return segmentos
 
 
-def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title: str, estilo_base: str = "cinematográfico", tiempos_imagenes: List[Dict[str, Any]] = None) -> List[Dict[str, str]] | None:
+def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title: str, estilo_base: str = "default", tiempos_imagenes: List[Dict[str, Any]] = None) -> List[Dict[str, str]] | None:
     """Genera prompts de imagen en INGLÉS usando Gemini para segmentos de un guion,
     incluyendo el título del vídeo como contexto. Devuelve una lista de diccionarios
     con el segmento original y el prompt generado."""
@@ -140,8 +140,55 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
     for i, segmento in enumerate(segmentos):
         print(f" - Generando prompt para segmento {i+1}/{len(segmentos)}...")
 
-        # Crear el "meta-prompt"
-        meta_prompt = f"""Eres un asistente experto en visualización creativa para vídeos. El título general del vídeo es "{video_title}". A partir del siguiente fragmento de texto de ese guion, genera un prompt conciso y descriptivo (máximo 60 palabras) **en INGLÉS** para un modelo de generación de imágenes como Flux Schnell o Stable Diffusion. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El estilo visual general es {estilo_base}. El aspect ratio es 16:9. Describe la escena, los elementos principales, la iluminación y la atmósfera.
+        # Usar el gestor de prompts si está disponible
+        try:
+            from prompt_manager import PromptManager
+            prompt_manager = PromptManager()
+            
+            print(f"\n\nEstilo solicitado: '{estilo_base}'")
+            print(f"Estilos disponibles: {prompt_manager.get_prompt_ids()}")
+            
+            # Caso especial para el estilo psicodélico
+            if estilo_base == 'psicodelicas' or (estilo_base == 'default' and video_title and 'psicod' in video_title.lower()):
+                estilo_base = 'psicodelicas'
+                print(f"*** APLICANDO ESTILO PSICODÉLICO ***")
+            
+            # Comprobar si el estilo existe en el gestor de prompts
+            if estilo_base in prompt_manager.get_prompt_ids():
+                print(f"Usando estilo: '{estilo_base}'")
+                
+                # Obtener el system prompt y user prompt del estilo seleccionado
+                system_prompt = prompt_manager.get_system_prompt(estilo_base)
+                user_prompt = prompt_manager.get_user_prompt(estilo_base, video_title, segmento)
+                negative_prompt = prompt_manager.get_prompt(estilo_base)["negative_prompt"]
+                
+                # Asegurarse de que los placeholders {titulo} y {escena} se reemplacen correctamente
+                try:
+                    # Intentar usar el user prompt con ambos placeholders
+                    user_prompt_formateado = user_prompt.format(titulo=video_title, escena=segmento)
+                except KeyError:
+                    # Si falta alguno de los placeholders, usar el formato antiguo
+                    context = f"{video_title}: {segmento}" if video_title else segmento
+                    user_prompt_formateado = user_prompt.format(escena=context)
+                
+                print(f"\n=== PROMPT COMPLETO ENVIADO A GEMINI ===\n")
+                print(f"SYSTEM PROMPT:\n{system_prompt}\n")
+                print(f"USER PROMPT:\n{user_prompt_formateado}\n")
+                print(f"=== FIN DEL PROMPT ===\n")
+                
+                # Usar los prompts personalizados para la generación con Gemini
+                meta_prompt = f"{system_prompt}\n\n{user_prompt_formateado}"
+            else:
+                # Si el estilo no existe, usar el prompt por defecto
+                meta_prompt = f"""Eres un asistente experto en visualización creativa para vídeos. El título general del vídeo es "{video_title}". A partir del siguiente fragmento de texto de ese guion, genera un prompt conciso y descriptivo (máximo 60 palabras) **en INGLÉS** para un modelo de generación de imágenes como Flux Schnell o Stable Diffusion. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El estilo visual general es cinematográfico. El aspect ratio es 16:9. Describe la escena, los elementos principales, la iluminación y la atmósfera.
+
+Fragmento del Guion:
+"{segmento}"
+
+Generated English Prompt:""" # Pedimos que continúe en inglés
+        except ImportError:
+            # Si no se puede importar el gestor de prompts, usar el prompt por defecto
+            meta_prompt = f"""Eres un asistente experto en visualización creativa para vídeos. El título general del vídeo es "{video_title}". A partir del siguiente fragmento de texto de ese guion, genera un prompt conciso y descriptivo (máximo 60 palabras) **en INGLÉS** para un modelo de generación de imágenes como Flux Schnell o Stable Diffusion. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El estilo visual general es {estilo_base}. El aspect ratio es 16:9. Describe la escena, los elementos principales, la iluminación y la atmósfera.
 
 Fragmento del Guion:
 "{segmento}"

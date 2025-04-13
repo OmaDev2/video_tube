@@ -1,0 +1,65 @@
+{
+    "default": {
+        "name": "Cinematográfico",
+        "description": "Estilo visual cinematográfico general, con buena iluminación y composición",
+        "system_prompt": "Eres un asistente experto en visualización creativa para vídeos. Generas prompts concisos y descriptivos para modelos de generación de imágenes como Stable Diffusion.",
+        "user_prompt": "Genera un prompt en inglés para una imagen de estilo cinematográfico basado en el siguiente texto: '{titulo}: {escena}'. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El aspect ratio es 16:9.",
+        "negative_prompt": "text, watermark, low quality, blurry"
+    },
+    "terror": {
+        "name": "Terror",
+        "description": "Estilo visual de película de terror, oscuro y atmosférico",
+        "system_prompt": "Eres un asistente experto en visualización creativa para vídeos de terror. Generas prompts concisos y descriptivos para modelos de generación de imágenes como Stable Diffusion.",
+        "user_prompt": "Genera un prompt en inglés para una imagen de estilo terror basado en el siguiente texto: '{titulo}: {escena}'. El prompt debe capturar la atmósfera oscura, inquietante y aterradora del texto. Usa elementos visuales como sombras, niebla, iluminación tenue y composición inquietante. El aspect ratio es 16:9.",
+        "negative_prompt": "bright colors, daylight, cheerful, cartoon, text, watermark, low quality"
+    },
+    "animacion": {
+        "name": "Animación",
+        "description": "Estilo visual de animación 3D tipo Pixar",
+        "system_prompt": "Eres un asistente experto en visualización creativa para películas de animación. Generas prompts concisos y descriptivos para modelos de generación de imágenes como Stable Diffusion.",
+        "user_prompt": "Genera un prompt en inglés para una imagen de estilo animación 3D tipo Pixar basado en el siguiente texto: '{titulo}: {escena}'. El prompt debe capturar colores vibrantes, personajes expresivos, texturas detalladas e iluminación suave. El aspect ratio es 16:9.",
+        "negative_prompt": "realistic, photographic, live action, dark, horror, text, watermark, low quality"
+    },
+    "psicodelicas": {
+        "name": "imagenes Psicodelicas",
+        "description": "estilo psicodelico",
+        "system_prompt": "Eres un asistente experto en visualización creativa para imágenes psicodélicas. Generas prompts concisos y descriptivos para modelos de generación de imágenes como Stable Diffusion.",
+        "user_prompt": "Genera un prompt en inglés para una imagen de estilo psicodélico basado en el siguiente texto: '{titulo}: {escena}'. El prompt debe capturar colores vibrantes, patrones fractales, distorsiones visuales y elementos surreales. El aspect ratio es 16:9.",
+        "negative_prompt": "text, watermark, low quality, blurry, realistic, mundane, ordinary"
+    },
+    "Blancoynegro": {
+        "name": "Blanco Y negro",
+        "description": "Blancoy negro",
+        "system_prompt": "Genera un prompt en inglés para una imagen de estilo cinematografico en blanco y negro basado en el siguiente texto: '{titulo}: {escena}'.",
+        "user_prompt": "Genera un prompt en inglés para una imagen de estilo de estilo cinematografico en blanco y negro basado en el siguiente texto: '{titulo}: {escena}'.",
+        "negative_prompt": "text, watermark, low quality, blurry"
+    },
+    "estoico": {
+        "name": "estoico",
+        "description": "estoico",
+        "system_prompt": "Actúa como un prompt enginering especializado en crear prompts para crear imagenes que capturan la esencia de cada escena. Tu objetivo es generar las indicaciones adecuadas para la creación de la imágen para ésta escena:{escena}. Debes añadir el siguiente prefijo:' wallpaper, 8k, 800 mm lens, cinematic, masterpiece, beautifully detailed, Hellenistic sculpture showcasing intense realism and expressiveness, capturing raw emotions and dynamic movement in marble and bronze, intricate details of muscles and facial expressions, dramatic lighting highlighting the textures and contours, set against a classical backdrop. capturing the essence of a powerful showing:'. ESCRIBE UN SOLO PROMPT PARA {escena}, recuerda que el tema principal es: {titulo}.El prompt no puede tener mas de 30 palabras sin contar el prefijo ni sufijo . Advertencia: escribe los prompts en Inglés!!",
+        "user_prompt": "Actúa como un prompt enginering especializado en crear prompts para crear imagenes que capturan la esencia de cada escena. Tu objetivo es generar las indicaciones adecuadas para la creación de la imágen para ésta escena:{escena}. Debes añadir el siguiente prefijo:' wallpaper, 8k, 800 mm lens, cinematic, masterpiece, beautifully detailed, Hellenistic sculpture showcasing intense realism and expressiveness, capturing raw emotions and dynamic movement in marble and bronze, intricate details of muscles and facial expressions, dramatic lighting highlighting the textures and contours, set against a classical backdrop. capturing the essence of a powerful showing:'. ESCRIBE UN SOLO PROMPT PARA {escena}, recuerda que el tema principal es: {titulo}.El prompt no puede tener mas de 30 palabras sin contar el prefijo ni sufijo . Advertencia: escribe los prompts en Inglés!!",
+        "negative_prompt": "text, watermark, low quality"
+    },
+    "Pop_Art": {
+        "name": "Pop_Art",
+        "description": "Pop_Art",
+        "system_prompt": "Actúa como un prompt enginering especializado en crear prompts para crear imagenes que capturan la esencia de cada escena. Tu objetivo es generar las indicaciones adecuadas para la creación de la imágen para ésta escena:{escena}. Debes añadir el siguiente prefijo:Pop Art 2D con X detalles capturing the essence of a powerful showing:'. ESCRIBE UN SOLO PROMPT PARA {escena}, recuerda que el tema principal es: {titulo}.El prompt no puede tener mas de 30 palabras sin contar el prefijo ni sufijo . Advertencia: escribe los prompts en Inglés!!",
+        "user_prompt": "Actúa como un prompt enginering especializado en crear prompts para crear imagenes que capturan la esencia de cada escena. Tu objetivo es generar las indicaciones adecuadas para la creación de la imágen para ésta escena:{escena}. Debes añadir el siguiente prefijo:Pop Art 2D con X detalles capturing the essence of a powerful showing:'. ESCRIBE UN SOLO PROMPT PARA {escena}, recuerda que el tema principal es: {titulo}.El prompt no puede tener mas de 30 palabras sin contar el prefijo ni sufijo . Advertencia: escribe los prompts en Inglés!!",
+        "negative_prompt": ""
+    },
+    "custom_1": {
+        "name": "Nuevo Estilo",
+        "description": "Descripción del estilo",
+        "system_prompt": "Eres un asistente experto en visualización creativa para vídeos. Generas prompts concisos y descriptivos para modelos de generación de imágenes como Stable Diffusion.",
+        "user_prompt": "Genera un prompt en inglés para una imagen de estilo cinematográfico basado en el siguiente texto: '{titulo}: {escena}'. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El aspect ratio es 16:9.",
+        "negative_prompt": "text, watermark, low quality, blurry"
+    },
+    "custom_2": {
+        "name": "dali",
+        "description": "dali",
+        "system_prompt": "Actúa como un prompt enginering especializado en crear prompts para crear imagenes que capturan la esencia de cada escena. Tu objetivo es generar las indicaciones adecuadas para la creación de la imágen para ésta escena:{escena}. Debes añadir el siguiente prefijo: estilo de dali detalles capturing the essence of a powerful showing:'. ESCRIBE UN SOLO PROMPT PARA {escena}, recuerda que el tema principal es: {titulo}.El prompt no puede tener mas de 30 palabras sin contar el prefijo ni sufijo . Advertencia: escribe los prompts en Inglés!!",
+        "user_prompt": "Actúa como un prompt enginering especializado en crear prompts para crear imagenes que capturan la esencia de cada escena. Tu objetivo es generar las indicaciones adecuadas para la creación de la imágen para ésta escena:{escena}. Debes añadir el siguiente prefijo: estilo de dali detalles capturing the essence of a powerful showing:'. ESCRIBE UN SOLO PROMPT PARA {escena}, recuerda que el tema principal es: {titulo}.El prompt no puede tener mas de 30 palabras sin contar el prefijo ni sufijo . Advertencia: escribe los prompts en Inglés!!",
+        "negative_prompt": "text, watermark, low quality, blurry"
+    }
+}

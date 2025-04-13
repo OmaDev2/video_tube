@@ -380,7 +380,70 @@ class BatchTTSManager:
                                         job['tiempos_imagenes'] = tiempos_imagenes
 
                                         # Llamar a la función de generación de prompts
-                                        estilo = job.get('settings', {}).get('estilo_imagenes', 'cinematográfico')
+                                        # Obtener el estilo de prompts seleccionado del diccionario 'video_settings' dentro del job
+                                        video_settings_del_job = job.get('video_settings', {})  # Obtener el diccionario de ajustes, o uno vacío si no existe
+                                        estilo = video_settings_del_job.get('estilo_imagenes', 'default')  # Obtener el estilo de ese diccionario
+                                        
+                                        # Imprimir información detallada para depuración
+                                        print(f"\n\n=== INFORMACIÓN DE ESTILO DE PROMPTS ===\n")
+                                        print(f"Estilo seleccionado en interfaz: '{estilo}'")
+                                        print(f"Nombre del estilo: '{video_settings_del_job.get('nombre_estilo', 'No especificado')}'")
+                                        print(f"Ajustes completos: {video_settings_del_job}")
+                                        
+                                        # Verificar que el estilo existe en el gestor de prompts
+                                        try:
+                                            from prompt_manager import PromptManager
+                                            prompt_manager = PromptManager()
+                                            estilos_disponibles = prompt_manager.get_prompt_ids()
+                                            print(f"Estilos disponibles: {estilos_disponibles}")
+                                            
+                                            # Si el estilo no existe, intentar encontrar una coincidencia por nombre
+                                            if estilo not in estilos_disponibles:
+                                                print(f"ADVERTENCIA: El estilo '{estilo}' no existe en el gestor de prompts.")
+                                                
+                                                # Intentar encontrar el estilo por nombre
+                                                nombre_estilo = video_settings_del_job.get('nombre_estilo', '')
+                                                if nombre_estilo:
+                                                    # Mapa de nombres a IDs
+                                                    nombre_a_id = {
+                                                        'Cinematográfico': 'default',
+                                                        'Terror': 'terror',
+                                                        'Animación': 'animacion',
+                                                        'imagenes Psicodelicas': 'psicodelicas'
+                                                    }
+                                                    
+                                                    if nombre_estilo in nombre_a_id:
+                                                        estilo = nombre_a_id[nombre_estilo]
+                                                        print(f"Usando estilo '{estilo}' basado en el nombre '{nombre_estilo}'")
+                                        except Exception as e:
+                                            print(f"Error al verificar estilos: {e}")
+                                        
+                                        # Asegurarse de que el estilo sea un string válido
+                                        if not estilo or estilo == "None" or estilo == "":
+                                            estilo = "default"
+                                        
+                                        # Mostrar información detallada para depuración
+                                        print(f"\n\n=== GENERACIÓN DE PROMPTS ===\n")
+                                        print(f"Estilo seleccionado: '{estilo}'")
+                                        print(f"Título del proyecto: '{job['titulo']}'")
+                                        print(f"Nombre del estilo: '{job.get('nombre_estilo', 'No especificado')}'")                                        
+                                        
+                                        # Verificar que el estilo existe en el gestor de prompts
+                                        try:
+                                            from prompt_manager import PromptManager
+                                            prompt_manager = PromptManager()
+                                            estilos_disponibles = prompt_manager.get_prompt_ids()
+                                            print(f"Estilos disponibles: {estilos_disponibles}")
+                                            
+                                            if estilo not in estilos_disponibles:
+                                                print(f"ADVERTENCIA: El estilo '{estilo}' no existe. Usando estilo por defecto.")
+                                                estilo = "default"
+                                        except Exception as e:
+                                            print(f"Error al verificar estilos: {e}")
+                                        
+                                        print(f"Estilo final utilizado: '{estilo}'\n")
+                                        
+                                        # Generar los prompts con el estilo seleccionado
                                         lista_prompts = generar_prompts_con_gemini(
                                             script_content,
                                             num_imagenes_necesarias,
