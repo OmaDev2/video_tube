@@ -568,11 +568,11 @@ class VideoGenerator:
             return video
     
     def _apply_audio(self, video, aplicar_musica, archivo_musica, volumen_musica,
-                    aplicar_fade_in_musica, duracion_fade_in_musica,
-                    aplicar_fade_out_musica, duracion_fade_out_musica,
-                    archivo_voz, volumen_voz,
-                    aplicar_fade_in_voz, duracion_fade_in_voz,
-                    aplicar_fade_out_voz, duracion_fade_out_voz):
+                aplicar_fade_in_musica, duracion_fade_in_musica,
+                aplicar_fade_out_musica, duracion_fade_out_musica,
+                archivo_voz, volumen_voz,
+                aplicar_fade_in_voz, duracion_fade_in_voz,
+                aplicar_fade_out_voz, duracion_fade_out_voz):
         """
         Aplica audio (música y/o voz) al video.
         
@@ -633,11 +633,15 @@ class VideoGenerator:
                 repeticiones = int(video.duration / musica.duration) + 1
                 musica = concatenate_audioclips([musica] * repeticiones).subclipped(0, video.duration)
             
-            # Ajustar el volumen
-            # Aplicar un factor de reducción moderado (0.7) para música ambiental suave pero audible
-            volumen_musica_ajustado = volumen_musica * 0.7
-            print(f"Volumen de música original: {volumen_musica}, ajustado: {volumen_musica_ajustado}")
-            musica = musica.with_effects([afx.MultiplyVolume(volumen_musica_ajustado)])
+            # Ajustar el volumen - Usar el valor directamente sin aplicar reducción adicional
+            print(f"Volumen de música: {volumen_musica}")
+            
+            # Si el volumen no es cero, aplicar el volumen
+            if volumen_musica > 0:
+                musica = musica.with_effects([afx.MultiplyVolume(volumen_musica)])
+            else:
+                # Si el volumen es cero, silenciar completamente usando un volumen muy bajo
+                musica = musica.with_effects([afx.MultiplyVolume(0.0001)])  # Prácticamente inaudible
             
             # Aplicar fade in/out a la música si se solicita
             if aplicar_fade_in_musica and duracion_fade_in_musica > 0:
@@ -659,7 +663,7 @@ class VideoGenerator:
                 # Si hay múltiples clips de audio, mezclarlos
                 audio_final = CompositeAudioClip(audio_clips)
                 return video.with_audio(audio_final)
-        return video
+        return video  
     
     def _apply_subtitles(self, video, aplicar_subtitulos, archivo_subtitulos, 
                        tamano_fuente_subtitulos, color_fuente_subtitulos,

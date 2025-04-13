@@ -31,15 +31,16 @@ class AudioTabFrame(ttk.Frame):
             valor_slider: Valor del slider (entre 0 y 1)
         
         Returns:
-            Valor de volumen logarítmico (entre 0.03 y 1.0)
+            Valor de volumen logarítmico (entre 0.0 y 1.0)
         """
         # Convertir el valor lineal (0-1) a logarítmico para mejor control en niveles bajos
         valor_slider = float(valor_slider)
         if valor_slider <= 0:
-            return 0
-        # Escala logarítmica menos agresiva: valores bajos son más audibles
-        # Rango: 0.03 (3%) a 1.0 (100%)
-        return 0.03 + (valor_slider * 0.97)
+            return 0.0  # Permitir silenciar completamente
+        
+        # Escala logarítmica para un control más preciso en niveles bajos
+        # Esto permite un rango de 0.0 (0%) a 1.0 (100%)
+        return valor_slider ** 2  # Curva cuadrática para control más preciso en niveles bajos
 
     def _setup_widgets(self):
         """Configura la interfaz de usuario para la pestaña de audio."""
@@ -83,12 +84,12 @@ class AudioTabFrame(ttk.Frame):
         # Usar un slider con escala visual lineal pero que internamente usa valores logarítmicos
         self.scale_volumen_musica = ttk.Scale(frame_musica, from_=0.0, to=1.0, orient="horizontal", 
                                        length=200, command=actualizar_volumen_musica)
-        # Valor inicial del slider muy bajo para volumen ambiental (3%)
-        self.scale_volumen_musica.set(0.0)
+        # Valor inicial del slider - por defecto 30%
+        self.scale_volumen_musica.set(0.3)  # Esto será aproximadamente 9% después de la conversión cuadrática
         self.scale_volumen_musica.grid(row=2, column=1, padx=5, pady=5, sticky="we")
         
         # Inicializar el valor real y la etiqueta
-        valor_inicial = self._convertir_volumen_musica(0.0)  # 3% de volumen
+        valor_inicial = self._convertir_volumen_musica(0.3)  # Valor cuadrático de 0.3 (aprox. 9%)
         self.app.volumen_musica.set(valor_inicial)
         self.app.etiqueta_volumen_musica.set(f"{valor_inicial*100:.1f}%")
         etiqueta_volumen_musica = ttk.Label(frame_musica, textvariable=self.app.etiqueta_volumen_musica)
