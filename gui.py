@@ -586,7 +586,7 @@ class VideoCreatorApp:
                 aplicar_fade_out_voz=self.aplicar_fade_out_voz.get(),
                 duracion_fade_out_voz=self.duracion_fade_out_voz.get(),
                 # Parámetros para subtítulos
-                subtitulos_margen=self.settings_subtitles_margin.get() if hasattr(self, 'settings_subtitles_margin') else 0.15,
+                subtitulos_margen=self.settings_subtitles_margin.get() if hasattr(self, 'settings_subtitles_margin') else 0.20,
                 # Parámetros para fuentes de subtítulos
                 font_name=self.settings_subtitles_font_name.get() if hasattr(self, 'settings_subtitles_font_name') else None,
                 use_system_font=self.settings_use_system_font.get() if hasattr(self, 'settings_use_system_font') else False,
@@ -941,7 +941,7 @@ class VideoCreatorApp:
                     'color_fuente_subtitulos': self.settings_subtitles_font_color.get(),
                     'color_borde_subtitulos': self.settings_subtitles_stroke_color.get(),
                     'grosor_borde_subtitulos': self.settings_subtitles_stroke_width.get(),
-                    'subtitulos_margen': self.settings_subtitles_margin.get() if hasattr(self, 'settings_subtitles_margin') else 0.18,
+                    'subtitulos_margen': self.settings_subtitles_margin.get() if hasattr(self, 'settings_subtitles_margin') else 0.20,
                     'progress_callback': self.update_progress_bar
                 },
                 daemon=True
