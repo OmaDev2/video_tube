@@ -256,11 +256,11 @@ class VideoCreatorApp:
         self.cargar_plantillas()
         
         # Cargar plantillas
-        self.cargar_plantillas()
+        #self.cargar_plantillas()
         
         # Cargar automáticamente las imágenes y overlays al iniciar
-        self.root.after(500, self.buscar_imagenes)
-        self.root.after(1000, lambda: self.tab_efectos.buscar_y_seleccionar_overlays() if hasattr(self, 'tab_efectos') else None)
+        #self.root.after(1000, self.buscar_imagenes)
+        #self.root.after(1500, lambda: self.tab_efectos.buscar_y_seleccionar_overlays() if hasattr(self, 'tab_efectos') else None)
         
         # Iniciar el worker para procesar la cola de TTS
         self.batch_tts_manager.start_worker()
