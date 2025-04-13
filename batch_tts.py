@@ -321,12 +321,63 @@ class BatchTTSManager:
                                         with open(script_path, 'r', encoding='utf-8') as f:
                                             script_content = f.read()
 
-                                        # Calcular número de imágenes
+                                        # Calcular número de imágenes usando la función optimizada
                                         temp_audio_clip = AudioFileClip(final_audio_path)
                                         audio_duration = temp_audio_clip.duration
                                         temp_audio_clip.close()
-                                        duracion_por_imagen = job.get('duracion_img', 6.0)
-                                        num_imagenes_necesarias = math.ceil(audio_duration / duracion_por_imagen)
+                                        
+                                        # Imprimir todos los parámetros del job para depuración
+                                        print("\nParámetros del trabajo:")
+                                        for k, v in job.items():
+                                            if k != 'script' and k != 'prompts_data':  # Evitar imprimir textos largos
+                                                print(f"  {k}: {v}")
+                                        
+                                        # Obtener parámetros relevantes del job
+                                        # Intentar obtener la duración de imagen de diferentes fuentes posibles
+                                        duracion_por_imagen = None
+                                        
+                                        # 1. Intentar obtener de video_settings.duracion_img (valor de la interfaz gráfica)
+                                        if 'video_settings' in job and isinstance(job['video_settings'], dict) and 'duracion_img' in job['video_settings']:
+                                            duracion_por_imagen = job['video_settings'].get('duracion_img')
+                                            print(f"Duración obtenida de video_settings.duracion_img: {duracion_por_imagen}")
+                                        
+                                        # 2. Intentar obtener de settings.duracion_img
+                                        elif 'settings' in job and isinstance(job['settings'], dict) and 'duracion_img' in job['settings']:
+                                            duracion_por_imagen = job['settings'].get('duracion_img')
+                                            print(f"Duración obtenida de settings.duracion_img: {duracion_por_imagen}")
+                                        
+                                        # 3. Intentar obtener directamente de duracion_img
+                                        elif 'duracion_img' in job:
+                                            duracion_por_imagen = job.get('duracion_img')
+                                            print(f"Duración obtenida de duracion_img: {duracion_por_imagen}")
+                                        
+                                        # 4. Usar valor predeterminado si no se encuentra
+                                        else:
+                                            duracion_por_imagen = 20.0  # Valor predeterminado igual al de la interfaz gráfica
+                                            print(f"Usando duración predeterminada: {duracion_por_imagen}")
+                                        
+                                        # Asegurarse de que sea un número válido
+                                        try:
+                                            duracion_por_imagen = float(duracion_por_imagen)
+                                        except (ValueError, TypeError):
+                                            duracion_por_imagen = 15.0
+                                            print(f"Error al convertir duración, usando valor predeterminado: {duracion_por_imagen}")
+                                        
+                                        print(f"Usando duración por imagen configurada: {duracion_por_imagen} segundos")
+                                        
+                                        aplicar_transicion = job.get('aplicar_transicion', False)
+                                        duracion_transicion = job.get('duracion_transicion', 1.0) if aplicar_transicion else 0.0
+                                        
+                                        # Calcular el número óptimo de imágenes
+                                        num_imagenes_necesarias, tiempos_imagenes = self.calcular_imagenes_optimas(
+                                            audio_duration=audio_duration,
+                                            duracion_por_imagen=duracion_por_imagen,
+                                            duracion_transicion=duracion_transicion,
+                                            aplicar_transicion=aplicar_transicion
+                                        )
+                                        
+                                        # Guardar los tiempos de las imágenes para usarlos en la generación de video
+                                        job['tiempos_imagenes'] = tiempos_imagenes
 
                                         # Llamar a la función de generación de prompts
                                         estilo = job.get('settings', {}).get('estilo_imagenes', 'cinematográfico')
@@ -334,7 +385,8 @@ class BatchTTSManager:
                                             script_content,
                                             num_imagenes_necesarias,
                                             job['titulo'],  # <--- Pasar el título del proyecto
-                                            estilo_base=estilo
+                                            estilo_base=estilo,
+                                            tiempos_imagenes=tiempos_imagenes  # <--- Pasar la información de tiempos
                                         )
 
                                         if lista_prompts:
@@ -439,6 +491,133 @@ class BatchTTSManager:
         
         print("Worker de cola finalizado.")
     
+    def calcular_imagenes_optimas(self, audio_duration, duracion_por_imagen=6.0, duracion_transicion=1.0, aplicar_transicion=False, fade_in=2.0, fade_out=2.0, respetar_duracion_exacta=True):
+        """
+        Calcula el número óptimo de imágenes y sus tiempos basado en la duración del audio.
+        
+        Esta función tiene en cuenta:
+        - La duración total del audio
+        - La duración deseada por imagen
+        - La duración de las transiciones (si se aplican)
+        - Los efectos de fade in/out
+        
+        Args:
+            audio_duration (float): Duración total del audio en segundos
+            duracion_por_imagen (float): Duración deseada para cada imagen en segundos
+            duracion_transicion (float): Duración de cada transición en segundos
+            aplicar_transicion (bool): Si se aplicarán transiciones entre imágenes
+            fade_in (float): Duración del fade in al inicio del video
+            fade_out (float): Duración del fade out al final del video
+            respetar_duracion_exacta (bool): Si es True, respeta la duración exacta configurada por el usuario
+            
+        Returns:
+            tuple: (num_imagenes, tiempos_imagenes)
+                - num_imagenes (int): Número óptimo de imágenes
+                - tiempos_imagenes (list): Lista de diccionarios con los tiempos de cada imagen
+        """
+        print(f"Calculando imágenes para audio de {audio_duration:.2f} segundos con duración por imagen de {duracion_por_imagen:.2f}s")
+        
+        # Ajustar la duración efectiva teniendo en cuenta los fades
+        duracion_efectiva = audio_duration
+        
+        # Modo 1: Respetar la duración exacta configurada por el usuario
+        if respetar_duracion_exacta:
+            # Calcular el número de imágenes completas que caben en el audio
+            num_imagenes_completas = int(duracion_efectiva / duracion_por_imagen)
+            
+            # Si hay un remanente de tiempo, añadir una imagen más
+            tiempo_restante = duracion_efectiva - (num_imagenes_completas * duracion_por_imagen)
+            if tiempo_restante > 0:
+                num_imagenes = num_imagenes_completas + 1
+            else:
+                num_imagenes = num_imagenes_completas
+            
+            # Asegurarnos de que tenemos al menos 1 imagen
+            num_imagenes = max(1, num_imagenes)
+            
+            print(f"Usando duración exacta de {duracion_por_imagen:.2f}s por imagen")
+            print(f"Número de imágenes necesarias: {num_imagenes}")
+            
+            # Calcular los tiempos exactos de cada imagen
+            tiempos_imagenes = []
+            tiempo_actual = 0.0
+            
+            for i in range(num_imagenes):
+                # Calcular el tiempo de inicio y fin de esta imagen
+                tiempo_inicio = tiempo_actual
+                
+                # Si es la última imagen y hay tiempo restante, ajustar la duración
+                if i == num_imagenes - 1 and tiempo_restante > 0:
+                    tiempo_fin = audio_duration
+                    duracion_actual = tiempo_fin - tiempo_inicio
+                else:
+                    # Usar la duración exacta configurada por el usuario
+                    tiempo_fin = min(tiempo_inicio + duracion_por_imagen, audio_duration)
+                    duracion_actual = duracion_por_imagen
+                
+                # Actualizar el tiempo actual para la próxima imagen
+                tiempo_actual = tiempo_fin
+                
+                # Guardar la información de esta imagen
+                tiempos_imagenes.append({
+                    'indice': i,
+                    'inicio': tiempo_inicio,
+                    'fin': tiempo_fin,
+                    'duracion': duracion_actual
+                })
+        
+        # Modo 2: Distribuir uniformemente las imágenes en el audio
+        else:
+            # Calcular el número de imágenes basado en la duración del audio
+            if aplicar_transicion:
+                # Si hay N imágenes, hay N-1 transiciones con solapamiento
+                solapamiento_por_transicion = duracion_transicion / 2
+                num_imagenes = math.ceil((duracion_efectiva + solapamiento_por_transicion) / 
+                                      (duracion_por_imagen - solapamiento_por_transicion))
+            else:
+                num_imagenes = math.ceil(duracion_efectiva / duracion_por_imagen)
+            
+            # Asegurarnos de que tenemos al menos 2 imágenes
+            num_imagenes = max(2, num_imagenes)
+            
+            # Recalcular la duración por imagen para distribuir uniformemente
+            if aplicar_transicion:
+                duracion_ajustada = (duracion_efectiva + ((num_imagenes - 1) * solapamiento_por_transicion)) / num_imagenes
+            else:
+                duracion_ajustada = duracion_efectiva / num_imagenes
+            
+            print(f"Distribuyendo uniformemente: {num_imagenes} imágenes con duración ajustada de {duracion_ajustada:.2f}s")
+            
+            # Calcular los tiempos exactos de cada imagen
+            tiempos_imagenes = []
+            tiempo_actual = 0.0
+            
+            for i in range(num_imagenes):
+                tiempo_inicio = tiempo_actual
+                
+                if i == num_imagenes - 1:
+                    tiempo_fin = audio_duration
+                else:
+                    tiempo_fin = tiempo_inicio + duracion_ajustada
+                    if aplicar_transicion and i < num_imagenes - 1:
+                        tiempo_actual = tiempo_fin - solapamiento_por_transicion
+                    else:
+                        tiempo_actual = tiempo_fin
+                
+                tiempos_imagenes.append({
+                    'indice': i,
+                    'inicio': tiempo_inicio,
+                    'fin': tiempo_fin,
+                    'duracion': tiempo_fin - tiempo_inicio
+                })
+        
+        # Imprimir información detallada para depuración
+        print("Distribución de tiempos de imágenes:")
+        for t in tiempos_imagenes:
+            print(f"  Imagen {t['indice']+1}: {t['inicio']:.2f}s - {t['fin']:.2f}s (duración: {t['duracion']:.2f}s)")
+        
+        return num_imagenes, tiempos_imagenes
+        
     def update_job_status_gui(self, job_id, status, tiempo=""):
         """Actualiza el estado de un trabajo en la GUI."""
         # Usar root.after para asegurar que la actualización de la GUI

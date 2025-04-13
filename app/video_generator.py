@@ -190,6 +190,9 @@ class VideoGenerator:
         aplicar_transicion = kwargs.get('aplicar_transicion', False)
         tipo_transicion = kwargs.get('tipo_transicion', 'none')
         duracion_transicion = kwargs.get('duracion_transicion', 2.0)
+        
+        # Obtener información de tiempos de imágenes si está disponible
+        tiempos_imagenes = kwargs.get('tiempos_imagenes', None)
         aplicar_fade_in = kwargs.get('aplicar_fade_in', False)
         duracion_fade_in = kwargs.get('duracion_fade_in', 2.0)
         aplicar_fade_out = kwargs.get('aplicar_fade_out', False)
@@ -237,7 +240,8 @@ class VideoGenerator:
         clips = self._create_image_clips(
             duracion_img=duracion_img,
             aplicar_efectos=aplicar_efectos,
-            secuencia_efectos=secuencia_efectos
+            secuencia_efectos=secuencia_efectos,
+            tiempos_imagenes=tiempos_imagenes
         )
         
         # Aplicar transiciones si se solicita
@@ -323,7 +327,7 @@ class VideoGenerator:
             return int(match.group(1))
         return 0
     
-    def _create_image_clips(self, duracion_img, aplicar_efectos, secuencia_efectos):
+    def _create_image_clips(self, duracion_img, aplicar_efectos, secuencia_efectos, tiempos_imagenes=None):
         """
         Crea clips de imagen con efectos si se solicita.
         
@@ -331,6 +335,8 @@ class VideoGenerator:
             duracion_img: Duración en segundos de cada imagen
             aplicar_efectos: Aplicar efectos a las imágenes
             secuencia_efectos: Lista de efectos a aplicar en secuencia
+            tiempos_imagenes: Lista de diccionarios con información de tiempos para cada imagen
+                Cada diccionario contiene: 'indice', 'inicio', 'fin', 'duracion'
             
         Returns:
             list: Lista de clips de imagen
@@ -338,8 +344,25 @@ class VideoGenerator:
         clips = []
         total_imagenes = len(self.image_files)
         
+        # Verificar si tenemos información de tiempos y si coincide con el número de imágenes
+        usar_tiempos_personalizados = (tiempos_imagenes is not None and 
+                                      len(tiempos_imagenes) == total_imagenes)
+        
+        if usar_tiempos_personalizados:
+            print(f"Usando información de tiempos personalizada para {len(tiempos_imagenes)} imágenes")
+        
         for i, archivo in enumerate(self.image_files):
-            clip = ImageClip(archivo).with_duration(duracion_img)
+            # Determinar la duración de esta imagen
+            if usar_tiempos_personalizados:
+                # Usar la duración específica para esta imagen
+                duracion_actual = tiempos_imagenes[i]['duracion']
+                print(f"Imagen {i+1}: Duración personalizada = {duracion_actual:.2f}s")
+            else:
+                # Usar la duración estándar para todas las imágenes
+                duracion_actual = duracion_img
+            
+            # Crear el clip con la duración adecuada
+            clip = ImageClip(archivo).with_duration(duracion_actual)
             
             # Aplicar efectos si se solicita
             if aplicar_efectos and secuencia_efectos:
@@ -348,7 +371,15 @@ class VideoGenerator:
                 tipo_efecto = secuencia_efectos[efecto_idx]
                 print(f"DEBUG: Procesando imagen {i+1}, tipo_efecto = '{tipo_efecto}'")
                 
-                clip = self._apply_effect_to_clip(clip, tipo_efecto, duracion_img, i)
+                # Pasar la duración específica de esta imagen al efecto
+                clip = self._apply_effect_to_clip(clip, tipo_efecto, duracion_actual, i)
+            
+            # Si tenemos información de tiempos, establecer el tiempo de inicio
+            if usar_tiempos_personalizados:
+                # Guardar el tiempo de inicio y fin como metadatos del clip para uso posterior
+                clip.start_time = tiempos_imagenes[i]['inicio']
+                clip.end_time = tiempos_imagenes[i]['fin']
+                print(f"  Tiempo inicio: {clip.start_time:.2f}s, Tiempo fin: {clip.end_time:.2f}s")
             
             clips.append(clip)
             
@@ -653,9 +684,23 @@ class VideoGenerator:
             print(f"Aplicando voz en off: {os.path.basename(archivo_voz)}")
             voz = AudioFileClip(archivo_voz)
             
-            # Ajustar la duración de la voz a la duración del video si es necesario
-            if voz.duration > video.duration:
-                voz = voz.subclipped(0, video.duration)
+            # Verificar si hay discrepancia entre la duración del audio y el video
+            if voz.duration != video.duration:
+                print(f"ADVERTENCIA: Duración del audio ({voz.duration:.2f}s) diferente a la duración del video ({video.duration:.2f}s)")
+                
+                # Si el audio es más largo que el video, extender el video para que coincida con el audio
+                if voz.duration > video.duration:
+                    print(f"Ajustando duración del video para que coincida con el audio: {voz.duration:.2f}s")
+                    # Extender el último frame del video para que coincida con la duración del audio
+                    from moviepy.video.VideoClip import ImageClip
+                    last_frame = video.to_ImageClip(video.duration)
+                    extension = last_frame.with_duration(voz.duration - video.duration)
+                    video = concatenate_videoclips([video, extension])
+                    print(f"Nueva duración del video: {video.duration:.2f}s")
+                # Si el audio es más corto que el video, recortar el video
+                elif voz.duration < video.duration:
+                    print(f"Recortando video para que coincida con el audio: {voz.duration:.2f}s")
+                    video = video.subclipped(0, voz.duration)
             
             # Ajustar el volumen
             voz = voz.with_effects([afx.MultiplyVolume(volumen_voz)])

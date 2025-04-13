@@ -26,13 +26,70 @@ except Exception as e:
     GEMINI_AVAILABLE = False
 
 
-def segmentar_script(texto_completo: str, num_segmentos: int) -> list[str]:
-    """Divide el texto en un número aproximado de segmentos."""
+def segmentar_script(texto_completo: str, num_segmentos: int, tiempos_imagenes: List[Dict[str, Any]] = None) -> list[str]:
+    """Divide el texto en un número aproximado de segmentos.
+    
+    Args:
+        texto_completo: El texto completo del guion
+        num_segmentos: Número de segmentos deseados
+        tiempos_imagenes: Lista de diccionarios con información de tiempos para cada imagen
+            Cada diccionario contiene: 'indice', 'inicio', 'fin', 'duracion'
+    
+    Returns:
+        Lista de segmentos de texto
+    """
     if num_segmentos <= 0: return []
-    # Estrategia simple: dividir por párrafos y luego agrupar/dividir
+    
+    # Dividir por párrafos
     parrafos = [p.strip() for p in texto_completo.split('\n\n') if p.strip()]
     if not parrafos: return []
-
+    
+    # Si tenemos información de tiempos, intentamos dividir el texto proporcionalmente
+    if tiempos_imagenes and len(tiempos_imagenes) == num_segmentos:
+        print(f"Usando información de tiempos para {len(tiempos_imagenes)} imágenes")
+        
+        # Calcular la duración total del audio
+        duracion_total = tiempos_imagenes[-1]['fin']
+        
+        # Dividir los párrafos según los tiempos de las imágenes
+        segmentos = []
+        total_caracteres = len(texto_completo)
+        texto_completo_limpio = "\n\n".join(parrafos)
+        
+        for tiempo in tiempos_imagenes:
+            # Calcular qué porcentaje del tiempo total corresponde a esta imagen
+            porcentaje_tiempo = tiempo['duracion'] / duracion_total
+            
+            # Calcular cuántos caracteres corresponden a este segmento
+            caracteres_segmento = int(total_caracteres * porcentaje_tiempo)
+            
+            # Asegurarse de que no nos pasamos del texto disponible
+            if texto_completo_limpio:
+                # Tomar el segmento correspondiente
+                if caracteres_segmento >= len(texto_completo_limpio):
+                    segmento = texto_completo_limpio
+                    texto_completo_limpio = ""
+                else:
+                    # Intentar cortar por un salto de línea o espacio para no cortar palabras
+                    indice_corte = min(caracteres_segmento, len(texto_completo_limpio) - 1)
+                    while indice_corte > 0 and indice_corte < len(texto_completo_limpio) and texto_completo_limpio[indice_corte] not in [' ', '\n', '.', ',', ';', ':', '!', '?']:
+                        indice_corte -= 1
+                    
+                    if indice_corte <= 0:
+                        indice_corte = min(caracteres_segmento, len(texto_completo_limpio))
+                    
+                    segmento = texto_completo_limpio[:indice_corte].strip()
+                    texto_completo_limpio = texto_completo_limpio[indice_corte:].strip()
+                
+                segmentos.append(segmento)
+            else:
+                # Si ya no queda texto, añadir un segmento vacío
+                segmentos.append("")
+        
+        print(f"Script dividido en {len(segmentos)} segmentos basados en tiempos para {num_segmentos} imágenes.")
+        return segmentos
+    
+    # Estrategia tradicional: dividir por párrafos y luego agrupar/dividir
     total_parrafos = len(parrafos)
     parrafos_por_segmento = max(1, math.ceil(total_parrafos / num_segmentos))
 
@@ -41,14 +98,18 @@ def segmentar_script(texto_completo: str, num_segmentos: int) -> list[str]:
         segmento = "\n\n".join(parrafos[i:i + parrafos_por_segmento])
         segmentos.append(segmento)
 
-    # Ajustar si tenemos demasiados o pocos segmentos (simplificado)
-    # Si tenemos más segmentos de los necesarios, los últimos serán más cortos.
-    # Si tenemos menos, los últimos párrafos se agruparon más. Está bien para empezar.
+    # Ajustar si tenemos demasiados o pocos segmentos
+    segmentos = segmentos[:num_segmentos]  # Limitar al número máximo de segmentos
+    
+    # Si tenemos menos segmentos que imágenes, repetir el último segmento
+    while len(segmentos) < num_segmentos:
+        segmentos.append(segmentos[-1] if segmentos else "")
+    
     print(f"Script dividido en {len(segmentos)} segmentos para {num_segmentos} imágenes deseadas.")
     return segmentos
 
 
-def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title: str, estilo_base: str = "cinematográfico") -> List[Dict[str, str]] | None:
+def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title: str, estilo_base: str = "cinematográfico", tiempos_imagenes: List[Dict[str, Any]] = None) -> List[Dict[str, str]] | None:
     """Genera prompts de imagen en INGLÉS usando Gemini para segmentos de un guion,
     incluyendo el título del vídeo como contexto. Devuelve una lista de diccionarios
     con el segmento original y el prompt generado."""
@@ -57,7 +118,8 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
         return None
 
     print(f"Generando {num_imagenes} prompts con Gemini...")
-    segmentos = segmentar_script(script_text, num_imagenes)
+    # Usar la información de tiempos si está disponible
+    segmentos = segmentar_script(script_text, num_imagenes, tiempos_imagenes)
     if not segmentos:
         print("ERROR: No se pudo segmentar el guion.")
         return None
