@@ -128,6 +128,20 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
     segmentos = segmentos[:num_imagenes]
     if len(segmentos) < num_imagenes:
         print(f"Advertencia: Se generarán solo {len(segmentos)} prompts porque hay pocos segmentos.")
+    
+    # Imprimir información detallada sobre los segmentos generados
+    print("\n=== SEGMENTOS GENERADOS PARA PROMPTS ===")
+    print(f"TÍTULO DEL VIDEO: '{video_title}'")
+    print(f"ESTILO SELECCIONADO: '{estilo_base}'")
+    print(f"TOTAL DE SEGMENTOS: {len(segmentos)}")
+    for i, segmento in enumerate(segmentos):
+        print(f"\nSEGMENTO {i+1}/{len(segmentos)}:")
+        # Mostrar solo los primeros 100 caracteres si es muy largo
+        if len(segmento) > 100:
+            print(f"'{segmento[:100]}...' (truncado, longitud total: {len(segmento)} caracteres)")
+        else:
+            print(f"'{segmento}'")
+    print("=== FIN DE SEGMENTOS ===")
 
     # Configurar modelo Gemini (ej: gemini-pro, verifica modelos disponibles)
     try:
@@ -162,18 +176,41 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
                 user_prompt = prompt_manager.get_user_prompt(estilo_base, video_title, segmento)
                 negative_prompt = prompt_manager.get_prompt(estilo_base)["negative_prompt"]
                 
+                # Imprimir los valores que se van a usar para formatear el prompt
+                print(f"\n=== VALORES PARA FORMATEO DE PROMPT EN GEMINI ===")
+                print(f"SEGMENTO ORIGINAL: '{segmento[:100]}...' (truncado)" if len(segmento) > 100 else f"SEGMENTO ORIGINAL: '{segmento}'")
+                print(f"TITULO DEL VIDEO: '{video_title}'")
+                print(f"USER PROMPT ORIGINAL: '{user_prompt[:100]}...' (truncado)" if len(user_prompt) > 100 else f"USER PROMPT ORIGINAL: '{user_prompt}'")
+                
+                # Verificar si el user_prompt contiene los placeholders esperados
+                has_titulo_placeholder = "{titulo}" in user_prompt
+                has_escena_placeholder = "{escena}" in user_prompt
+                print(f"USER PROMPT CONTIENE PLACEHOLDER TITULO: {has_titulo_placeholder}")
+                print(f"USER PROMPT CONTIENE PLACEHOLDER ESCENA: {has_escena_placeholder}")
+                
                 # Asegurarse de que los placeholders {titulo} y {escena} se reemplacen correctamente
                 try:
                     # Intentar usar el user prompt con ambos placeholders
                     user_prompt_formateado = user_prompt.format(titulo=video_title, escena=segmento)
-                except KeyError:
+                    print(f"FORMATEO EXITOSO CON AMBOS PLACEHOLDERS")
+                except KeyError as e:
                     # Si falta alguno de los placeholders, usar el formato antiguo
+                    print(f"ERROR DE FORMATEO: {e}")
+                    print(f"INTENTANDO FORMATO ALTERNATIVO")
                     context = f"{video_title}: {segmento}" if video_title else segmento
-                    user_prompt_formateado = user_prompt.format(escena=context)
+                    try:
+                        user_prompt_formateado = user_prompt.format(escena=context)
+                        print(f"FORMATEO ALTERNATIVO EXITOSO")
+                    except Exception as e2:
+                        print(f"ERROR EN FORMATEO ALTERNATIVO: {e2}")
+                        # En caso de error, usar un formato simple sin placeholders
+                        user_prompt_formateado = f"Generate an image prompt for the following scene from '{video_title}': {segmento}"
+                        print(f"USANDO FORMATO DE EMERGENCIA SIN PLACEHOLDERS")
                 
                 print(f"\n=== PROMPT COMPLETO ENVIADO A GEMINI ===\n")
                 print(f"SYSTEM PROMPT:\n{system_prompt}\n")
-                print(f"USER PROMPT:\n{user_prompt_formateado}\n")
+                print(f"USER PROMPT FORMATEADO:\n{user_prompt_formateado}\n")
+                print(f"NEGATIVE PROMPT:\n{negative_prompt}\n")
                 print(f"=== FIN DEL PROMPT ===\n")
                 
                 # Usar los prompts personalizados para la generación con Gemini

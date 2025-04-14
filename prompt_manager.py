@@ -278,15 +278,38 @@ class PromptManager:
         
         user_prompt_template = self.prompts[prompt_id].get("user_prompt", "")
         
+        # Imprimir información de depuración
+        print(f"\n=== VALORES PARA FORMATEO DE USER PROMPT ===")
+        print(f"PLANTILLA: '{prompt_id}'")
+        print(f"TITULO: '{titulo}'")
+        print(f"ESCENA: '{escena}'")
+        
+        # Verificar si la plantilla contiene los placeholders esperados
+        has_titulo = "{titulo}" in user_prompt_template
+        has_escena = "{escena}" in user_prompt_template
+        print(f"PLANTILLA CONTIENE PLACEHOLDER TITULO: {has_titulo}")
+        print(f"PLANTILLA CONTIENE PLACEHOLDER ESCENA: {has_escena}")
+        
         # Generar el user prompt usando la plantilla con título y escena como placeholders
         try:
             # Intentar usar la plantilla con ambos placeholders
             user_prompt = user_prompt_template.format(titulo=titulo, escena=escena)
-        except KeyError:
+            print(f"FORMATEO EXITOSO CON AMBOS PLACEHOLDERS")
+        except KeyError as e:
             # Si falta alguno de los placeholders, usar el formato antiguo por compatibilidad
+            print(f"ERROR DE FORMATEO: {e}")
+            print(f"INTENTANDO FORMATO ALTERNATIVO")
             context = f"{titulo}: {escena}" if titulo else escena
-            user_prompt = user_prompt_template.format(escena=context)
+            try:
+                user_prompt = user_prompt_template.format(escena=context)
+                print(f"FORMATEO ALTERNATIVO EXITOSO")
+            except Exception as e2:
+                print(f"ERROR EN FORMATEO ALTERNATIVO: {e2}")
+                # En caso de error, devolver la plantilla sin formatear
+                user_prompt = user_prompt_template
+                print(f"DEVOLVIENDO PLANTILLA SIN FORMATEAR")
         
+        print(f"=== FIN DE FORMATEO ===\n")
         return user_prompt
     
     def get_negative_prompt(self, prompt_id: str) -> str:
