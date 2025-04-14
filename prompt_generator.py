@@ -1,29 +1,23 @@
 # En app.py o prompt_generator.py
-import google.generativeai as genai
 import os
 import math
 import re
 from pathlib import Path
-from typing import List, Dict, Any # Importar Dict, Any, List
+from typing import List, Dict, Any, Optional, Tuple
 
-# --- Configuración API Key (Leer desde entorno) ---
-# (Asegúrate de que esta configuración se ejecute ANTES de llamar a generar_prompts...)
-# Puedes ponerla al principio del archivo app.py o gui.py
-try:
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        print("ADVERTENCIA: Variable de entorno GOOGLE_API_KEY no encontrada. La generación de prompts fallará.")
-        GEMINI_AVAILABLE = False
-    else:
-        genai.configure(api_key=api_key)
-        print("INFO: Clave API de Google configurada.")
-        GEMINI_AVAILABLE = True
-except ImportError:
-    print("ADVERTENCIA: No se pudo importar google.generativeai. Instala con 'pip install google-generativeai'.")
-    GEMINI_AVAILABLE = False
-except Exception as e:
-    print(f"ERROR configurando la API de Google: {e}")
-    GEMINI_AVAILABLE = False
+# Importar el nuevo sistema de proveedores de IA
+from ai_providers import ai_providers, GEMINI_AVAILABLE
+
+# Configuración de logging
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Verificar si OpenAI está disponible como fallback
+from ai_providers import OPENAI_AVAILABLE
+if OPENAI_AVAILABLE:
+    print("INFO: OpenAI está disponible como fallback si Gemini falla.")
+else:
+    print("ADVERTENCIA: OpenAI no está disponible como fallback. Verifica la instalación y la API key.")
 
 
 def segmentar_script(texto_completo: str, num_segmentos: int, tiempos_imagenes: List[Dict[str, Any]] = None) -> list[str]:
@@ -110,66 +104,59 @@ def segmentar_script(texto_completo: str, num_segmentos: int, tiempos_imagenes: 
 
 
 def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title: str, estilo_base: str = "default", tiempos_imagenes: List[Dict[str, Any]] = None) -> List[Dict[str, str]] | None:
-    """Genera prompts de imagen en INGLÉS usando Gemini para segmentos de un guion,
+    """Genera prompts de imagen en INGLÉS usando Gemini (con fallback a OpenAI) para segmentos de un guion,
     incluyendo el título del vídeo como contexto. Devuelve una lista de diccionarios
     con el segmento original y el prompt generado."""
-    if not GEMINI_AVAILABLE:
-        print("ERROR: La API de Gemini no está configurada o disponible.")
+    if not GEMINI_AVAILABLE and not OPENAI_AVAILABLE:
+        logging.error("ERROR: Ni Gemini ni OpenAI están configurados o disponibles.")
         return None
 
-    print(f"Generando {num_imagenes} prompts con Gemini...")
+    logging.info(f"Generando {num_imagenes} prompts (Gemini con fallback a OpenAI)...")
     # Usar la información de tiempos si está disponible
     segmentos = segmentar_script(script_text, num_imagenes, tiempos_imagenes)
     if not segmentos:
-        print("ERROR: No se pudo segmentar el guion.")
+        logging.error("ERROR: No se pudo segmentar el guion.")
         return None
 
     # Ajustar si el número de segmentos no coincide exactamente (usar hasta num_imagenes)
     segmentos = segmentos[:num_imagenes]
     if len(segmentos) < num_imagenes:
-        print(f"Advertencia: Se generarán solo {len(segmentos)} prompts porque hay pocos segmentos.")
+        logging.warning(f"Advertencia: Se generarán solo {len(segmentos)} prompts porque hay pocos segmentos.")
     
     # Imprimir información detallada sobre los segmentos generados
-    print("\n=== SEGMENTOS GENERADOS PARA PROMPTS ===")
-    print(f"TÍTULO DEL VIDEO: '{video_title}'")
-    print(f"ESTILO SELECCIONADO: '{estilo_base}'")
-    print(f"TOTAL DE SEGMENTOS: {len(segmentos)}")
+    logging.info("\n=== SEGMENTOS GENERADOS PARA PROMPTS ===")
+    logging.info(f"TÍTULO DEL VIDEO: '{video_title}'")
+    logging.info(f"ESTILO SELECCIONADO: '{estilo_base}'")
+    logging.info(f"TOTAL DE SEGMENTOS: {len(segmentos)}")
     for i, segmento in enumerate(segmentos):
-        print(f"\nSEGMENTO {i+1}/{len(segmentos)}:")
+        logging.info(f"\nSEGMENTO {i+1}/{len(segmentos)}:")
         # Mostrar solo los primeros 100 caracteres si es muy largo
         if len(segmento) > 100:
-            print(f"'{segmento[:100]}...' (truncado, longitud total: {len(segmento)} caracteres)")
+            logging.info(f"'{segmento[:100]}...' (truncado, longitud total: {len(segmento)} caracteres)")
         else:
-            print(f"'{segmento}'")
-    print("=== FIN DE SEGMENTOS ===")
-
-    # Configurar modelo Gemini (ej: gemini-pro, verifica modelos disponibles)
-    try:
-        model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp')
-    except Exception as e:
-         print(f"Error al inicializar el modelo Gemini: {e}")
-         return None
+            logging.info(f"'{segmento}'")
+    logging.info("=== FIN DE SEGMENTOS ===")
 
     resultados_prompts = []  # Lista para almacenar resultados
     for i, segmento in enumerate(segmentos):
-        print(f" - Generando prompt para segmento {i+1}/{len(segmentos)}...")
+        logging.info(f" - Generando prompt para segmento {i+1}/{len(segmentos)}...")
 
         # Usar el gestor de prompts si está disponible
         try:
             from prompt_manager import PromptManager
             prompt_manager = PromptManager()
             
-            print(f"\n\nEstilo solicitado: '{estilo_base}'")
-            print(f"Estilos disponibles: {prompt_manager.get_prompt_ids()}")
+            logging.info(f"\n\nEstilo solicitado: '{estilo_base}'")
+            logging.info(f"Estilos disponibles: {prompt_manager.get_prompt_ids()}")
             
             # Caso especial para el estilo psicodélico
             if estilo_base == 'psicodelicas' or (estilo_base == 'default' and video_title and 'psicod' in video_title.lower()):
                 estilo_base = 'psicodelicas'
-                print(f"*** APLICANDO ESTILO PSICODÉLICO ***")
+                logging.info(f"*** APLICANDO ESTILO PSICODÉLICO ***")
             
             # Comprobar si el estilo existe en el gestor de prompts
             if estilo_base in prompt_manager.get_prompt_ids():
-                print(f"Usando estilo: '{estilo_base}'")
+                logging.info(f"Usando estilo: '{estilo_base}'")
                 
                 # Obtener el system prompt y user prompt del estilo seleccionado
                 system_prompt = prompt_manager.get_system_prompt(estilo_base)
@@ -177,104 +164,155 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
                 negative_prompt = prompt_manager.get_prompt(estilo_base)["negative_prompt"]
                 
                 # Imprimir los valores que se van a usar para formatear el prompt
-                print(f"\n=== VALORES PARA FORMATEO DE PROMPT EN GEMINI ===")
-                print(f"SEGMENTO ORIGINAL: '{segmento[:100]}...' (truncado)" if len(segmento) > 100 else f"SEGMENTO ORIGINAL: '{segmento}'")
-                print(f"TITULO DEL VIDEO: '{video_title}'")
-                print(f"USER PROMPT ORIGINAL: '{user_prompt[:100]}...' (truncado)" if len(user_prompt) > 100 else f"USER PROMPT ORIGINAL: '{user_prompt}'")
+                logging.info(f"\n=== VALORES PARA FORMATEO DE PROMPT ===")
+                logging.info(f"SEGMENTO ORIGINAL: '{segmento[:100]}...' (truncado)" if len(segmento) > 100 else f"SEGMENTO ORIGINAL: '{segmento}'")
+                logging.info(f"TITULO DEL VIDEO: '{video_title}'")
+                logging.info(f"USER PROMPT ORIGINAL: '{user_prompt[:100]}...' (truncado)" if len(user_prompt) > 100 else f"USER PROMPT ORIGINAL: '{user_prompt}'")
                 
                 # Verificar si el user_prompt contiene los placeholders esperados
                 has_titulo_placeholder = "{titulo}" in user_prompt
                 has_escena_placeholder = "{escena}" in user_prompt
-                print(f"USER PROMPT CONTIENE PLACEHOLDER TITULO: {has_titulo_placeholder}")
-                print(f"USER PROMPT CONTIENE PLACEHOLDER ESCENA: {has_escena_placeholder}")
+                logging.info(f"USER PROMPT CONTIENE PLACEHOLDER TITULO: {has_titulo_placeholder}")
+                logging.info(f"USER PROMPT CONTIENE PLACEHOLDER ESCENA: {has_escena_placeholder}")
                 
                 # Asegurarse de que los placeholders {titulo} y {escena} se reemplacen correctamente
                 try:
                     # Intentar usar el user prompt con ambos placeholders
                     user_prompt_formateado = user_prompt.format(titulo=video_title, escena=segmento)
-                    print(f"FORMATEO EXITOSO CON AMBOS PLACEHOLDERS")
+                    logging.info(f"FORMATEO EXITOSO CON AMBOS PLACEHOLDERS")
                 except KeyError as e:
                     # Si falta alguno de los placeholders, usar el formato antiguo
-                    print(f"ERROR DE FORMATEO: {e}")
-                    print(f"INTENTANDO FORMATO ALTERNATIVO")
+                    logging.warning(f"ERROR DE FORMATEO: {e}")
+                    logging.info(f"INTENTANDO FORMATO ALTERNATIVO")
                     context = f"{video_title}: {segmento}" if video_title else segmento
                     try:
                         user_prompt_formateado = user_prompt.format(escena=context)
-                        print(f"FORMATEO ALTERNATIVO EXITOSO")
+                        logging.info(f"FORMATEO ALTERNATIVO EXITOSO")
                     except Exception as e2:
-                        print(f"ERROR EN FORMATEO ALTERNATIVO: {e2}")
+                        logging.error(f"ERROR EN FORMATEO ALTERNATIVO: {e2}")
                         # En caso de error, usar un formato simple sin placeholders
                         user_prompt_formateado = f"Generate an image prompt for the following scene from '{video_title}': {segmento}"
-                        print(f"USANDO FORMATO DE EMERGENCIA SIN PLACEHOLDERS")
+                        logging.info(f"USANDO FORMATO DE EMERGENCIA SIN PLACEHOLDERS")
                 
-                print(f"\n=== PROMPT COMPLETO ENVIADO A GEMINI ===\n")
-                print(f"SYSTEM PROMPT:\n{system_prompt}\n")
-                print(f"USER PROMPT FORMATEADO:\n{user_prompt_formateado}\n")
-                print(f"NEGATIVE PROMPT:\n{negative_prompt}\n")
-                print(f"=== FIN DEL PROMPT ===\n")
+                logging.info(f"\n=== PROMPT COMPLETO ENVIADO A IA ===\n")
+                logging.info(f"SYSTEM PROMPT:\n{system_prompt}\n")
+                logging.info(f"USER PROMPT FORMATEADO:\n{user_prompt_formateado}\n")
+                logging.info(f"NEGATIVE PROMPT:\n{negative_prompt}\n")
+                logging.info(f"=== FIN DEL PROMPT ===\n")
                 
-                # Usar los prompts personalizados para la generación con Gemini
-                meta_prompt = f"{system_prompt}\n\n{user_prompt_formateado}"
+                # Configurar safety settings para Gemini
+                safety_settings = [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                ]
+                
+                # Usar el sistema de fallback para generar el prompt
+                generated_prompt, provider = ai_providers.generate_prompt_with_fallback(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt_formateado,
+                    openai_model="gpt-3.5-turbo",  # Puedes cambiar a gpt-4-turbo si prefieres
+                    gemini_retries=2,  # Número de reintentos para Gemini
+                    gemini_initial_delay=45,  # Delay inicial en segundos
+                    safety_settings=safety_settings
+                )
+                
+                # Registrar qué proveedor se usó
+                logging.info(f"Prompt generado usando: {provider}")
+                
             else:
                 # Si el estilo no existe, usar el prompt por defecto
-                meta_prompt = f"""Eres un asistente experto en visualización creativa para vídeos. El título general del vídeo es "{video_title}". A partir del siguiente fragmento de texto de ese guion, genera un prompt conciso y descriptivo (máximo 60 palabras) **en INGLÉS** para un modelo de generación de imágenes como Flux Schnell o Stable Diffusion. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El estilo visual general es cinematográfico. El aspect ratio es 16:9. Describe la escena, los elementos principales, la iluminación y la atmósfera.
-
-Fragmento del Guion:
-"{segmento}"
-
-Generated English Prompt:""" # Pedimos que continúe en inglés
+                system_prompt = f"""Eres un asistente experto en visualización creativa para vídeos. El título general del vídeo es "{video_title}". A partir del siguiente fragmento de texto de ese guion, genera un prompt conciso y descriptivo (máximo 60 palabras) **en INGLÉS** para un modelo de generación de imágenes como Flux Schnell o Stable Diffusion. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El estilo visual general es cinematográfico. El aspect ratio es 16:9. Describe la escena, los elementos principales, la iluminación y la atmósfera."""
+                user_prompt_formateado = f"Fragmento del Guion:\n\"{segmento}\"\n\nGenerated English Prompt:"
+                
+                # Configurar safety settings para Gemini
+                safety_settings = [
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
+                ]
+                
+                # Usar el sistema de fallback para generar el prompt
+                generated_prompt, provider = ai_providers.generate_prompt_with_fallback(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt_formateado,
+                    openai_model="gpt-3.5-turbo",
+                    gemini_retries=2,
+                    gemini_initial_delay=45,
+                    safety_settings=safety_settings
+                )
+                
+                # Registrar qué proveedor se usó
+                logging.info(f"Prompt generado usando: {provider}")
+                
         except ImportError:
             # Si no se puede importar el gestor de prompts, usar el prompt por defecto
-            meta_prompt = f"""Eres un asistente experto en visualización creativa para vídeos. El título general del vídeo es "{video_title}". A partir del siguiente fragmento de texto de ese guion, genera un prompt conciso y descriptivo (máximo 60 palabras) **en INGLÉS** para un modelo de generación de imágenes como Flux Schnell o Stable Diffusion. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El estilo visual general es {estilo_base}. El aspect ratio es 16:9. Describe la escena, los elementos principales, la iluminación y la atmósfera.
-
-Fragmento del Guion:
-"{segmento}"
-
-Generated English Prompt:""" # Pedimos que continúe en inglés
-
-        try:
+            system_prompt = f"""Eres un asistente experto en visualización creativa para vídeos. El título general del vídeo es "{video_title}". A partir del siguiente fragmento de texto de ese guion, genera un prompt conciso y descriptivo (máximo 60 palabras) **en INGLÉS** para un modelo de generación de imágenes como Flux Schnell o Stable Diffusion. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El estilo visual general es {estilo_base}. El aspect ratio es 16:9. Describe la escena, los elementos principales, la iluminación y la atmósfera."""
+            user_prompt_formateado = f"Fragmento del Guion:\n\"{segmento}\"\n\nGenerated English Prompt:"
             
-            # Llamar a la API de Gemini
+            # Configurar safety settings para Gemini
             safety_settings = [
                 {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
                 {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
                 {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
                 {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_MEDIUM_AND_ABOVE"},
             ]
-            response = model.generate_content(meta_prompt, safety_settings=safety_settings)
             
-                         
-
-           # Intentar extraer texto, manejar posible bloqueo de seguridad
-            if response.parts:
-                 generated_prompt_en = response.text.strip()
-                 generated_prompt_en = re.sub(r'^(Generated English Prompt:|Prompt:|Aquí tienes el prompt:)\s*', '', generated_prompt_en, flags=re.IGNORECASE).strip()
-            elif response.prompt_feedback.block_reason:
-                 print(f"   - ADVERTENCIA: Respuesta bloqueada por seguridad ({response.prompt_feedback.block_reason}).")
-                 generated_prompt_en = f"Error: Respuesta bloqueada ({response.prompt_feedback.block_reason})"
+            # Usar el sistema de fallback para generar el prompt
+            generated_prompt, provider = ai_providers.generate_prompt_with_fallback(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt_formateado,
+                openai_model="gpt-3.5-turbo",
+                gemini_retries=2,
+                gemini_initial_delay=45,
+                safety_settings=safety_settings
+            )
+            
+            # Registrar qué proveedor se usó
+            logging.info(f"Prompt generado usando: {provider}")
+        
+        try:
+            # Procesar la respuesta generada por el sistema de fallback
+            if generated_prompt:
+                # Limpiar el prompt generado
+                prompt_actual_en = generated_prompt.strip()
+                # Eliminar prefijos comunes que los modelos pueden añadir
+                prompt_actual_en = re.sub(r'^(Generated English Prompt:|English Prompt:|Prompt:|Here\'s the prompt:|Here is the prompt:|Aquí tienes el prompt:)\s*', '', prompt_actual_en, flags=re.IGNORECASE).strip()
+                
+                logging.info(f"   - Prompt generado ({provider}): {prompt_actual_en[:100]}..." if len(prompt_actual_en) > 100 else f"   - Prompt generado ({provider}): {prompt_actual_en}")
             else:
-                 # Caso raro: no hay partes ni bloqueo
-                 print("   - ADVERTENCIA: Gemini no devolvió contenido ni razón de bloqueo.")
-                 generated_prompt_en = f"Error: Respuesta vacía de Gemini."
-
-
-            if generated_prompt_en and not generated_prompt_en.startswith("Error"):
-                print(f"   - Prompt (EN): {generated_prompt_en}")
-                prompt_actual_en = generated_prompt_en # Guardar el bueno
-            else:
-                # Mantener el prompt de error si no se generó bien
-                 print(f"   - INFO: Se usará prompt de error para segmento {i+1}")
-
-
+                # Si ambos proveedores fallaron
+                error_msg = f"Error: Todos los proveedores de IA fallaron al generar el prompt para el segmento {i+1}"
+                logging.error(error_msg)
+                prompt_actual_en = error_msg
+                provider = "None"
+                
         except Exception as e:
-            print(f"   - ERROR al llamar a la API de Gemini para segmento {i+1}: {e}")
-            prompt_actual_en = f"ERROR API Gemini para: {segmento[:50]}..."
+            error_msg = f"ERROR al procesar respuesta para segmento {i+1}: {e}"
+            logging.error(error_msg)
+            prompt_actual_en = f"ERROR: {segmento[:50]}..."
+            provider = "Error"
 
-        # Guardar el resultado (segmento original y prompt generado en inglés)
+        # Guardar el resultado (segmento original, prompt generado y proveedor)
         resultados_prompts.append({
             "segmento_es": segmento,
-            "prompt_en": prompt_actual_en
+            "prompt_en": prompt_actual_en,
+            "provider": provider,
+            "negative_prompt": negative_prompt if 'negative_prompt' in locals() else ""
         })
 
-    print(f"Generados {len(resultados_prompts)} prompts.")
+    logging.info(f"Generados {len(resultados_prompts)} prompts.")
+    
+    # Mostrar estadísticas de proveedores utilizados
+    providers_count = {}
+    for result in resultados_prompts:
+        provider = result.get("provider", "Desconocido")
+        providers_count[provider] = providers_count.get(provider, 0) + 1
+    
+    logging.info("Estadísticas de proveedores utilizados:")
+    for provider, count in providers_count.items():
+        logging.info(f"  - {provider}: {count} prompts ({count/len(resultados_prompts)*100:.1f}%)")
+    
     return resultados_prompts # Devuelve lista de diccionarios
