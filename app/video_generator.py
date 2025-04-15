@@ -227,6 +227,7 @@ class VideoGenerator:
         # Parámetros de fuente para subtítulos
         font_name = kwargs.get('font_name', None)
         use_system_font = kwargs.get('use_system_font', False)
+        subtitles_uppercase = kwargs.get('subtitles_uppercase', False)
         
         # Imprimir información de fuente para depuración
         if font_name:
@@ -305,7 +306,8 @@ class VideoGenerator:
             subtitulos_position_v=subtitulos_position_v,
             subtitulos_margen=subtitulos_margen,
             font_name=font_name,                 # Pasar el nombre de la fuente
-            use_system_font=use_system_font      # Pasar si es fuente del sistema
+            use_system_font=use_system_font,     # Pasar si es fuente del sistema
+            subtitles_uppercase=subtitles_uppercase  # Pasar si los subtítulos deben estar en mayúsculas
         )
         
         # Guardar el video
@@ -766,7 +768,7 @@ class VideoGenerator:
                   color_borde_subtitulos, grosor_borde_subtitulos,
                   subtitulos_align, subtitulos_position_h, 
                   subtitulos_position_v, subtitulos_margen,
-                  font_name=None, use_system_font=False):
+                  font_name=None, use_system_font=False, subtitles_uppercase=False):
         """
         Aplica subtítulos al video si se solicita.
         
@@ -936,6 +938,10 @@ class VideoGenerator:
                     print(f"Intentando crear subtítulos con SubtitleEffect usando ancho de video: {video_width}")
                     
                     def generator(txt):
+                        # Convertir a mayúsculas si se solicita
+                        if subtitles_uppercase:
+                            txt = txt.upper()
+                            
                         # Si es una fuente del sistema, usar directamente el nombre
                         if use_system_font and font_name:
                             font_to_use = font_name
@@ -972,6 +978,10 @@ class VideoGenerator:
                 
                 # Función de respaldo por si falla SubtitleEffect
                 def fallback_generator(txt):
+                    # Convertir a mayúsculas si se solicita
+                    if subtitles_uppercase:
+                        txt = txt.upper()
+                        
                     # Si es una fuente del sistema, usar directamente el nombre
                     if use_system_font and font_name:
                         font_to_use = font_name

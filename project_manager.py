@@ -166,6 +166,10 @@ class ProjectManager:
         
         if hasattr(self.app, 'settings_use_system_font'):
             mapping["settings_use_system_font"] = self.app.settings_use_system_font
+            
+        # Opción de subtítulos en mayúsculas
+        if hasattr(self.app, 'subtitles_uppercase'):
+            mapping["subtitles_uppercase"] = self.app.subtitles_uppercase
         
         # Aplicar cada configuración si está presente en el archivo settings.json
         for key, var in mapping.items():
@@ -266,7 +270,8 @@ class ProjectManager:
             "settings_subtitles_align": self.app.settings_subtitles_align.get(),
             "settings_subtitles_position_h": self.app.settings_subtitles_position_h.get(),
             "settings_subtitles_position_v": self.app.settings_subtitles_position_v.get(),
-            "settings_subtitles_margin": self.app.settings_subtitles_margin.get()
+            "settings_subtitles_margin": self.app.settings_subtitles_margin.get(),
+            "subtitles_uppercase": self.app.subtitles_uppercase.get() if hasattr(self.app, 'subtitles_uppercase') else False
         }
         
         # Añadir configuraciones de fuentes si están disponibles

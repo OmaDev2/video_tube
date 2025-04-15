@@ -181,6 +181,120 @@ class BatchTTSManager:
         print(f"Proyecto '{title}' añadido a la cola (ID: {job_id}).")
         return True
     
+    def add_existing_project_to_queue(self, title, script, project_folder, voice=None, video_settings=None):
+        """
+        Añade un proyecto existente a la cola de procesamiento.
+        
+        Args:
+            title: Título del proyecto
+            script: Texto del guion para la voz en off
+            project_folder: Ruta a la carpeta del proyecto existente
+            voice: Voz a utilizar (opcional, usa default_voice si no se especifica)
+            video_settings: Diccionario con ajustes para la creación del video
+        
+        Returns:
+            str: ID del trabajo si se añadió correctamente, None en caso contrario
+        """
+        if not title or not script or not project_folder:
+            print("Error: Título, guion y carpeta del proyecto son obligatorios")
+            return None
+        
+        # Convertir a Path si es un string
+        if isinstance(project_folder, str):
+            project_folder = Path(project_folder)
+        
+        # Verificar que la carpeta existe
+        if not project_folder.exists() or not project_folder.is_dir():
+            print(f"Error: La carpeta del proyecto {project_folder} no existe")
+            return None
+        
+        # Usar la voz predeterminada si no se especifica
+        if not voice:
+            voice = self.default_voice
+        
+        # Generar un ID único para el trabajo
+        self.job_counter += 1
+        job_id = f"job_{self.job_counter}"
+        
+        # Crear datos del trabajo
+        job_data = {
+            'id': job_id,
+            'titulo': title,
+            'guion_path': str(project_folder / "guion.txt"),
+            'carpeta_salida': str(project_folder),
+            'voz': voice,
+            'estado': 'Cargado',
+            'tiempo_inicio': None,
+            'tiempo_fin': None,
+            'script': script  # Guardamos una copia del script en memoria
+        }
+        
+        # Verificar si existen archivos de audio, subtítulos, prompts e imágenes
+        audio_path = project_folder / f"voz.{OUTPUT_FORMAT}"
+        if audio_path.exists():
+            job_data['archivo_voz'] = str(audio_path)
+            job_data['estado'] = 'Audio Existente'
+        
+        subtitles_path = project_folder / "subtitulos.srt"
+        if subtitles_path.exists():
+            job_data['archivo_subtitulos'] = str(subtitles_path)
+            job_data['aplicar_subtitulos'] = True
+        
+        prompts_path = project_folder / "prompts.txt"
+        if prompts_path.exists():
+            # Intentar cargar los prompts desde el archivo
+            try:
+                # Leer el archivo de prompts y reconstruir la estructura
+                with open(prompts_path, "r", encoding="utf-8") as f:
+                    prompts_content = f.read()
+                
+                # Procesar el contenido para extraer los prompts
+                # Este es un enfoque simple, podría necesitar ajustes según el formato exacto
+                import re
+                
+                # Buscar patrones de segmentos y prompts
+                segments = re.findall(r"Segmento Guion \(ES\):\n(.+?)\n\n", prompts_content, re.DOTALL)
+                prompts = re.findall(r"Prompt Generado \(EN\):\n(.+?)\n=", prompts_content, re.DOTALL)
+                
+                if segments and prompts and len(segments) == len(prompts):
+                    prompts_data = []
+                    for i in range(len(segments)):
+                        prompts_data.append({
+                            'segmento_es': segments[i].strip(),
+                            'prompt_en': prompts[i].strip()
+                        })
+                    
+                    job_data['prompts_data'] = prompts_data
+                    job_data['num_imagenes'] = len(prompts_data)
+                    print(f"Cargados {len(prompts_data)} prompts desde {prompts_path}")
+            except Exception as e:
+                print(f"Error al cargar prompts desde {prompts_path}: {e}")
+        
+        # Buscar imágenes en la carpeta de imágenes
+        images_folder = project_folder / "imagenes"
+        if images_folder.exists() and images_folder.is_dir():
+            # Buscar archivos de imagen
+            image_extensions = [".jpg", ".jpeg", ".png"]
+            images = []
+            for ext in image_extensions:
+                images.extend(list(images_folder.glob(f"*{ext}")))
+            
+            if images:
+                job_data['imagenes_generadas'] = [str(img) for img in images]
+                print(f"Encontradas {len(images)} imágenes en {images_folder}")
+        
+        # Agregar configuración de video si se proporciona
+        if video_settings:
+            job_data['video_settings'] = video_settings
+        
+        # Añadir a la GUI (Treeview) si ya existe
+        if self.tree_queue:
+            self.tree_queue.insert("", tk.END, iid=job_id, values=(title, job_data['estado'], '-'))
+            self.jobs_in_gui[job_id] = job_data
+        
+        print(f"Proyecto existente '{title}' cargado en la cola (ID: {job_id}).")        
+        return job_id
+    
     def start_worker(self):
         """Inicia el hilo trabajador si no está en ejecución."""
         if not self.worker_running:
@@ -291,7 +405,12 @@ class BatchTTSManager:
                                     if hasattr(app_instance, 'whisper_word_timestamps') and hasattr(app_instance.whisper_word_timestamps, 'get'):
                                         word_timestamps = app_instance.whisper_word_timestamps.get()
                                     
-                                    print(f"Generando subtítulos con idioma: {whisper_language}, timestamps por palabra: {word_timestamps}")
+                                    # Obtener la opción de subtítulos en mayúsculas
+                                    uppercase = False
+                                    if hasattr(app_instance, 'subtitles_uppercase') and hasattr(app_instance.subtitles_uppercase, 'get'):
+                                        uppercase = app_instance.subtitles_uppercase.get()
+                                    
+                                    print(f"Generando subtítulos con idioma: {whisper_language}, timestamps por palabra: {word_timestamps}, mayúsculas: {uppercase}")
                                     
                                     # Generar subtítulos con la configuración
                                     srt_success = generate_srt_with_whisper(
@@ -299,7 +418,8 @@ class BatchTTSManager:
                                         final_audio_path,
                                         srt_output_path,
                                         language=whisper_language,
-                                        word_timestamps=word_timestamps
+                                        word_timestamps=word_timestamps,
+                                        uppercase=uppercase
                                     )
                                 except Exception as e_srt:
                                     print(f"Error al generar subtítulos: {e_srt}")
@@ -720,3 +840,456 @@ class BatchTTSManager:
             'completados': completados,
             'errores': errores
         }
+    
+    def regenerar_audio(self, job_id):
+        """Regenera el audio para un proyecto específico.
+        
+        Args:
+            job_id: ID del trabajo a regenerar
+        """
+        try:
+            # Obtener datos del trabajo
+            if job_id not in self.jobs_in_gui:
+                print(f"Error: No se encontró el trabajo {job_id} en la cola.")
+                return False
+            
+            job = self.jobs_in_gui[job_id]
+            title = job['titulo']
+            script_path = job['guion_path']
+            output_folder = Path(job['carpeta_salida'])
+            voice = job['voz']
+            audio_output_path = str(output_folder / f"voz.{OUTPUT_FORMAT}")
+            
+            # Actualizar estado
+            self.update_job_status_gui(job_id, "Regenerando Audio...", "-")
+            print(f"Regenerando audio para trabajo {job_id}: '{title}'")
+            
+            # Eliminar archivo de audio anterior si existe
+            if 'archivo_voz' in job and job['archivo_voz']:
+                try:
+                    audio_path = Path(job['archivo_voz'])
+                    if audio_path.exists():
+                        audio_path.unlink()
+                        print(f"Archivo de audio anterior eliminado: {audio_path}")
+                except Exception as e:
+                    print(f"Error al eliminar archivo de audio anterior: {e}")
+            
+            # Registrar tiempo de inicio
+            job['tiempo_inicio_regeneracion'] = time.time()
+            
+            # Generar nuevo audio
+            final_audio_path = asyncio.run(create_voiceover_from_script(
+                script_path=script_path,
+                output_audio_path=audio_output_path,
+                voice=voice
+            ))
+            
+            # Calcular tiempo transcurrido
+            audio_tiempo_fin = time.time()
+            audio_tiempo_transcurrido = audio_tiempo_fin - job['tiempo_inicio_regeneracion']
+            audio_tiempo_formateado = f"{int(audio_tiempo_transcurrido // 60)}m {int(audio_tiempo_transcurrido % 60)}s"
+            
+            if final_audio_path and Path(final_audio_path).is_file():
+                print(f"Audio regenerado para {job_id}: {final_audio_path}")
+                # Actualizar el job con la ruta del audio generado
+                job['archivo_voz'] = final_audio_path
+                self.update_job_status_gui(job_id, "Audio Regenerado OK", audio_tiempo_formateado)
+                return True
+            else:
+                error_msg = "Falló regeneración de audio"
+                print(f"{error_msg} para {job_id}")
+                self.update_job_status_gui(job_id, f"Error: {error_msg}", audio_tiempo_formateado)
+                return False
+                
+        except Exception as e:
+            error_msg = f"Excepción en regeneración de audio: {e}"
+            print(f"Error regenerando audio para {job_id}: {e}")
+            traceback.print_exc()
+            self.update_job_status_gui(job_id, f"Error: {error_msg}")
+            return False
+    
+    def regenerar_subtitulos(self, job_id):
+        """Regenera los subtítulos para un proyecto específico.
+        
+        Args:
+            job_id: ID del trabajo a regenerar
+        """
+        try:
+            # Obtener datos del trabajo
+            if job_id not in self.jobs_in_gui:
+                print(f"Error: No se encontró el trabajo {job_id} en la cola.")
+                return False
+            
+            job = self.jobs_in_gui[job_id]
+            title = job['titulo']
+            output_folder = Path(job['carpeta_salida'])
+            
+            # Verificar que existe el archivo de audio
+            if 'archivo_voz' not in job or not job['archivo_voz'] or not Path(job['archivo_voz']).is_file():
+                error_msg = "No existe archivo de audio para generar subtítulos"
+                print(f"{error_msg} para {job_id}")
+                self.update_job_status_gui(job_id, f"Error: {error_msg}")
+                return False
+            
+            # Actualizar estado
+            self.update_job_status_gui(job_id, "Regenerando Subtítulos...", "-")
+            print(f"Regenerando subtítulos para trabajo {job_id}: '{title}'")
+            
+            # Eliminar archivo de subtítulos anterior si existe
+            if 'archivo_subtitulos' in job and job['archivo_subtitulos']:
+                try:
+                    srt_path = Path(job['archivo_subtitulos'])
+                    if srt_path.exists():
+                        srt_path.unlink()
+                        print(f"Archivo de subtítulos anterior eliminado: {srt_path}")
+                except Exception as e:
+                    print(f"Error al eliminar archivo de subtítulos anterior: {e}")
+            
+            # Registrar tiempo de inicio
+            job['tiempo_inicio_regeneracion'] = time.time()
+            
+            # Verificar si Whisper está disponible
+            if not WHISPER_AVAILABLE:
+                error_msg = "Whisper no está disponible para generar subtítulos"
+                print(f"{error_msg} para {job_id}")
+                self.update_job_status_gui(job_id, f"Error: {error_msg}")
+                return False
+            
+            # Generar subtítulos
+            srt_output_path = str(output_folder / "subtitulos.srt")
+            srt_success = False
+            
+            try:
+                # Obtener el modelo Whisper usando la función implementada
+                from subtitles import get_whisper_model
+                whisper_model = get_whisper_model(model_size="medium", device="cpu", compute_type="int8")
+                if whisper_model is None:
+                    print("No se pudo obtener el modelo Whisper para generar subtítulos.")
+                
+                if whisper_model:
+                    # Configuración para la generación de subtítulos
+                    whisper_language = "es"
+                    word_timestamps = True
+                    
+                    # Generar subtítulos
+                    # Obtener la opción de subtítulos en mayúsculas
+                    uppercase = False
+                    if hasattr(self.root, 'subtitles_uppercase') and hasattr(self.root.subtitles_uppercase, 'get'):
+                        uppercase = self.root.subtitles_uppercase.get()
+                    
+                    print(f"Regenerando subtítulos con idioma: {whisper_language}, timestamps por palabra: {word_timestamps}, mayúsculas: {uppercase}")
+                    
+                    srt_success = generate_srt_with_whisper(
+                        audio_path=job['archivo_voz'],
+                        output_srt_path=srt_output_path,
+                        whisper_model=whisper_model,
+                        language=whisper_language,
+                        word_timestamps=word_timestamps,
+                        uppercase=uppercase
+                    )
+                else:
+                    print("No se encontró el modelo Whisper para generar subtítulos.")
+                    self.update_job_status_gui(job_id, "Error: No se encontró modelo Whisper")
+                    return False
+            except Exception as e_srt:
+                print(f"Error al generar subtítulos: {e_srt}")
+                self.update_job_status_gui(job_id, f"Error: {e_srt}")
+                return False
+            
+            # Calcular tiempo transcurrido
+            tiempo_fin = time.time()
+            tiempo_transcurrido = tiempo_fin - job['tiempo_inicio_regeneracion']
+            tiempo_formateado = f"{int(tiempo_transcurrido // 60)}m {int(tiempo_transcurrido % 60)}s"
+            
+            # Actualizar el job con la información de subtítulos
+            if srt_success:
+                job['archivo_subtitulos'] = srt_output_path
+                job['aplicar_subtitulos'] = True
+                print(f"Subtítulos regenerados exitosamente en: {srt_output_path}")
+                self.update_job_status_gui(job_id, "Subtítulos Regenerados OK", tiempo_formateado)
+                return True
+            else:
+                error_msg = "Falló regeneración de subtítulos"
+                print(f"{error_msg} para {job_id}")
+                self.update_job_status_gui(job_id, f"Error: {error_msg}", tiempo_formateado)
+                return False
+                
+        except Exception as e:
+            error_msg = f"Excepción en regeneración de subtítulos: {e}"
+            print(f"Error regenerando subtítulos para {job_id}: {e}")
+            traceback.print_exc()
+            self.update_job_status_gui(job_id, f"Error: {error_msg}")
+            return False
+    
+    def regenerar_prompts(self, job_id):
+        """Regenera los prompts para un proyecto específico.
+        
+        Args:
+            job_id: ID del trabajo a regenerar
+        """
+        try:
+            # Obtener datos del trabajo
+            if job_id not in self.jobs_in_gui:
+                print(f"Error: No se encontró el trabajo {job_id} en la cola.")
+                return False
+            
+            job = self.jobs_in_gui[job_id]
+            title = job['titulo']
+            script_path = job['guion_path']
+            output_folder = Path(job['carpeta_salida'])
+            
+            # Verificar que existe el archivo de audio para calcular duración
+            if 'archivo_voz' not in job or not job['archivo_voz'] or not Path(job['archivo_voz']).is_file():
+                error_msg = "No existe archivo de audio para calcular duración"
+                print(f"{error_msg} para {job_id}")
+                self.update_job_status_gui(job_id, f"Error: {error_msg}")
+                return False
+            
+            # Verificar que Gemini está disponible
+            if not GEMINI_AVAILABLE:
+                error_msg = "Gemini no está disponible para generar prompts"
+                print(f"{error_msg} para {job_id}")
+                self.update_job_status_gui(job_id, f"Error: {error_msg}")
+                return False
+            
+            # Actualizar estado
+            self.update_job_status_gui(job_id, "Regenerando Prompts...", "-")
+            print(f"Regenerando prompts para trabajo {job_id}: '{title}'")
+            
+            # Registrar tiempo de inicio
+            job['tiempo_inicio_regeneracion'] = time.time()
+            
+            try:
+                # Leer guion
+                with open(script_path, 'r', encoding='utf-8') as f:
+                    script_content = f.read()
+
+                # Calcular número de imágenes usando la función optimizada
+                temp_audio_clip = AudioFileClip(job['archivo_voz'])
+                audio_duration = temp_audio_clip.duration
+                temp_audio_clip.close()
+                
+                # Obtener parámetros relevantes del job
+                # Intentar obtener la duración de imagen de diferentes fuentes posibles
+                duracion_por_imagen = None
+                
+                # 1. Intentar obtener de video_settings.duracion_img (valor de la interfaz gráfica)
+                if 'video_settings' in job and isinstance(job['video_settings'], dict) and 'duracion_img' in job['video_settings']:
+                    duracion_por_imagen = job['video_settings'].get('duracion_img')
+                    print(f"Duración obtenida de video_settings.duracion_img: {duracion_por_imagen}")
+                
+                # 2. Intentar obtener de settings.duracion_img
+                elif 'settings' in job and isinstance(job['settings'], dict) and 'duracion_img' in job['settings']:
+                    duracion_por_imagen = job['settings'].get('duracion_img')
+                    print(f"Duración obtenida de settings.duracion_img: {duracion_por_imagen}")
+                
+                # 3. Intentar obtener directamente de duracion_img
+                elif 'duracion_img' in job:
+                    duracion_por_imagen = job.get('duracion_img')
+                    print(f"Duración obtenida de duracion_img: {duracion_por_imagen}")
+                
+                # 4. Usar valor predeterminado si no se encuentra
+                else:
+                    duracion_por_imagen = 20.0  # Valor predeterminado igual al de la interfaz gráfica
+                    print(f"Usando duración predeterminada: {duracion_por_imagen}")
+                
+                # Asegurarse de que sea un número válido
+                try:
+                    duracion_por_imagen = float(duracion_por_imagen)
+                except (ValueError, TypeError):
+                    duracion_por_imagen = 15.0
+                    print(f"Error al convertir duración, usando valor predeterminado: {duracion_por_imagen}")
+                
+                print(f"Usando duración por imagen configurada: {duracion_por_imagen} segundos")
+                
+                aplicar_transicion = job.get('aplicar_transicion', False)
+                duracion_transicion = job.get('duracion_transicion', 1.0) if aplicar_transicion else 0.0
+                
+                # Calcular el número óptimo de imágenes
+                num_imagenes_necesarias, tiempos_imagenes = self.calcular_imagenes_optimas(
+                    audio_duration=audio_duration,
+                    duracion_por_imagen=duracion_por_imagen,
+                    duracion_transicion=duracion_transicion,
+                    aplicar_transicion=aplicar_transicion
+                )
+                
+                # Guardar los tiempos de las imágenes para usarlos en la generación de video
+                job['tiempos_imagenes'] = tiempos_imagenes
+
+                # Obtener el estilo de prompts seleccionado del diccionario 'video_settings' dentro del job
+                video_settings_del_job = job.get('video_settings', {})  # Obtener el diccionario de ajustes, o uno vacío si no existe
+                estilo = video_settings_del_job.get('estilo_imagenes', 'default')  # Obtener el estilo de ese diccionario
+                
+                # Verificar que el estilo existe en el gestor de prompts
+                try:
+                    from prompt_manager import PromptManager
+                    prompt_manager = PromptManager()
+                    estilos_disponibles = prompt_manager.get_prompt_ids()
+                    
+                    # Si el estilo no existe, intentar encontrar una coincidencia por nombre
+                    if estilo not in estilos_disponibles:
+                        print(f"ADVERTENCIA: El estilo '{estilo}' no existe en el gestor de prompts.")
+                        
+                        # Intentar encontrar el estilo por nombre
+                        nombre_estilo = video_settings_del_job.get('nombre_estilo', '')
+                        if nombre_estilo:
+                            # Mapa de nombres a IDs
+                            nombre_a_id = {
+                                'Cinematográfico': 'default',
+                                'Terror': 'terror',
+                                'Animación': 'animacion',
+                                'imagenes Psicodelicas': 'psicodelicas'
+                            }
+                            
+                            if nombre_estilo in nombre_a_id:
+                                estilo = nombre_a_id[nombre_estilo]
+                                print(f"Usando estilo '{estilo}' basado en el nombre '{nombre_estilo}'")
+                except Exception as e:
+                    print(f"Error al verificar estilos: {e}")
+                
+                # Asegurarse de que el estilo sea un string válido
+                if not estilo or estilo == "None" or estilo == "":
+                    estilo = "default"
+                
+                print(f"Estilo final utilizado: '{estilo}'\n")
+                
+                # Generar los prompts con el estilo seleccionado
+                lista_prompts = generar_prompts_con_gemini(
+                    script_content,
+                    num_imagenes_necesarias,
+                    job['titulo'],  # <--- Pasar el título del proyecto
+                    estilo_base=estilo,
+                    tiempos_imagenes=tiempos_imagenes  # <--- Pasar la información de tiempos
+                )
+
+                if lista_prompts:
+                    job['prompts_data'] = lista_prompts
+                    job['num_imagenes'] = len(lista_prompts)
+                    prompt_file_path = Path(output_folder) / "prompts.txt"
+                    with open(prompt_file_path, "w", encoding="utf-8") as f:
+                        for p_idx, data in enumerate(lista_prompts):
+                            f.write(f"--- Imagen {p_idx+1} ---\n")
+                            f.write(f"Segmento Guion (ES):\n{data['segmento_es']}\n\n")
+                            f.write(f"Prompt Generado (EN):\n{data['prompt_en']}\n")
+                            f.write("="*30 + "\n\n")
+                    
+                    print(f"Prompts guardados en {prompt_file_path}")
+                    
+                    # Calcular tiempo transcurrido
+                    tiempo_fin = time.time()
+                    tiempo_transcurrido = tiempo_fin - job['tiempo_inicio_regeneracion']
+                    tiempo_formateado = f"{int(tiempo_transcurrido // 60)}m {int(tiempo_transcurrido % 60)}s"
+                    
+                    self.update_job_status_gui(job_id, "Prompts Regenerados OK", tiempo_formateado)
+                    return True
+                else:
+                    error_msg = "Falló regeneración de prompts"
+                    print(f"{error_msg} para {job_id}")
+                    self.update_job_status_gui(job_id, f"Error: {error_msg}")
+                    return False
+            except Exception as e_prompt:
+                error_msg = f"Error durante la regeneración de prompts: {e_prompt}"
+                print(f"{error_msg} para {job_id}")
+                self.update_job_status_gui(job_id, f"Error: {error_msg}")
+                traceback.print_exc()
+                return False
+                
+        except Exception as e:
+            error_msg = f"Excepción en regeneración de prompts: {e}"
+            print(f"Error regenerando prompts para {job_id}: {e}")
+            traceback.print_exc()
+            self.update_job_status_gui(job_id, f"Error: {error_msg}")
+            return False
+    
+    def regenerar_imagenes(self, job_id):
+        """Regenera las imágenes para un proyecto específico.
+        
+        Args:
+            job_id: ID del trabajo a regenerar
+        """
+        try:
+            # Obtener datos del trabajo
+            if job_id not in self.jobs_in_gui:
+                print(f"Error: No se encontró el trabajo {job_id} en la cola.")
+                return False
+            
+            job = self.jobs_in_gui[job_id]
+            title = job['titulo']
+            output_folder = Path(job['carpeta_salida'])
+            
+            # Verificar que existen los prompts
+            if 'prompts_data' not in job or not job['prompts_data']:
+                error_msg = "No existen prompts para generar imágenes"
+                print(f"{error_msg} para {job_id}")
+                self.update_job_status_gui(job_id, f"Error: {error_msg}")
+                return False
+            
+            # Verificar que Replicate está disponible
+            if not REPLICATE_AVAILABLE:
+                error_msg = "Replicate no está disponible para generar imágenes"
+                print(f"{error_msg} para {job_id}")
+                self.update_job_status_gui(job_id, f"Error: {error_msg}")
+                return False
+            
+            # Actualizar estado
+            self.update_job_status_gui(job_id, "Regenerando Imágenes...", "-")
+            print(f"Regenerando imágenes para trabajo {job_id}: '{title}'")
+            
+            # Registrar tiempo de inicio
+            job['tiempo_inicio_regeneracion'] = time.time()
+            
+            # Crear carpeta de imágenes si no existe
+            image_output_folder = output_folder / "imagenes"
+            image_output_folder.mkdir(parents=True, exist_ok=True)
+            
+            # Eliminar imágenes anteriores si existen
+            if 'imagenes_generadas' in job and job['imagenes_generadas']:
+                for img_path in job['imagenes_generadas']:
+                    try:
+                        img_file = Path(img_path)
+                        if img_file.exists():
+                            img_file.unlink()
+                            print(f"Imagen anterior eliminada: {img_file}")
+                    except Exception as e:
+                        print(f"Error al eliminar imagen anterior: {e}")
+            
+            # Generar nuevas imágenes
+            imagenes_generadas = []
+            
+            for idx, prompt_data in enumerate(job['prompts_data']):
+                prompt_en = prompt_data['prompt_en']
+                if prompt_en.startswith("Error"):
+                    continue
+
+                self.update_job_status_gui(job_id, f"Generando imagen {idx+1}/{len(job['prompts_data'])}...")
+
+                img_filename = f"{output_folder.name}_{idx+1:03d}.png"
+                img_path = generar_imagen_con_replicate(prompt_en, str(image_output_folder / img_filename))
+
+                if img_path:
+                    imagenes_generadas.append(img_path)
+                    print(f"Imagen {idx+1} generada: {img_path}")
+                else:
+                    print(f"Error generando imagen {idx+1}")
+            
+            # Calcular tiempo transcurrido
+            tiempo_fin = time.time()
+            tiempo_transcurrido = tiempo_fin - job['tiempo_inicio_regeneracion']
+            tiempo_formateado = f"{int(tiempo_transcurrido // 60)}m {int(tiempo_transcurrido % 60)}s"
+            
+            if imagenes_generadas:
+                job['imagenes_generadas'] = imagenes_generadas
+                self.update_job_status_gui(job_id, "Imágenes Regeneradas OK", tiempo_formateado)
+                return True
+            else:
+                error_msg = "Falló regeneración de imágenes"
+                print(f"{error_msg} para {job_id}")
+                self.update_job_status_gui(job_id, f"Error: {error_msg}", tiempo_formateado)
+                return False
+                
+        except Exception as e:
+            error_msg = f"Excepción en regeneración de imágenes: {e}"
+            print(f"Error regenerando imágenes para {job_id}: {e}")
+            traceback.print_exc()
+            self.update_job_status_gui(job_id, f"Error: {error_msg}")
+            return False

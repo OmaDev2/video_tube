@@ -211,14 +211,6 @@ class SubtitlesTabFrame(ttk.Frame):
         word_check = ttk.Checkbutton(frame_word, text="Usar timestamps por palabra (más preciso)", 
                                    variable=self.app.whisper_word_timestamps)
         word_check.pack(padx=5, pady=5)
-
-        # Opción para generar subtítulos en mayúsculas
-        frame_uppercase = ttk.Frame(frame_options)
-        frame_uppercase.pack(fill="x", padx=10, pady=5)
-
-        uppercase_check = ttk.Checkbutton(frame_uppercase, text="Generar subtítulos en MAYÚSCULAS", 
-                                        variable=self.app.subtitles_uppercase)
-        uppercase_check.pack(padx=5, pady=5)
         
         # Frame para el estilo de subtítulos
         frame_style = ttk.LabelFrame(main_frame, text="Estilo de Subtítulos", style="TLabelframe")

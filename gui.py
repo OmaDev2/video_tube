@@ -1004,6 +1004,11 @@ class VideoCreatorApp:
                     kwargs['font_name'] = self.settings_subtitles_font_name.get()
                     kwargs['use_system_font'] = self.settings_use_system_font.get()
                     print(f"Fuente para subtítulos: {kwargs['font_name']}, Sistema: {kwargs['use_system_font']}")
+                
+                # Pasar la opción de subtítulos en mayúsculas
+                if hasattr(self, 'subtitles_uppercase'):
+                    kwargs['subtitles_uppercase'] = self.subtitles_uppercase.get()
+                    print(f"Subtítulos en mayúsculas: {kwargs['subtitles_uppercase']}")
             
             # Crear el video con todos los parámetros
             crear_video_desde_imagenes(

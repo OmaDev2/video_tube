@@ -139,7 +139,7 @@ class BatchTabFrame(ttk.Frame):
 
         # Usaremos un Treeview para mostrar la cola
         self.app.tree_queue = ttk.Treeview(frame_queue, columns=("titulo", "estado", "tiempo"), 
-                                          show="headings", height=10)
+                                          show="headings", height=8)  # Reducir altura para que ocupe menos espacio
         self.app.tree_queue.heading("titulo", text="Título del Proyecto")
         self.app.tree_queue.heading("estado", text="Estado")
         self.app.tree_queue.heading("tiempo", text="Tiempo")
@@ -147,29 +147,83 @@ class BatchTabFrame(ttk.Frame):
         self.app.tree_queue.column("estado", width=150, anchor="center")
         self.app.tree_queue.column("tiempo", width=100, anchor="center")
 
+        # Frame para contener el Treeview y su scrollbar
+        frame_treeview = ttk.Frame(frame_queue)
+        frame_treeview.pack(fill="both", expand=True, pady=(0, 5))
+        
         # Scrollbar para el Treeview
-        scrollbar_queue = ttk.Scrollbar(frame_queue, orient="vertical", command=self.app.tree_queue.yview)
+        scrollbar_queue = ttk.Scrollbar(frame_treeview, orient="vertical", command=self.app.tree_queue.yview)
         self.app.tree_queue.configure(yscrollcommand=scrollbar_queue.set)
 
         self.app.tree_queue.pack(side="left", fill="both", expand=True)
         scrollbar_queue.pack(side="right", fill="y")
         
-        # --- NUEVO BOTÓN ---
-        frame_acciones_cola = ttk.Frame(frame_queue)
-        frame_acciones_cola.pack(fill="x", pady=10)
-
-        btn_generate_video = ttk.Button(frame_acciones_cola,
-                                        text="Generar Vídeo del Proyecto Seleccionado",
-                                        command=self.app.trigger_video_generation_for_selected,
-                                        style="Action.TButton")
-        btn_generate_video.pack(side="right", padx=5)
+        # --- BARRA DE HERRAMIENTAS DE ACCIONES ---
+        # Primero crear un frame para los botones principales
+        frame_botones_principales = ttk.Frame(frame_queue)
+        frame_botones_principales.pack(fill="x", pady=(5, 0))
+        
+        # Botón para cargar proyectos existentes
+        btn_cargar_proyecto = ttk.Button(frame_botones_principales,
+                                      text="Cargar Proyecto Existente",
+                                      command=self._cargar_proyecto_existente,
+                                      style="Secondary.TButton")
+        btn_cargar_proyecto.pack(side="left", padx=5, pady=5)
+        
+        # Botón para generar vídeo
+        btn_generate_video = ttk.Button(frame_botones_principales,
+                                      text="Generar Vídeo",
+                                      command=self.app.trigger_video_generation_for_selected,
+                                      style="Action.TButton")
+        btn_generate_video.pack(side="right", padx=5, pady=5)
+        
+        # --- BARRA DE HERRAMIENTAS DE REGENERACIÓN ---
+        # Crear un frame para los botones de regeneración
+        frame_regeneracion = ttk.Frame(frame_queue)
+        frame_regeneracion.pack(fill="x", pady=(0, 5))
+        
+        # Etiqueta para los botones de regeneración
+        lbl_regenerar = ttk.Label(frame_regeneracion, text="Regenerar:", font=("Helvetica", 10, "bold"))
+        lbl_regenerar.pack(side="left", padx=5, pady=5)
+        
+        # Botón para regenerar audio
+        btn_regenerar_audio = ttk.Button(frame_regeneracion,
+                                       text="Audio",
+                                       command=self._regenerar_audio,
+                                       style="Secondary.TButton",
+                                       width=10)
+        btn_regenerar_audio.pack(side="left", padx=5, pady=5)
+        
+        # Botón para regenerar prompts
+        btn_regenerar_prompts = ttk.Button(frame_regeneracion,
+                                        text="Prompts",
+                                        command=self._regenerar_prompts,
+                                        style="Secondary.TButton",
+                                        width=10)
+        btn_regenerar_prompts.pack(side="left", padx=5, pady=5)
+        
+        # Botón para regenerar imágenes
+        btn_regenerar_imagenes = ttk.Button(frame_regeneracion,
+                                         text="Imágenes",
+                                         command=self._regenerar_imagenes,
+                                         style="Secondary.TButton",
+                                         width=10)
+        btn_regenerar_imagenes.pack(side="left", padx=5, pady=5)
+        
+        # Botón para regenerar subtítulos
+        btn_regenerar_subtitulos = ttk.Button(frame_regeneracion,
+                                           text="Subtítulos",
+                                           command=self._regenerar_subtitulos,
+                                           style="Secondary.TButton",
+                                           width=10)
+        btn_regenerar_subtitulos.pack(side="left", padx=5, pady=5)
         
         # Asignar el Treeview al gestor de cola
         self.app.batch_tts_manager.tree_queue = self.app.tree_queue
         
-        # Etiqueta de estado de la cola
-        self.app.lbl_queue_status = ttk.Label(self, text="Cola vacía", style="Header.TLabel")
-        self.app.lbl_queue_status.pack(anchor="w", padx=10, pady=5)
+        # Etiqueta de estado de la cola (mover arriba para que sea más visible)
+        self.app.lbl_queue_status = ttk.Label(frame_queue, text="Cola vacía", style="Header.TLabel")
+        self.app.lbl_queue_status.pack(anchor="w", padx=5, pady=(0, 5), before=frame_botones_principales)
 
     def _add_project_to_queue(self):
         """Añade un nuevo proyecto a la cola de procesamiento."""
@@ -296,3 +350,171 @@ class BatchTabFrame(ttk.Frame):
         """Limpia los campos del formulario de proyecto."""
         self.entry_title.delete(0, tk.END)
         self.txt_script.delete("1.0", tk.END)
+    
+    def _get_selected_project(self):
+        """Obtiene el proyecto seleccionado en el Treeview."""
+        selected_items = self.app.tree_queue.selection()
+        if not selected_items:
+            from tkinter import messagebox
+            messagebox.showwarning("Selección Requerida", "Por favor, selecciona un proyecto de la cola.")
+            return None
+        
+        selected_id = selected_items[0]
+        if selected_id not in self.app.batch_tts_manager.jobs_in_gui:
+            messagebox.showerror("Error", "No se pudo encontrar el proyecto seleccionado en la cola.")
+            return None
+        
+        return selected_id, self.app.batch_tts_manager.jobs_in_gui[selected_id]
+    
+    def _regenerar_audio(self):
+        """Regenera el audio para el proyecto seleccionado."""
+        result = self._get_selected_project()
+        if not result:
+            return
+        
+        job_id, job_data = result
+        
+        from tkinter import messagebox
+        if messagebox.askyesno("Confirmar Regeneración", 
+                             f"¿Estás seguro de regenerar el audio para el proyecto '{job_data['titulo']}'?"):
+            # Actualizar el estado en la GUI
+            self.app.batch_tts_manager.update_job_status_gui(job_id, "Regenerando Audio...")
+            
+            # Iniciar el proceso de regeneración en un hilo separado
+            import threading
+            threading.Thread(target=self.app.batch_tts_manager.regenerar_audio, 
+                           args=(job_id,), daemon=True).start()
+    
+    def _regenerar_prompts(self):
+        """Regenera los prompts para el proyecto seleccionado."""
+        result = self._get_selected_project()
+        if not result:
+            return
+        
+        job_id, job_data = result
+        
+        from tkinter import messagebox
+        if messagebox.askyesno("Confirmar Regeneración", 
+                             f"¿Estás seguro de regenerar los prompts para el proyecto '{job_data['titulo']}'?"):
+            # Actualizar el estado en la GUI
+            self.app.batch_tts_manager.update_job_status_gui(job_id, "Regenerando Prompts...")
+            
+            # Iniciar el proceso de regeneración en un hilo separado
+            import threading
+            threading.Thread(target=self.app.batch_tts_manager.regenerar_prompts, 
+                           args=(job_id,), daemon=True).start()
+    
+    def _regenerar_imagenes(self):
+        """Regenera las imágenes para el proyecto seleccionado."""
+        result = self._get_selected_project()
+        if not result:
+            return
+        
+        job_id, job_data = result
+        
+        from tkinter import messagebox
+        if messagebox.askyesno("Confirmar Regeneración", 
+                             f"¿Estás seguro de regenerar las imágenes para el proyecto '{job_data['titulo']}'?"):
+            # Actualizar el estado en la GUI
+            self.app.batch_tts_manager.update_job_status_gui(job_id, "Regenerando Imágenes...")
+            
+            # Iniciar el proceso de regeneración en un hilo separado
+            import threading
+            threading.Thread(target=self.app.batch_tts_manager.regenerar_imagenes, 
+                           args=(job_id,), daemon=True).start()
+    
+    def _regenerar_subtitulos(self):
+        """Regenera los subtítulos para el proyecto seleccionado."""
+        result = self._get_selected_project()
+        if not result:
+            return
+        
+        job_id, job_data = result
+        
+        from tkinter import messagebox
+        if messagebox.askyesno("Confirmar Regeneración", 
+                             f"¿Estás seguro de regenerar los subtítulos para el proyecto '{job_data['titulo']}'?"):
+            # Actualizar el estado en la GUI
+            self.app.batch_tts_manager.update_job_status_gui(job_id, "Regenerando Subtítulos...")
+            
+            # Iniciar el proceso de regeneración en un hilo separado
+            import threading
+            threading.Thread(target=self.app.batch_tts_manager.regenerar_subtitulos, 
+                           args=(job_id,), daemon=True).start()
+    
+    def _cargar_proyecto_existente(self):
+        """Carga un proyecto existente desde la carpeta de proyectos."""
+        from tkinter import filedialog, messagebox
+        import json
+        from pathlib import Path
+        
+        # Obtener la ruta base de proyectos
+        proyectos_dir = self.app.batch_tts_manager.project_base_dir
+        
+        # Solicitar al usuario que seleccione una carpeta de proyecto
+        proyecto_path = filedialog.askdirectory(
+            title="Seleccionar Carpeta de Proyecto",
+            initialdir=proyectos_dir
+        )
+        
+        if not proyecto_path:
+            return  # El usuario canceló la selección
+        
+        proyecto_path = Path(proyecto_path)
+        settings_path = proyecto_path / "settings.json"
+        guion_path = proyecto_path / "guion.txt"
+        voz_path = proyecto_path / "voz.mp3"
+        
+        # Verificar que es una carpeta de proyecto válida
+        if not settings_path.exists() or not guion_path.exists():
+            messagebox.showerror(
+                "Error", 
+                f"La carpeta seleccionada no parece ser un proyecto válido.\n"
+                f"Debe contener al menos settings.json y guion.txt."
+            )
+            return
+        
+        try:
+            # Cargar configuración del proyecto
+            with open(settings_path, "r", encoding="utf-8") as f:
+                settings = json.load(f)
+            
+            # Leer el guion
+            with open(guion_path, "r", encoding="utf-8") as f:
+                script_content = f.read()
+            
+            # Obtener el nombre del proyecto (nombre de la carpeta)
+            proyecto_nombre = proyecto_path.name
+            
+            # Determinar la voz utilizada
+            voz = settings.get("voz", "es-EC-LuisNeural")  # Valor por defecto si no se encuentra
+            
+            # Crear un trabajo para este proyecto
+            job_id = self.app.batch_tts_manager.add_existing_project_to_queue(
+                title=proyecto_nombre,
+                script=script_content,
+                project_folder=proyecto_path,
+                voice=voz,
+                video_settings=settings
+            )
+            
+            if job_id:
+                messagebox.showinfo(
+                    "Proyecto Cargado", 
+                    f"El proyecto '{proyecto_nombre}' ha sido cargado en la cola.\n"
+                    f"Ahora puedes regenerar partes específicas o generar el video."
+                )
+                self.app.update_queue_status()
+            else:
+                messagebox.showerror(
+                    "Error", 
+                    f"No se pudo cargar el proyecto '{proyecto_nombre}'."
+                )
+        
+        except Exception as e:
+            messagebox.showerror(
+                "Error", 
+                f"Error al cargar el proyecto: {str(e)}"
+            )
+            import traceback
+            traceback.print_exc()

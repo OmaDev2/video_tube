@@ -17,6 +17,41 @@ except ImportError:
     print("Para instalar: pip install faster-whisper srt")
     WhisperModel = None
 
+# Variable global para almacenar el modelo Whisper cargado
+_whisper_model = None
+
+def get_whisper_model(model_size="medium", device="cpu", compute_type="int8", reload=False):
+    """
+    Obtiene o carga el modelo Whisper para transcripción.
+    
+    Args:
+        model_size: Tamaño del modelo (tiny, base, small, medium, large)
+        device: Dispositivo para inferencia (cpu, cuda)
+        compute_type: Tipo de cómputo (int8, float16, float32)
+        reload: Si es True, recarga el modelo aunque ya esté cargado
+    
+    Returns:
+        El modelo Whisper cargado o None si no está disponible
+    """
+    global _whisper_model
+    
+    if not WHISPER_AVAILABLE:
+        print("Whisper no está disponible. Instale faster-whisper para usar esta funcionalidad.")
+        return None
+    
+    # Si el modelo ya está cargado y no se solicita recarga, devolverlo
+    if _whisper_model is not None and not reload:
+        return _whisper_model
+    
+    try:
+        print(f"INFO: Cargando modelo Whisper '{model_size}' para {device}...")
+        _whisper_model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        print("INFO: Modelo Whisper cargado exitosamente.")
+        return _whisper_model
+    except Exception as e:
+        print(f"ERROR: No se pudo cargar el modelo Whisper: {e}")
+        return None
+
 class SubtitleEffect:
     """
     Clase para aplicar subtítulos a videos.
@@ -290,7 +325,8 @@ def generate_srt_with_whisper(
     max_chars_per_line: int = 42,  # Límite de caracteres común
     max_words_per_line: int = 10,  # Límite de palabras
     language: str = "es",  # Idioma para transcripción
-    word_timestamps: bool = True  # Usar timestamps por palabra
+    word_timestamps: bool = True,  # Usar timestamps por palabra
+    uppercase: bool = False  # Generar subtítulos en mayúsculas
 ) -> bool:
     """
     Genera SRT usando faster-whisper con timestamps por palabra,
@@ -371,6 +407,10 @@ def generate_srt_with_whisper(
             if cut_line:
                 # Crear el subtítulo SRT para la línea actual
                 sub_content = " ".join(w.word.strip() for w in current_line)
+                
+                # Convertir a mayúsculas si se solicita
+                if uppercase:
+                    sub_content = sub_content.upper()
 
                 sub = srt.Subtitle(
                     index=subtitle_index,
