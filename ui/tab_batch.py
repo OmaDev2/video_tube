@@ -53,7 +53,8 @@ class BatchTabFrame(ttk.Frame):
             "es-MX-DaliaNeural",  # México (femenino)
             "es-AR-ElenaNeural",  # Argentina (femenino)
             "es-CO-GonzaloNeural",  # Colombia (masculino)
-            "es-CL-CatalinaNeural"  # Chile (femenino)
+            "es-CL-CatalinaNeural",  # Chile (femenino)
+            "es-MX-JorgeNeural",  # México (masculino)
         ]
         
         # Selección de estilo de prompts
