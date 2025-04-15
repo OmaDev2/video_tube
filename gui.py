@@ -47,9 +47,10 @@ class VideoCreatorApp:
         
         # Inicializar el gestor de procesamiento por lotes para TTS
         self.batch_tts_manager = BatchTTSManager(root)
-        self.project_manager = ProjectManager(self)
+        # ProjectManager desactivado temporalmente
+        # self.project_manager = ProjectManager(self)
         
-        # --- Inicializar variables para subtítulos ---
+        # --- Inicializar variables para subtítulos Configuración subtitulos---
         self.settings_subtitles = tk.BooleanVar(value=True)
         self.settings_subtitles_font_size = tk.IntVar(value=48)  # Cambiado a 48
         self.settings_subtitles_font_color = tk.StringVar(value='white')
@@ -342,38 +343,40 @@ class VideoCreatorApp:
         from ui.tab_prompts import PromptsTabFrame
         
         
-        # Pestaña de configuración básica (ya refactorizada)
-        self.tab_basico = BasicTabFrame(notebook, self)
-        notebook.add(self.tab_basico, text="Configuración Básica")
-        
-        # Pestaña de cola de proyectos para TTS
+        # 1. Pestaña de cola de proyectos para TTS (primera pestaña)
         self.tab_batch = BatchTabFrame(notebook, self)
         notebook.add(self.tab_batch, text="Cola de Proyectos")
         
-        # Pestaña de gestión de proyectos para TTS
-        self.tab_project = ProjectTabFrame(notebook, self)
-        notebook.add(self.tab_project, text="Proyecto")
+        # Inicializamos todas las pestañas pero las añadiremos en el orden solicitado
+        self.tab_basico = BasicTabFrame(notebook, self)
         
-        # Pestaña de configuración de subtítulos con Whisper
-        self.tab_subtitles = SubtitlesTabFrame(notebook,self)
-        notebook.add(self.tab_subtitles, text="Subtítulos")
+        # Pestaña de gestión de proyectos para TTS (Desactivada temporalmente)
+        # La siguiente línea está comentada para ocultar la pestaña de Proyecto
+        # self.tab_project = ProjectTabFrame(notebook, self)
+        # notebook.add(self.tab_project, text="Proyecto")
         
-        # Pestaña de efectos visuales (ahora usando la clase refactorizada)
+        # 2. Pestaña de efectos visuales
         self.tab_efectos = EffectsTabFrame(notebook, self)
         notebook.add(self.tab_efectos, text="Efectos Visuales")
         
+        # 3. Pestaña de configuración de subtítulos con Whisper
+        self.tab_subtitles = SubtitlesTabFrame(notebook,self)
+        notebook.add(self.tab_subtitles, text="Subtítulos")
         
-           # Pestaña de audio (ya refactorizada)
-        self.tab_audio = AudioTabFrame(notebook, self)  # Usar la nueva clase
+        # Pestaña de audio (no incluida en el orden solicitado, la dejamos aquí)
+        self.tab_audio = AudioTabFrame(notebook, self)
         notebook.add(self.tab_audio, text="Audio")
         
-        # Pestaña de ajustes de efectos
-        self.tab_settings = SettingsTabFrame(notebook, self)
-        notebook.add(self.tab_settings, text="Ajustes de Efectos")
-        
-        # Pestaña de gestión de prompts
+        # 4. Pestaña de gestión de prompts
         self.tab_prompts = PromptsTabFrame(notebook, self)
         notebook.add(self.tab_prompts, text="Gestor de Prompts")
+        
+        # 5. Pestaña de configuración básica
+        notebook.add(self.tab_basico, text="Configuración Básica")
+        
+        # 6. Pestaña de ajustes de efectos
+        self.tab_settings = SettingsTabFrame(notebook, self)
+        notebook.add(self.tab_settings, text="Ajustes de Efectos")
           
         # Barra de progreso
         self.progress = ttk.Progressbar(self.root, orient="horizontal", length=100, mode="indeterminate", style="TProgressbar")

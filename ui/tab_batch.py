@@ -42,9 +42,34 @@ class BatchTabFrame(ttk.Frame):
         self.entry_title = ttk.Entry(frame_input, width=60)
         self.entry_title.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
+        # --- Configuración de Tiempo ---
+        # Duración de imagen
+        lbl_duracion = ttk.Label(frame_input, text="Duración imagen (s):")
+        lbl_duracion.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        # Crear variable para duración si no existe en la app
+        if not hasattr(self.app, 'duracion_img_batch'):
+            self.app.duracion_img_batch = tk.DoubleVar(value=10.0)
+            
+        spin_duracion = ttk.Spinbox(frame_input, from_=1, to=30, increment=0.5, 
+                                    textvariable=self.app.duracion_img_batch, width=5)
+        spin_duracion.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        
+        # FPS
+        lbl_fps = ttk.Label(frame_input, text="FPS:")
+        lbl_fps.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        
+        # Crear variable para FPS si no existe en la app
+        if not hasattr(self.app, 'fps_batch'):
+            self.app.fps_batch = tk.IntVar(value=30)
+            
+        spin_fps = ttk.Spinbox(frame_input, from_=15, to=60, increment=1, 
+                              textvariable=self.app.fps_batch, width=5)
+        spin_fps.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        
         # Selección de voz
         lbl_voice = ttk.Label(frame_input, text="Voz:")
-        lbl_voice.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        lbl_voice.grid(row=3, column=0, padx=5, pady=5, sticky="w")
         
         # Lista de voces disponibles (puedes ampliar esta lista)
         voces = [
@@ -59,7 +84,7 @@ class BatchTabFrame(ttk.Frame):
         
         # Selección de estilo de prompts
         lbl_prompt_style = ttk.Label(frame_input, text="Estilo de Imágenes:")
-        lbl_prompt_style.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        lbl_prompt_style.grid(row=4, column=0, padx=5, pady=5, sticky="w")
         
         # Crear variable para el estilo de prompts si no existe
         if not hasattr(self.app, 'selected_prompt_style'):
@@ -81,14 +106,14 @@ class BatchTabFrame(ttk.Frame):
         
         self.app.selected_voice = tk.StringVar(value="es-MX-JorgeNeural")
         voice_combo = ttk.Combobox(frame_input, textvariable=self.app.selected_voice, values=voces, width=30)
-        voice_combo.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        voice_combo.grid(row=3, column=1, padx=5, pady=5, sticky="w")
         
         # Dropdown para estilos de prompts
         prompt_style_values = [name for _, name in prompt_styles]
         prompt_style_ids = [id for id, _ in prompt_styles]
         self.prompt_style_dropdown = ttk.Combobox(frame_input, textvariable=self.app.selected_prompt_style, 
                                               values=prompt_style_values, width=30, state="readonly")
-        self.prompt_style_dropdown.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        self.prompt_style_dropdown.grid(row=4, column=1, padx=5, pady=5, sticky="w")
         
         # Mapeo de nombres a IDs para recuperar el ID correcto
         self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
@@ -108,13 +133,13 @@ class BatchTabFrame(ttk.Frame):
 
         # Guion del proyecto
         lbl_script = ttk.Label(frame_input, text="Guion:")
-        lbl_script.grid(row=3, column=0, padx=5, pady=5, sticky="nw")
+        lbl_script.grid(row=5, column=0, padx=5, pady=5, sticky="nw")
         
         # Frame para el Text y Scrollbar
         frame_text = ttk.Frame(frame_input)
-        frame_text.grid(row=3, column=1, padx=5, pady=5, sticky="nsew")
+        frame_text.grid(row=5, column=1, padx=5, pady=5, sticky="nsew")
         frame_input.grid_columnconfigure(1, weight=1)  # Hacer que columna 1 se expanda
-        frame_input.grid_rowconfigure(3, weight=1)     # Hacer que fila 3 se expanda
+        frame_input.grid_rowconfigure(5, weight=1)     # Hacer que fila 5 se expanda
 
         self.txt_script = tk.Text(frame_text, wrap="word", height=15, width=60)
         scrollbar_script = ttk.Scrollbar(frame_text, orient="vertical", command=self.txt_script.yview)
@@ -256,8 +281,8 @@ class BatchTabFrame(ttk.Frame):
         
         # Crear diccionario con todos los ajustes para la creación de video
         video_settings = {
-            'duracion_img': self.app.duracion_img.get(),
-            'fps': self.app.fps.get(),
+            'duracion_img': self.app.duracion_img_batch.get(),  # Usar duración de la pestaña batch
+            'fps': self.app.fps_batch.get(),  # Usar FPS de la pestaña batch
             'aplicar_efectos': self.app.aplicar_efectos.get(),
             'secuencia_efectos': selected_effects_sequence,
             'aplicar_transicion': self.app.aplicar_transicion.get(),

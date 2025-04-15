@@ -310,7 +310,6 @@ class BatchTTSManager:
     
     def _process_queue(self, whisper_model_loaded=None):
         """Procesa los trabajos en la cola de forma secuencial."""
-        print("Worker de Cola iniciado.")
         while self.worker_running:
             try:
                 # Esperar un trabajo con timeout para poder comprobar worker_running
