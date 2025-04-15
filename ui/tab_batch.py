@@ -169,8 +169,8 @@ class BatchTabFrame(ttk.Frame):
         self.app.tree_queue.heading("titulo", text="Título del Proyecto")
         self.app.tree_queue.heading("estado", text="Estado")
         self.app.tree_queue.heading("tiempo", text="Tiempo")
-        self.app.tree_queue.column("titulo", width=400)
-        self.app.tree_queue.column("estado", width=150, anchor="center")
+        self.app.tree_queue.column("titulo", width=250)  # Columna de título más pequeña
+        self.app.tree_queue.column("estado", width=300, anchor="center")  # Columna de estado más grande
         self.app.tree_queue.column("tiempo", width=100, anchor="center")
 
         # Frame para contener el Treeview y su scrollbar
@@ -191,65 +191,77 @@ class BatchTabFrame(ttk.Frame):
         
         # Botón para cargar proyectos existentes
         btn_cargar_proyecto = ttk.Button(frame_botones_principales,
-                                      text="Cargar Proyecto Existente",
-                                      command=self._cargar_proyecto_existente,
-                                      style="Secondary.TButton")
-        btn_cargar_proyecto.pack(side="left", padx=5, pady=5)
+                                       text="Cargar Proyecto Existente",
+                                       command=self._cargar_proyecto_existente,
+                                       style="Secondary.TButton",
+                                       width=20)
+        btn_cargar_proyecto.pack(side="left", padx=10, pady=10)
         
-        # Botón para generar vídeo
+        # Botón para generar vídeo (más grande y destacado)
         btn_generate_video = ttk.Button(frame_botones_principales,
-                                      text="Generar Vídeo",
-                                      command=self.app.trigger_video_generation_for_selected,
-                                      style="Action.TButton")
-        btn_generate_video.pack(side="right", padx=5, pady=5)
+                                       text="GENERAR VÍDEO",
+                                       command=self.app.trigger_video_generation_for_selected,
+                                       style="Action.TButton",
+                                       width=20)
+        btn_generate_video.pack(side="right", padx=10, pady=10)
         
         # --- BARRA DE HERRAMIENTAS DE REGENERACIÓN ---
-        # Crear un frame para los botones de regeneración
-        frame_regeneracion = ttk.Frame(frame_queue)
-        frame_regeneracion.pack(fill="x", pady=(0, 5))
+        # Crear un frame con borde para los botones de regeneración
+        frame_regeneracion = ttk.LabelFrame(frame_queue, text="Regenerar Componentes")
+        frame_regeneracion.pack(fill="x", pady=10, padx=5)
         
-        # Etiqueta para los botones de regeneración
-        lbl_regenerar = ttk.Label(frame_regeneracion, text="Regenerar:", font=("Helvetica", 10, "bold"))
-        lbl_regenerar.pack(side="left", padx=5, pady=5)
+        # Crear un grid para organizar los botones de manera más ordenada
+        frame_grid = ttk.Frame(frame_regeneracion)
+        frame_grid.pack(fill="x", padx=10, pady=10)
         
-        # Botón para regenerar audio
-        btn_regenerar_audio = ttk.Button(frame_regeneracion,
-                                       text="Audio",
-                                       command=self._regenerar_audio,
-                                       style="Secondary.TButton",
-                                       width=10)
-        btn_regenerar_audio.pack(side="left", padx=5, pady=5)
+        # Botón para regenerar audio (más grande y con icono visual)
+        btn_regenerar_audio = ttk.Button(frame_grid,
+                                        text="Audio",
+                                        command=self._regenerar_audio,
+                                        style="Secondary.TButton",
+                                        width=15)
+        btn_regenerar_audio.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
         
         # Botón para regenerar prompts
-        btn_regenerar_prompts = ttk.Button(frame_regeneracion,
-                                        text="Prompts",
-                                        command=self._regenerar_prompts,
-                                        style="Secondary.TButton",
-                                        width=10)
-        btn_regenerar_prompts.pack(side="left", padx=5, pady=5)
+        btn_regenerar_prompts = ttk.Button(frame_grid,
+                                         text="Prompts",
+                                         command=self._regenerar_prompts,
+                                         style="Secondary.TButton",
+                                         width=15)
+        btn_regenerar_prompts.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
         
         # Botón para regenerar imágenes
-        btn_regenerar_imagenes = ttk.Button(frame_regeneracion,
-                                         text="Imágenes",
-                                         command=self._regenerar_imagenes,
-                                         style="Secondary.TButton",
-                                         width=10)
-        btn_regenerar_imagenes.pack(side="left", padx=5, pady=5)
+        btn_regenerar_imagenes = ttk.Button(frame_grid,
+                                          text="Imágenes",
+                                          command=self._regenerar_imagenes,
+                                          style="Secondary.TButton",
+                                          width=15)
+        btn_regenerar_imagenes.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
         
         # Botón para regenerar subtítulos
-        btn_regenerar_subtitulos = ttk.Button(frame_regeneracion,
-                                           text="Subtítulos",
-                                           command=self._regenerar_subtitulos,
-                                           style="Secondary.TButton",
-                                           width=10)
-        btn_regenerar_subtitulos.pack(side="left", padx=5, pady=5)
+        btn_regenerar_subtitulos = ttk.Button(frame_grid,
+                                            text="Subtítulos",
+                                            command=self._regenerar_subtitulos,
+                                            style="Secondary.TButton",
+                                            width=15)
+        btn_regenerar_subtitulos.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
+        
+        # Configurar el grid para que las columnas se expandan uniformemente
+        frame_grid.columnconfigure(0, weight=1)
+        frame_grid.columnconfigure(1, weight=1)
         
         # Asignar el Treeview al gestor de cola
         self.app.batch_tts_manager.tree_queue = self.app.tree_queue
         
-        # Etiqueta de estado de la cola (mover arriba para que sea más visible)
-        self.app.lbl_queue_status = ttk.Label(frame_queue, text="Cola vacía", style="Header.TLabel")
-        self.app.lbl_queue_status.pack(anchor="w", padx=5, pady=(0, 5), before=frame_botones_principales)
+        # Etiqueta de estado de la cola (más visible y destacada)
+        status_frame = ttk.Frame(frame_queue, style="Card.TFrame")
+        status_frame.pack(fill="x", padx=5, pady=5, before=frame_botones_principales)
+        
+        self.app.lbl_queue_status = ttk.Label(status_frame, text="Cola vacía", 
+                                             style="Header.TLabel", 
+                                             font=("Helvetica", 12, "bold"),
+                                             foreground="#d35400")
+        self.app.lbl_queue_status.pack(anchor="w", padx=10, pady=5)
 
     def _add_project_to_queue(self):
         """Añade un nuevo proyecto a la cola de procesamiento."""

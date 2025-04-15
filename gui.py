@@ -43,7 +43,7 @@ class VideoCreatorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Video Creator")
-        self.root.geometry("900x950")
+        self.root.geometry("1100x1000")  # Ventana más ancha y alta para mostrar todos los botones correctamente
         
         # Inicializar el gestor de procesamiento por lotes para TTS
         self.batch_tts_manager = BatchTTSManager(root)
@@ -159,15 +159,27 @@ class VideoCreatorApp:
         # Estilo para Progressbar
         self.style.configure("TProgressbar", background="#d35400", troughcolor="#2c3e50", borderwidth=0, thickness=10)
         
-        # Estilo para botones secundarios
-        self.style.configure("Secondary.TButton", background="#d35400", foreground="white")
+        # Estilo para botones secundarios (naranja más moderno)
+        self.style.configure("Secondary.TButton", 
+                          background="#d35400", 
+                          foreground="white",
+                          font=("Helvetica", 10, "bold"),
+                          padding=8,
+                          relief="flat")
         self.style.map("Secondary.TButton",
-            background=[("pressed", "#a04000"), ("active", "#e67e22")])
+                    background=[("pressed", "#a04000"), ("active", "#e67e22")],
+                    relief=[("pressed", "sunken")])
         
-        # Estilo para botones de acción
-        self.style.configure("Action.TButton", background="#28a745", foreground="white")
+        # Estilo para botones de acción (verde más llamativo)
+        self.style.configure("Action.TButton", 
+                          background="#28a745", 
+                          foreground="white",
+                          font=("Helvetica", 11, "bold"),
+                          padding=10,
+                          relief="flat")
         self.style.map("Action.TButton",
-            background=[("pressed", "#218838"), ("active", "#218838")])
+                    background=[("pressed", "#218838"), ("active", "#2ecc71")],
+                    relief=[("pressed", "sunken")])
         
         # Configurar el fondo principal
         self.root.configure(bg="#2c3e50")
