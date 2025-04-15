@@ -78,13 +78,14 @@ class ZoomEffect(Effect):
 class PanEffect(Effect):
     """Efecto base para los efectos de paneo que mueve una 'cámara virtual' sobre una imagen."""
     
-    def __init__(self, direction='up', speed=0.25, scale_factor=1.5, clip_duration=None, easing=True, quality='high'):
-        """Inicializa el efecto de paneo.
-        
+    def __init__(self, direction='up', speed=100, scale_factor=1.5, clip_duration=None, easing=True, quality='high'):
+        """
+        Inicializa el efecto de paneo.
+
         Args:
             direction: Dirección del paneo ('up', 'down', 'left', 'right')
-            speed: Velocidad del paneo como fracción de la imagen por segundo.
-                   Valores más altos resultan en un paneo más rápido.
+            speed: Velocidad del paneo en píxeles por segundo (o píxeles/seg para recorridos largos).
+                   Valores más altos resultan en un paneo más rápido y visible.
             scale_factor: Factor para redimensionar la imagen original antes del paneo.
                          Valores más altos permiten más movimiento pero pueden reducir calidad.
             clip_duration: Duración del clip en segundos. Si no se proporciona, se usará un valor por defecto.
@@ -97,6 +98,7 @@ class PanEffect(Effect):
         self.clip_duration = clip_duration
         self.easing = easing
         self.resample_mode = Resampling.LANCZOS if quality == 'high' else Resampling.BILINEAR
+
         
     def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
         try:
@@ -117,55 +119,51 @@ class PanEffect(Effect):
             # Calcular el desplazamiento máximo posible (el rango en el que podemos movernos)
             max_offset_x = scaled_size[0] - base_size[0]
             max_offset_y = scaled_size[1] - base_size[1]
-            
+
             # Calcular posición inicial (centro)
             start_x = max_offset_x // 2
             start_y = max_offset_y // 2
-            
+
             # Inicializar offset con la posición central
             offset_x = start_x
             offset_y = start_y
-            
-            # Calcular el desplazamiento basado en el tiempo y la dirección
-            # Limitamos el movimiento al 80% del desplazamiento máximo para evitar llegar a los bordes
+
+            # --- NUEVO: Movimiento SIEMPRE de borde a borde ---
+            # La distancia total de paneo será siempre el máximo permitido (max_movement),
+            # así el efecto es igual de dinámico en cualquier duración.
             movement_range = 0.8
-            
+
+            if self.direction in ['up', 'down']:
+                max_movement = max_offset_y * movement_range
+            else:
+                max_movement = max_offset_x * movement_range
+            total_movement = max_movement  # SIEMPRE recorre todo el rango permitido
+
             # Calcular el progreso normalizado (0.0 a 1.0) basado en el tiempo actual
-            # Usamos la duración real del clip, con un límite para evitar divisiones por cero
             progress = t / max(0.1, self.clip_duration)
-            # Aseguramos que el progreso esté entre 0 y 1
             progress = max(0.0, min(1.0, progress))
-            
+
             if self.easing:
-                # Aplicar curva de aceleración/desaceleración (ease in-out)
-                # Esto hace que el movimiento sea más natural
                 if progress < 0.5:
-                    # Aceleración inicial (ease in)
                     ease_factor = 2 * progress * progress
                 else:
-                    # Desaceleración final (ease out)
                     ease_factor = -1 + (4 * progress) - (2 * progress * progress)
             else:
                 ease_factor = progress
-            
+
+            # Movimiento de borde a borde
             if self.direction == 'up':
-                # Para "up", nos movemos desde abajo hacia arriba (valores de y más pequeños)
-                max_movement = max_offset_y * movement_range
-                offset_y = start_y + (max_movement / 2) - (ease_factor * max_movement)
+                # Paneo hacia arriba: desde abajo hacia arriba
+                offset_y = start_y + (max_movement / 2) - (ease_factor * total_movement)
             elif self.direction == 'down':
-                # Para "down", nos movemos desde arriba hacia abajo (valores de y más grandes)
-                max_movement = max_offset_y * movement_range
-                offset_y = start_y - (max_movement / 2) + (ease_factor * max_movement)
+                # Paneo hacia abajo: desde arriba hacia abajo
+                offset_y = start_y - (max_movement / 2) + (ease_factor * total_movement)
             elif self.direction == 'left':
-                # Mover desde la derecha (offset más alto) hacia la izquierda (offset más bajo)
-                max_movement = max_offset_x * movement_range
-                # Aplicar movimiento relativo al centro start_x (igual que up/down)
-                offset_x = start_x + (max_movement / 2) - (ease_factor * max_movement)
+                # Paneo hacia la izquierda
+                offset_x = start_x + (max_movement / 2) - (ease_factor * total_movement)
             elif self.direction == 'right':
-                # Mover desde la izquierda (offset más bajo) hacia la derecha (offset más alto)
-                max_movement = max_offset_x * movement_range
-                # Aplicar movimiento relativo al centro start_x (igual que up/down)
-                offset_x = start_x - (max_movement / 2) + (ease_factor * max_movement)
+                # Paneo hacia la derecha
+                offset_x = start_x - (max_movement / 2) + (ease_factor * total_movement)
             
             # Asegurar que los offsets estén dentro de los límites
             offset_x = max(0, min(max_offset_x, int(round(offset_x))))
@@ -456,6 +454,80 @@ class FlipEffect(Effect):
              if img: img.close()
              
 # --- Añade esto a tu archivo de efectos ---
+
+class ZoomBounceEffect(Effect):
+    """
+    Efecto de zoom con rebote: realiza un zoom in rápido seguido de un pequeño rebote (overshoot y retorno),
+    y luego un zoom in progresivo hasta el final del clip si la duración es larga.
+    """
+    def __init__(self, zoom_ratio=0.3, bounce_intensity=0.1, clip_duration=2.0, quality='high', zoom_final=0.2, bounce_duration=None):
+        """
+        Args:
+            zoom_ratio: Factor de zoom principal (ejemplo 0.3 para 30% de zoom).
+            bounce_intensity: Porcentaje extra de zoom para el rebote (ejemplo 0.1 para 10% de overshoot).
+            clip_duration: Duración total del efecto.
+            quality: Calidad del redimensionado ('high' para LANCZOS, 'medium' para BILINEAR).
+            zoom_final: Zoom adicional tras el rebote, aplicado progresivamente hasta el final del clip (ejemplo 0.2 para 20% más de zoom).
+            bounce_duration: Duración del rebote inicial (en segundos). Si None, será el 25% del clip o 2s, lo que sea menor.
+        """
+        self.zoom_ratio = zoom_ratio
+        self.bounce_intensity = bounce_intensity
+        self.clip_duration = max(0.1, clip_duration)
+        self.resample_mode = Resampling.LANCZOS if quality == 'high' else Resampling.BILINEAR
+        self.zoom_final = zoom_final
+        if bounce_duration is None:
+            self.bounce_duration = min(2.0, 0.25 * self.clip_duration)
+        else:
+            self.bounce_duration = min(bounce_duration, self.clip_duration)
+
+    def apply(self, get_frame: Callable[[float], np.ndarray], t: float) -> np.ndarray:
+        try:
+            img = Image.fromarray(get_frame(t))
+            base_size = img.size
+            # --- Zoom Bounce (rebote inicial) ---
+            if t < self.bounce_duration:
+                t_norm = t / self.bounce_duration
+                s = 1.70158
+                if t_norm < 0.8:
+                    zoom = 1 + self.zoom_ratio * (t_norm * t_norm * ((s + 1) * t_norm - s))
+                else:
+                    t_bounce = (t_norm - 0.8) / 0.2
+                    overshoot = self.zoom_ratio * (1 + self.bounce_intensity)
+                    zoom = 1 + overshoot * (1 - t_bounce) * (1 - t_bounce)
+                zoom = max(1.0, zoom)
+            else:
+                # --- Zoom progresivo (in) tras el rebote ---
+                t_norm = (t - self.bounce_duration) / max(0.01, (self.clip_duration - self.bounce_duration))
+                # Zoom inicial tras rebote:
+                s = 1.70158
+                zoom_start = 1 + self.zoom_ratio * (0.8 * 0.8 * ((s + 1) * 0.8 - s))
+                zoom_start = max(1.0, zoom_start)
+                zoom_end = zoom_start + self.zoom_final
+                zoom = zoom_start + (zoom_end - zoom_start) * t_norm
+            # Redimensionar la imagen
+            new_size = (
+                max(1, int(base_size[0] * zoom)),
+                max(1, int(base_size[1] * zoom))
+            )
+            img_zoomed = img.resize(new_size, self.resample_mode)
+            # Centrar el recorte
+            left = (new_size[0] - base_size[0]) // 2
+            top = (new_size[1] - base_size[1]) // 2
+            crop_box = (
+                left,
+                top,
+                left + base_size[0],
+                top + base_size[1]
+            )
+            img_result = img_zoomed.crop(crop_box)
+            result = np.array(img_result)
+            img.close()
+            img_zoomed.close()
+            img_result.close()
+            return result
+        except Exception as e:
+            print(f"Error en ZoomBounceEffect (t={t:.2f}): {e}. Devolviendo frame original.")
+            return get_frame(t)
 
 class VignetteZoomEffect(Effect):
     """

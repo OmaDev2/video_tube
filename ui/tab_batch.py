@@ -79,7 +79,7 @@ class BatchTabFrame(ttk.Frame):
             except Exception as e:
                 print(f"Error al cargar estilos de prompts: {e}")
         
-        self.app.selected_voice = tk.StringVar(value=voces[0])
+        self.app.selected_voice = tk.StringVar(value="es-MX-JorgeNeural")
         voice_combo = ttk.Combobox(frame_input, textvariable=self.app.selected_voice, values=voces, width=30)
         voice_combo.grid(row=1, column=1, padx=5, pady=5, sticky="w")
         
@@ -488,7 +488,7 @@ class BatchTabFrame(ttk.Frame):
             proyecto_nombre = proyecto_path.name
             
             # Determinar la voz utilizada
-            voz = settings.get("voz", "es-EC-LuisNeural")  # Valor por defecto si no se encuentra
+            voz = settings.get("voz", "es-MX-JorgeNeural")  # Valor por defecto si no se encuentra
             
             # Crear un trabajo para este proyecto
             job_id = self.app.batch_tts_manager.add_existing_project_to_queue(

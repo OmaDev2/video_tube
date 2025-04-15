@@ -57,7 +57,7 @@ except ImportError:
 class BatchTTSManager:
     """Gestor de procesamiento por lotes para la generación de voz en off."""
     
-    def __init__(self, root, default_voice="es-EC-LuisNeural"):
+    def __init__(self, root, default_voice="es-MX-JorgeNeural"):
         """
         Inicializa el gestor de procesamiento por lotes.
         
@@ -524,6 +524,14 @@ class BatchTTSManager:
                                         job['tiempos_imagenes'] = tiempos_imagenes
                                         job['num_imagenes'] = num_imagenes_necesarias  # Actualizar el número de imágenes en el job
                                         
+                                        # Verificar si hay información de repetición del último clip
+                                        for clip in tiempos_imagenes:
+                                            if 'repetir' in clip and clip['repetir']:
+                                                job['repetir_ultimo_clip'] = True
+                                                job['tiempo_repeticion_ultimo_clip'] = clip['tiempo_repeticion']
+                                                print(f"Configurando repetición del último clip durante {clip['tiempo_repeticion']:.2f}s")
+                                                break
+                                        
                                         # Asegurar que los parámetros estén en el job para la creación del video
                                         if 'video_settings' not in job:
                                             job['video_settings'] = {}
@@ -705,7 +713,7 @@ class BatchTTSManager:
         
         print("Worker de cola finalizado.")
     
-    def calcular_imagenes_optimas(self, audio_duration, duracion_por_imagen=6.0, duracion_transicion=1.0, aplicar_transicion=False, fade_in=2.0, fade_out=2.0, respetar_duracion_exacta=True):
+    def calcular_imagenes_optimas(self, audio_duration, duracion_por_imagen=6.0, duracion_transicion=1.0, aplicar_transicion=False, fade_in=2.0, fade_out=2.0, respetar_duracion_exacta=True, repetir_ultimo_clip=True):
         """
         Calcula el número óptimo de imágenes y sus tiempos basado en la duración del audio.
 
@@ -735,13 +743,15 @@ class BatchTTSManager:
         if aplicar_transicion:
             print(f" - Duración transición: {duracion_transicion:.2f}s")
         print(f" - Respetar duración exacta (solo si no hay transiciones): {respetar_duracion_exacta}")
+        print(f" - Repetir último clip si falta poco tiempo: {repetir_ultimo_clip}")
 
 
         # Asegurarse de que la duración por imagen sea mayor que la transición si se aplica
         if aplicar_transicion and duracion_por_imagen <= duracion_transicion:
              print(f"ADVERTENCIA: La duración por imagen ({duracion_por_imagen}s) es menor o igual a la duración de la transición ({duracion_transicion}s). Esto puede causar problemas.")
-             # Podrías forzar una duración mínima o ajustar la transición aquí si es necesario
-             # Por ahora, se procede con los valores dados.
+             # Forzar una duración mínima para evitar problemas con videos largos
+             duracion_por_imagen = duracion_transicion + 1.0
+             print(f"Ajustando duración por imagen a {duracion_por_imagen}s para evitar problemas")
 
 
         # Ajustar la duración efectiva teniendo en cuenta los fades (actualmente no se usa, pero se mantiene la variable)
@@ -765,13 +775,21 @@ class BatchTTSManager:
             else:
                 # N imágenes necesitan N-1 transiciones. La duración total es aprox:
                 # N * duracion_por_imagen - (N-1) * solapamiento_por_transicion
-                # O visto de otra forma: primera imagen + (N-1) * (duracion_por_imagen - solapamiento)
-                # Aproximación más simple para calcular N:
-                # num_imagenes = math.ceil((duracion_efectiva + solapamiento_por_transicion) / tiempo_efectivo_por_imagen) # Puede ser inexacto
-                # Intentemos calcular N iterativamente o basado en la duración total necesitada
-                # Duración_total = N * duracion_ajustada - (N-1) * solapamiento
-                # Si usamos duracion_por_imagen como objetivo:
-                num_imagenes_estimado = math.ceil(duracion_efectiva / max(0.1, tiempo_efectivo_por_imagen)) # Evitar división por cero
+                # Método mejorado para calcular el número de imágenes para videos largos
+                # Fórmula: (duracion_total + solapamiento) / (duracion_imagen - solapamiento/2)
+                # Esta fórmula es más precisa para videos largos con transiciones
+                num_imagenes_estimado = math.ceil((duracion_efectiva + solapamiento_por_transicion) / 
+                                               max(0.5, tiempo_efectivo_por_imagen)) # Evitar división por valores muy pequeños
+                
+                # Para videos largos (>60s), usar una aproximación más conservadora
+                if duracion_efectiva > 60.0:
+                    # Usar floor en lugar de ceil para videos largos y añadir 1
+                    # Esto evita tener demasiadas imágenes con duraciones muy cortas
+                    num_imagenes_alternativo = math.floor(duracion_efectiva / duracion_por_imagen) + 1
+                    # Tomar el menor de los dos valores para evitar sobrestimación
+                    num_imagenes_estimado = min(num_imagenes_estimado, num_imagenes_alternativo)
+                    print(f"Video largo detectado: Usando estimación conservadora de {num_imagenes_estimado} imágenes")
+                
                 num_imagenes = max(2, num_imagenes_estimado) # Necesitamos al menos 2 para una transición
 
             # Recalcular la duración por imagen para distribuir uniformemente y llenar el audio
@@ -781,6 +799,18 @@ class BatchTTSManager:
             else:
                 # Despejamos duracion_ajustada:
                 duracion_ajustada = (duracion_efectiva + (num_imagenes - 1) * solapamiento_por_transicion) / num_imagenes
+                
+                # Verificación adicional para videos largos
+                # Si la duración ajustada es significativamente menor que la duración deseada,
+                # podría indicar un cálculo incorrecto del número de imágenes
+                if duracion_ajustada < duracion_por_imagen * 0.5 and duracion_efectiva > 60.0:
+                    print(f"ADVERTENCIA: La duración ajustada ({duracion_ajustada:.2f}s) es mucho menor que la duración deseada ({duracion_por_imagen:.2f}s).")
+                    print("Recalculando número de imágenes para evitar clips demasiado cortos...")
+                    # Usar un enfoque más conservador para videos largos
+                    num_imagenes_nuevo = math.floor(duracion_efectiva / duracion_por_imagen) + 1
+                    num_imagenes = max(2, num_imagenes_nuevo)
+                    # Recalcular la duración ajustada con el nuevo número de imágenes
+                    duracion_ajustada = (duracion_efectiva + (num_imagenes - 1) * solapamiento_por_transicion) / num_imagenes
 
             print(f"Ajustando para transiciones: {num_imagenes} imágenes con duración ajustada de {duracion_ajustada:.2f}s")
 
@@ -823,17 +853,37 @@ class BatchTTSManager:
                     num_imagenes_completas = int(duracion_efectiva / duracion_por_imagen)
                     tiempo_restante = duracion_efectiva - (num_imagenes_completas * duracion_por_imagen)
 
-                    # Si hay un remanente de tiempo, añadir una imagen más
-                    if tiempo_restante > 0.01: # Un pequeño umbral para evitar añadir por errores de flotantes
-                        num_imagenes = num_imagenes_completas + 1
+                    # Umbral mejorado para videos largos (0.5s en lugar de 0.01s)
+                    # Esto evita crear imágenes muy cortas al final
+                    umbral_tiempo_restante = 0.5 if duracion_efectiva > 60.0 else 0.01
+                    
+                    # Decidir si añadir una imagen más o repetir la última
+                    if tiempo_restante > umbral_tiempo_restante:
+                        if repetir_ultimo_clip and tiempo_restante < duracion_por_imagen * 0.7 and num_imagenes_completas > 0:
+                            # Si falta menos del 70% de una duración completa, repetir el último clip en lugar de añadir uno nuevo
+                            print(f"Tiempo restante ({tiempo_restante:.2f}s) menor al 70% de duración por imagen. Repitiendo último clip.")
+                            num_imagenes = num_imagenes_completas
+                            # Marcar que el último clip se repetirá
+                            self.repetir_ultimo_clip = True
+                            self.tiempo_repeticion_ultimo_clip = tiempo_restante
+                        else:
+                            # Añadir una imagen completa nueva
+                            num_imagenes = num_imagenes_completas + 1
+                            self.repetir_ultimo_clip = False
                     elif num_imagenes_completas == 0:
                          num_imagenes = 1 # Asegurar al menos una imagen si la duración es muy corta
+                         self.repetir_ultimo_clip = False
                     else:
                         num_imagenes = num_imagenes_completas
+                        self.repetir_ultimo_clip = False
 
                 # Asegurarnos de que tenemos al menos 1 imagen
                 num_imagenes = max(1, num_imagenes)
                 print(f"Número de imágenes necesarias: {num_imagenes}")
+                
+                # Mostrar información sobre repetición si está activada
+                if hasattr(self, 'repetir_ultimo_clip') and self.repetir_ultimo_clip:
+                    print(f"El último clip se repetirá durante {self.tiempo_repeticion_ultimo_clip:.2f}s adicionales")
 
                 # Calcular los tiempos exactos de cada imagen
                 tiempos_imagenes = []
@@ -841,21 +891,37 @@ class BatchTTSManager:
 
                 for i in range(num_imagenes):
                     tiempo_inicio = tiempo_actual
-                    # La última imagen ocupa el tiempo restante
+                    # La última imagen ocupa el tiempo restante o se repite
                     if i == num_imagenes - 1:
-                        tiempo_fin = audio_duration
+                        # Si es la última imagen y estamos repitiendo
+                        if hasattr(self, 'repetir_ultimo_clip') and self.repetir_ultimo_clip:
+                            # La duración normal + el tiempo de repetición
+                            tiempo_fin = tiempo_inicio + duracion_por_imagen + self.tiempo_repeticion_ultimo_clip
+                            print(f"Clip {i+1} extendido: duración normal ({duracion_por_imagen:.2f}s) + repetición ({self.tiempo_repeticion_ultimo_clip:.2f}s)")
+                        else:
+                            # Comportamiento normal: la última imagen llega hasta el final
+                            tiempo_fin = audio_duration
                     else:
                         tiempo_fin = min(tiempo_inicio + duracion_por_imagen, audio_duration)
 
                     duracion_actual = tiempo_fin - tiempo_inicio
                     tiempo_actual = tiempo_fin
 
-                    tiempos_imagenes.append({
+                    # Crear el diccionario base
+                    clip_info = {
                         'indice': i,
                         'inicio': tiempo_inicio,
                         'fin': tiempo_fin,
                         'duracion': duracion_actual
-                    })
+                    }
+                    
+                    # Añadir información de repetición si es el último clip y se repite
+                    if i == num_imagenes - 1 and hasattr(self, 'repetir_ultimo_clip') and self.repetir_ultimo_clip:
+                        clip_info['repetir'] = True
+                        clip_info['duracion_normal'] = duracion_por_imagen
+                        clip_info['tiempo_repeticion'] = self.tiempo_repeticion_ultimo_clip
+                    
+                    tiempos_imagenes.append(clip_info)
 
             else:
                 # Distribuir uniformemente SIN transiciones
@@ -865,7 +931,15 @@ class BatchTTSManager:
                      num_imagenes = 1
                      duracion_ajustada = duracion_efectiva
                  else:
-                    num_imagenes = math.ceil(duracion_efectiva / duracion_por_imagen)
+                    # Para videos largos, usar una aproximación más conservadora
+                    # que evite tener demasiadas imágenes con duraciones muy cortas
+                    if duracion_efectiva > 60.0:
+                        # Usar floor en lugar de ceil para videos largos
+                        # y añadir 1 para compensar, esto da duraciones más cercanas a lo deseado
+                        num_imagenes = math.floor(duracion_efectiva / duracion_por_imagen) + 1
+                    else:
+                        num_imagenes = math.ceil(duracion_efectiva / duracion_por_imagen)
+                    
                     num_imagenes = max(1, num_imagenes) # Al menos 1 imagen
                     duracion_ajustada = duracion_efectiva / num_imagenes
 
@@ -913,7 +987,65 @@ class BatchTTSManager:
         # Validar que la última imagen termine al final del audio
         if tiempos_imagenes and abs(tiempos_imagenes[-1]['fin'] - audio_duration) > 0.05: # Tolerancia pequeña
              print(f"ADVERTENCIA: El tiempo final calculado ({tiempos_imagenes[-1]['fin']:.2f}s) no coincide exactamente con la duración del audio ({audio_duration:.2f}s).")
+             # Corregir el tiempo final de la última imagen para asegurar que coincida
+             tiempos_imagenes[-1]['fin'] = audio_duration
+             tiempos_imagenes[-1]['duracion'] = tiempos_imagenes[-1]['fin'] - tiempos_imagenes[-1]['inicio']
+             print(f"Corregido: La última imagen ahora termina en {tiempos_imagenes[-1]['fin']:.2f}s con duración {tiempos_imagenes[-1]['duracion']:.2f}s")
+             
+             # Marcar si esta imagen tiene repetición
+             if hasattr(self, 'repetir_ultimo_clip') and self.repetir_ultimo_clip:
+                 tiempos_imagenes[-1]['repetir'] = True
+                 tiempos_imagenes[-1]['duracion_normal'] = duracion_por_imagen
+                 tiempos_imagenes[-1]['tiempo_repeticion'] = self.tiempo_repeticion_ultimo_clip
+                 print(f"Marcada la última imagen para repetición durante {self.tiempo_repeticion_ultimo_clip:.2f}s")
+        
+        # Verificación final del número de imágenes para videos largos
+        if audio_duration > 120.0 and num_imagenes < 10:
+            print(f"ADVERTENCIA: Video largo ({audio_duration:.2f}s) con pocas imágenes ({num_imagenes}). Esto podría no ser lo esperado.")
+            print("Considera revisar la configuración de duración por imagen y transiciones.")
+        
+        # Imprimir resumen final para facilitar depuración
+        print(f"\nRESUMEN FINAL: {num_imagenes} imágenes para {audio_duration:.2f}s de audio")
+        if aplicar_transicion:
+            print(f"Con transiciones de {duracion_transicion:.2f}s y duración ajustada de {duracion_ajustada:.2f}s por imagen")
+        else:
+            if respetar_duracion_exacta:
+                print(f"Sin transiciones, respetando duración exacta de {duracion_por_imagen:.2f}s (excepto posiblemente la última imagen)")
+            else:
+                print(f"Sin transiciones, con duración ajustada uniforme de {duracion_ajustada:.2f}s por imagen")
+        
+        # Verificación final del número de imágenes para videos largos
+        if audio_duration > 120.0 and num_imagenes < 10:
+            print(f"ADVERTENCIA: Video largo ({audio_duration:.2f}s) con pocas imágenes ({num_imagenes}). Esto podría no ser lo esperado.")
+            print("Considera revisar la configuración de duración por imagen y transiciones.")
+        
+        # Imprimir resumen final para facilitar depuración
+        print(f"\nRESUMEN FINAL: {num_imagenes} imágenes para {audio_duration:.2f}s de audio")
+        if aplicar_transicion:
+            print(f"Con transiciones de {duracion_transicion:.2f}s y duración ajustada de {duracion_ajustada:.2f}s por imagen")
+        else:
+            if respetar_duracion_exacta:
+                print(f"Sin transiciones, respetando duración exacta de {duracion_por_imagen:.2f}s (excepto posiblemente la última imagen)")
+            else:
+                print(f"Sin transiciones, con duración ajustada uniforme de {duracion_ajustada:.2f}s por imagen")
 
+        # Añadir información sobre repetición al resultado para que pueda ser usada por el generador de video
+        resultado = {
+            'num_imagenes': num_imagenes,
+            'tiempos_imagenes': tiempos_imagenes,
+            'repetir_ultimo_clip': hasattr(self, 'repetir_ultimo_clip') and self.repetir_ultimo_clip
+        }
+        
+        # Si hay repetición, incluir la información adicional
+        if hasattr(self, 'repetir_ultimo_clip') and self.repetir_ultimo_clip:
+            resultado['tiempo_repeticion_ultimo_clip'] = self.tiempo_repeticion_ultimo_clip
+        
+        # Limpiar atributos temporales
+        if hasattr(self, 'repetir_ultimo_clip'):
+            delattr(self, 'repetir_ultimo_clip')
+        if hasattr(self, 'tiempo_repeticion_ultimo_clip'):
+            delattr(self, 'tiempo_repeticion_ultimo_clip')
+            
         return num_imagenes, tiempos_imagenes
         
     def update_job_status_gui(self, job_id, status, tiempo=""):
@@ -1077,7 +1209,7 @@ class BatchTTSManager:
             try:
                 # Obtener el modelo Whisper usando la función implementada
                 from subtitles import get_whisper_model
-                whisper_model = get_whisper_model(model_size="medium", device="cpu", compute_type="int8")
+                whisper_model = get_whisper_model(model_size="large-v3", device="cpu", compute_type="int8")
                 if whisper_model is None:
                     print("No se pudo obtener el modelo Whisper para generar subtítulos.")
                 

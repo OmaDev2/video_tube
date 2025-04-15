@@ -48,16 +48,18 @@
       }
     },
     "subtitles": {
-      "font_size": 54,
+      "font_size": 48,
       "font_color": "white",
       "stroke_color": "black",
       "stroke_width": 3,
       "align": "center",
       "position_h": "center",
-      "position_v": "bottom"
+      "position_v": "bottom",
+      "font_name": "Arial Black",
+      "use_system_font": true
     },
     "whisper": {
-      "model_size": "medium",
+      "model_size": "large-v3",
       "device": "cpu",
       "compute_type": "int8",
       "language": "es",

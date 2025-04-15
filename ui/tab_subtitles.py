@@ -120,8 +120,22 @@ class SubtitlesTabFrame(ttk.Frame):
         size_combo['values'] = [size[0] for size in model_sizes]
         size_combo.pack(side="left", padx=5)
         
+        # Seleccionar large-v3 por defecto
+        current_model = self.app.whisper_model_size.get()
+        if current_model in size_combo['values']:
+            size_combo.set(current_model)
+        else:
+            size_combo.set("large-v3")
+        
         # Descripción del modelo seleccionado
-        self.app.lbl_model_desc = ttk.Label(frame_size, text="Modelo equilibrado entre velocidad y precisión", 
+        # Obtener la descripción del modelo seleccionado
+        model_desc = "Modelo equilibrado entre velocidad y precisión"
+        for size, desc in model_sizes:
+            if size == self.app.whisper_model_size.get():
+                model_desc = desc
+                break
+                
+        self.app.lbl_model_desc = ttk.Label(frame_size, text=model_desc, 
                                       foreground="#3498db")
         self.app.lbl_model_desc.pack(side="left", padx=10)
         

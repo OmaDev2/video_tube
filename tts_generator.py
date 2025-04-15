@@ -7,7 +7,7 @@ from pydub import AudioSegment
 # --- Configuración ---
 # Puedes obtener la lista de voces con: edge-tts --list-voices
 # Ejemplo: es-ES-ElviraNeural (España), es-MX-DaliaNeural (México), es-AR-ElenaNeural (Argentina)
-DEFAULT_VOICE = "es-EC-LuisNeural"
+DEFAULT_VOICE = "es-MX-JorgeNeural"
 MAX_CHUNK_CHARS = 4000  # Límite de caracteres por chunk (ajusta si es necesario)
 TEMP_AUDIO_DIR = "temp_audio_chunks" # Directorio para archivos temporales
 OUTPUT_FORMAT = "mp3" # Formato de salida final y de los chunks

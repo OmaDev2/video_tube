@@ -51,19 +51,19 @@ class VideoCreatorApp:
         
         # --- Inicializar variables para subtítulos ---
         self.settings_subtitles = tk.BooleanVar(value=True)
-        self.settings_subtitles_font_size = tk.IntVar(value=54)
+        self.settings_subtitles_font_size = tk.IntVar(value=48)  # Cambiado a 48
         self.settings_subtitles_font_color = tk.StringVar(value='white')
         self.settings_subtitles_stroke_color = tk.StringVar(value='black')
         self.settings_subtitles_stroke_width = tk.IntVar(value=3)
         self.settings_subtitles_align = tk.StringVar(value='center')
         self.settings_subtitles_position_h = tk.StringVar(value='center')
         self.settings_subtitles_position_v = tk.StringVar(value='bottom')
-        self.settings_subtitles_font_name = tk.StringVar(value="Roboto-Regular")
-        self.settings_use_system_font = tk.BooleanVar(value=False)
+        self.settings_subtitles_font_name = tk.StringVar(value="Arial Black")  # Cambiado a Arial Black
+        self.settings_use_system_font = tk.BooleanVar(value=True)  # Activado para usar fuente del sistema
         
         # --- Inicializar variables para configuración de Whisper ---
         self.whisper_model = None
-        self.whisper_model_size = tk.StringVar(value="medium")  # Opciones: "tiny", "base", "small", "medium", "large-v3"
+        self.whisper_model_size = tk.StringVar(value="large-v3")  # Opciones: "tiny", "base", "small", "medium", "large-v3"
         self.whisper_device = tk.StringVar(value="cpu")  # Usar "cuda" si tienes GPU compatible
         self.whisper_compute_type = tk.StringVar(value="int8")  # Optimizado para CPU
         self.whisper_language = tk.StringVar(value="es")  # Idioma para transcripción
