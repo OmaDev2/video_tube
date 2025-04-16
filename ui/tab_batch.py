@@ -2,7 +2,7 @@
 # Archivo: ui/tab_batch.py
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 from pathlib import Path
 
 # Importar el gestor de prompts
@@ -112,8 +112,19 @@ class BatchTabFrame(ttk.Frame):
         prompt_style_values = [name for _, name in prompt_styles]
         prompt_style_ids = [id for id, _ in prompt_styles]
         self.prompt_style_dropdown = ttk.Combobox(frame_input, textvariable=self.app.selected_prompt_style, 
-                                              values=prompt_style_values, width=30, state="readonly")
+                                               values=prompt_style_values, width=30, state="readonly")
         self.prompt_style_dropdown.grid(row=4, column=1, padx=5, pady=5, sticky="w")
+        
+        # Checkbutton para aplicar subtítulos (si existen)
+        if not hasattr(self.app, 'aplicar_subtitulos_batch'):
+            self.app.aplicar_subtitulos_batch = tk.BooleanVar(value=True)  # Por defecto activado
+            
+        self.chk_aplicar_subtitulos = ttk.Checkbutton(
+            frame_input, 
+            text="Aplicar subtítulos (si existen) a los videos",
+            variable=self.app.aplicar_subtitulos_batch
+        )
+        self.chk_aplicar_subtitulos.grid(row=4, column=2, padx=5, pady=5, sticky="w")
         
         # Mapeo de nombres a IDs para recuperar el ID correcto
         self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
@@ -269,6 +280,49 @@ class BatchTabFrame(ttk.Frame):
         script = self.txt_script.get("1.0", tk.END).strip()
         voice = self.app.selected_voice.get()
         
+        # --- Obtener valores necesarios ANTES de la validación ---
+        # Obtener si la música está activada y la ruta del archivo
+        try:
+            aplicar_musica_seleccionado = self.app.aplicar_musica.get()
+            archivo_musica_seleccionado = self.app.archivo_musica.get()
+        except AttributeError:
+            print("Advertencia: No se encontraron variables para música en self.app. Omitiendo validación de música.")
+            aplicar_musica_seleccionado = False
+            archivo_musica_seleccionado = ""
+
+        # Obtener si los subtítulos están activados
+        try:
+            aplicar_subtitulos_seleccionado = self.app.aplicar_subtitulos_batch.get()
+        except AttributeError:
+            print("Advertencia: No se encontró variable para subtítulos en self.app. Asumiendo True.")
+            aplicar_subtitulos_seleccionado = True
+
+        # --- INICIO: Validación Previa ---
+
+        # 1. Validar Música
+        if aplicar_musica_seleccionado and not archivo_musica_seleccionado:
+            # Mostrar una advertencia, pero permitir continuar
+            messagebox.showwarning(
+                title="Advertencia: Falta Archivo de Música",
+                message="La opción 'Aplicar Música' está activada, pero no has seleccionado un archivo de música.\n\n"
+                        "El video se generará sin música de fondo. Puedes seleccionarla en la pestaña 'Audio'."
+            )
+
+        # 2. Validar Subtítulos (Confirmar si están desactivados)
+        if not aplicar_subtitulos_seleccionado:
+            # Preguntar al usuario si está seguro de que NO quiere subtítulos
+            confirmar_sin_subtitulos = messagebox.askyesno(
+                title="Confirmar: Subtítulos Desactivados",
+                message="La opción 'Aplicar Subtítulos' está desactivada.\n"
+                        "El video se generará sin subtítulos, aunque se haya generado un archivo .srt.\n\n"
+                        "\u00bfEstás seguro de que quieres continuar así?"
+            )
+            if not confirmar_sin_subtitulos: # Si el usuario presiona "No"
+                print("Proceso cancelado por el usuario (confirmación de subtítulos).")
+                return # Detener la función, no añadir a la cola
+
+        # --- FIN: Validación Previa ---
+        
         # Capturar todos los ajustes actuales de la GUI para la creación de video
         # Obtener secuencia de efectos
         selected_effects_sequence = self.app.obtener_secuencia_efectos()
@@ -319,7 +373,27 @@ class BatchTabFrame(ttk.Frame):
             'duracion_fade_in_voz': self.app.duracion_fade_in_voz.get(),
             'aplicar_fade_out_voz': self.app.aplicar_fade_out_voz.get(),
             'duracion_fade_out_voz': self.app.duracion_fade_out_voz.get(),
-            'aplicar_subtitulos': self.app.aplicar_subtitulos.get() if hasattr(self.app, 'aplicar_subtitulos') else False,
+            # Usar el valor del nuevo Checkbutton para aplicar subtítulos en lotes
+            'aplicar_subtitulos': self.app.aplicar_subtitulos_batch.get(),
+            
+            # --- CONFIGURACIÓN DE ESTILO DE SUBTÍTULOS ---
+            # Fuente y tamaño
+            'tamano_fuente_subtitulos': getattr(self.app, 'settings_subtitles_font_size', tk.IntVar(value=60)).get(),
+            'font_name': getattr(self.app, 'settings_subtitles_font_name', tk.StringVar(value='Roboto-Regular')).get(),
+            'use_system_font': getattr(self.app, 'settings_use_system_font', tk.BooleanVar(value=False)).get(),
+            'subtitles_uppercase': getattr(self.app, 'subtitles_uppercase', tk.BooleanVar(value=False)).get(),
+            
+            # Colores y bordes
+            'color_fuente_subtitulos': getattr(self.app, 'settings_subtitles_font_color', tk.StringVar(value='white')).get(),
+            'color_borde_subtitulos': getattr(self.app, 'settings_subtitles_stroke_color', tk.StringVar(value='black')).get(),
+            'grosor_borde_subtitulos': getattr(self.app, 'settings_subtitles_stroke_width', tk.IntVar(value=3)).get(),
+            
+            # Posición y alineación
+            'subtitulos_align': getattr(self.app, 'settings_subtitles_align', tk.StringVar(value='center')).get(),
+            'subtitulos_position_h': getattr(self.app, 'settings_subtitles_position_h', tk.StringVar(value='center')).get(),
+            'subtitulos_position_v': getattr(self.app, 'settings_subtitles_position_v', tk.StringVar(value='bottom')).get(),
+            'subtitulos_margen': getattr(self.app, 'settings_subtitles_margin', tk.DoubleVar(value=0.05)).get(),
+            
             # Estilo de prompts para la generación de imágenes
             # Obtener el ID del estilo a partir del nombre seleccionado en el dropdown
             'estilo_imagenes': self.prompt_style_map.get(self.prompt_style_dropdown.get(), 'default'),

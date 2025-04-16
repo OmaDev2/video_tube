@@ -207,14 +207,18 @@ class VideoGenerator:
         duracion_fade_in_musica = kwargs.get('duracion_fade_in_musica', 2.0)
         aplicar_fade_out_musica = kwargs.get('aplicar_fade_out_musica', False)
         duracion_fade_out_musica = kwargs.get('duracion_fade_out_musica', 2.0)
-        archivo_voz = kwargs.get('archivo_voz', None)
+        # Buscar 'audio_path' (clave usada en batch_tts.py) o 'archivo_voz' (nombre original)
+        archivo_voz = kwargs.get('audio_path', kwargs.get('archivo_voz', None))
+        print(f"DEBUG generate_video: archivo_voz={archivo_voz} (desde audio_path o archivo_voz)")
         volumen_voz = kwargs.get('volumen_voz', 1.0)
         aplicar_fade_in_voz = kwargs.get('aplicar_fade_in_voz', False)
         duracion_fade_in_voz = kwargs.get('duracion_fade_in_voz', 1.0)
         aplicar_fade_out_voz = kwargs.get('aplicar_fade_out_voz', False)
         duracion_fade_out_voz = kwargs.get('duracion_fade_out_voz', 1.0)
+        # Buscar 'subtitle_path' (clave usada en batch_tts.py) o 'archivo_subtitulos' (nombre original)
         aplicar_subtitulos = kwargs.get('aplicar_subtitulos', False)
-        archivo_subtitulos = kwargs.get('archivo_subtitulos', None)
+        archivo_subtitulos = kwargs.get('subtitle_path', kwargs.get('archivo_subtitulos', None))
+        print(f"DEBUG generate_video: archivo_subtitulos={archivo_subtitulos} (desde subtitle_path o archivo_subtitulos)")
         tamano_fuente_subtitulos = kwargs.get('tamano_fuente_subtitulos', None)
         color_fuente_subtitulos = kwargs.get('color_fuente_subtitulos', 'orange')
         color_borde_subtitulos = kwargs.get('color_borde_subtitulos', 'black')
@@ -346,9 +350,12 @@ class VideoGenerator:
         clips = []
         total_imagenes = len(self.image_files)
         
+        print(f"DEBUG _create_image_clips: aplicar_efectos={aplicar_efectos}, secuencia_efectos={secuencia_efectos}")
+        print(f"DEBUG _create_image_clips: tipo de secuencia_efectos={type(secuencia_efectos)}")
+        
         # Verificar si tenemos información de tiempos y si coincide con el número de imágenes
         usar_tiempos_personalizados = (tiempos_imagenes is not None and 
-                                      len(tiempos_imagenes) == total_imagenes)
+                                       len(tiempos_imagenes) == total_imagenes)
         
         if usar_tiempos_personalizados:
             print(f"Usando información de tiempos personalizada para {len(tiempos_imagenes)} imágenes")
@@ -375,6 +382,8 @@ class VideoGenerator:
                 
                 # Pasar la duración específica de esta imagen al efecto
                 clip = self._apply_effect_to_clip(clip, tipo_efecto, duracion_actual, i)
+            else:
+                print(f"DEBUG: NO se aplican efectos a imagen {i+1}. Condición: aplicar_efectos={aplicar_efectos} and secuencia_efectos={secuencia_efectos}")
             
             # Si tenemos información de tiempos, establecer el tiempo de inicio
             if usar_tiempos_personalizados:
@@ -680,43 +689,61 @@ class VideoGenerator:
             VideoClip: Video con audio aplicado
         """
         audio_clips = []
+        print(f"DEBUG _apply_audio: Verificando archivo_voz='{archivo_voz}'")
         
         # Aplicar voz en off primero si se proporciona
-        if archivo_voz and os.path.exists(archivo_voz):
-            print(f"Aplicando voz en off: {os.path.basename(archivo_voz)}")
-            voz = AudioFileClip(archivo_voz)
+        if archivo_voz:  # Primero chequear si el string no es None o vacío
+            print(f"DEBUG _apply_audio: archivo_voz no es None.")
+            archivo_voz_path = Path(archivo_voz)  # Convertir a Path para verificar
+            print(f"DEBUG _apply_audio: Path object = {archivo_voz_path}")
+            existe = archivo_voz_path.exists()
+            es_archivo = archivo_voz_path.is_file() if existe else False
+            print(f"DEBUG _apply_audio: Path existe? {existe}, Es archivo? {es_archivo}")
             
-            # Verificar si hay discrepancia entre la duración del audio y el video
-            if voz.duration != video.duration:
-                print(f"ADVERTENCIA: Duración del audio ({voz.duration:.2f}s) diferente a la duración del video ({video.duration:.2f}s)")
-                
-                # Si el audio es más largo que el video, extender el video para que coincida con el audio
-                if voz.duration > video.duration:
-                    print(f"Ajustando duración del video para que coincida con el audio: {voz.duration:.2f}s")
-                    # Extender el último frame del video para que coincida con la duración del audio
-                    from moviepy.video.VideoClip import ImageClip
-                    last_frame = video.to_ImageClip(video.duration)
-                    extension = last_frame.with_duration(voz.duration - video.duration)
-                    video = concatenate_videoclips([video, extension])
-                    print(f"Nueva duración del video: {video.duration:.2f}s")
-                # Si el audio es más corto que el video, recortar el video
-                elif voz.duration < video.duration:
-                    print(f"Recortando video para que coincida con el audio: {voz.duration:.2f}s")
-                    video = video.subclipped(0, voz.duration)
-            
-            # Ajustar el volumen
-            voz = voz.with_effects([afx.MultiplyVolume(volumen_voz)])
-            
-            # Aplicar fade in/out a la voz si se solicita
-            if aplicar_fade_in_voz and duracion_fade_in_voz > 0:
-                print(f"Aplicando fade in a la voz con duración {duracion_fade_in_voz} segundos")
-                voz = voz.with_effects([afx.AudioFadeIn(duracion_fade_in_voz)])
-            
-            if aplicar_fade_out_voz and duracion_fade_out_voz > 0:
-                print(f"Aplicando fade out a la voz con duración {duracion_fade_out_voz} segundos")
-                voz = voz.with_effects([afx.AudioFadeOut(duracion_fade_out_voz)])
-            
-            audio_clips.append(voz)
+            if existe and es_archivo:  # Usar la verificación de Path
+                print(f"Aplicando voz en off: {archivo_voz_path.name}")
+                try:
+                    voz = AudioFileClip(str(archivo_voz_path))  # Usar string del path
+                    
+                    # Verificar si hay discrepancia entre la duración del audio y el video
+                    if voz.duration != video.duration:
+                        print(f"ADVERTENCIA: Duración del audio ({voz.duration:.2f}s) diferente a la duración del video ({video.duration:.2f}s)")
+                        
+                        # Si el audio es más largo que el video, extender el video para que coincida con el audio
+                        if voz.duration > video.duration:
+                            print(f"Ajustando duración del video para que coincida con el audio: {voz.duration:.2f}s")
+                            # Extender el último frame del video para que coincida con la duración del audio
+                            from moviepy.video.VideoClip import ImageClip
+                            last_frame = video.to_ImageClip(video.duration)
+                            extension = last_frame.with_duration(voz.duration - video.duration)
+                            video = concatenate_videoclips([video, extension])
+                            print(f"Nueva duración del video: {video.duration:.2f}s")
+                        # Si el audio es más corto que el video, recortar el video
+                        elif voz.duration < video.duration:
+                            print(f"Recortando video para que coincida con el audio: {voz.duration:.2f}s")
+                            video = video.subclipped(0, voz.duration)
+                    
+                    # Ajustar el volumen
+                    voz = voz.with_effects([afx.MultiplyVolume(volumen_voz)])
+                    
+                    # Aplicar fade in/out a la voz si se solicita
+                    if aplicar_fade_in_voz and duracion_fade_in_voz > 0:
+                        print(f"Aplicando fade in a la voz con duración {duracion_fade_in_voz} segundos")
+                        voz = voz.with_effects([afx.AudioFadeIn(duracion_fade_in_voz)])
+                    
+                    if aplicar_fade_out_voz and duracion_fade_out_voz > 0:
+                        print(f"Aplicando fade out a la voz con duración {duracion_fade_out_voz} segundos")
+                        voz = voz.with_effects([afx.AudioFadeOut(duracion_fade_out_voz)])
+                    
+                    audio_clips.append(voz)
+                except Exception as e_audio:
+                    print(f"ERROR al cargar o procesar archivo de voz {archivo_voz_path}: {e_audio}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print(f"ADVERTENCIA: El archivo de voz '{archivo_voz}' no existe o no es un archivo.")
+        else:
+            print("DEBUG _apply_audio: archivo_voz es None o vacío.")
         
         # Aplicar música de fondo después si se solicita
         if aplicar_musica and archivo_musica and os.path.exists(archivo_musica):
@@ -790,6 +817,14 @@ class VideoGenerator:
         Returns:
             VideoClip: Video con subtítulos aplicados
         """
+        print(f"DEBUG _apply_subtitles: aplicar_subtitulos={aplicar_subtitulos}, archivo_subtitulos={archivo_subtitulos}")
+        
+        if archivo_subtitulos:
+            archivo_subtitulos_path = Path(archivo_subtitulos)
+            existe = archivo_subtitulos_path.exists()
+            es_archivo = archivo_subtitulos_path.is_file() if existe else False
+            print(f"DEBUG _apply_subtitles: Path existe? {existe}, Es archivo? {es_archivo}")
+        
         if aplicar_subtitulos and archivo_subtitulos and Path(archivo_subtitulos).is_file():
             print(f"Aplicando subtítulos desde: {archivo_subtitulos}")
             try:

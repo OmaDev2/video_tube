@@ -33,13 +33,13 @@ def generar_imagen_con_replicate(
     output_quality: int = 90, # Calidad para jpg/webp, png ignora esto
     go_fast: bool = True,
     megapixels: str = "1"
-    ) -> bool:
+    ) -> str:
     """
     Genera una imagen usando un prompt con Flux Schnell en Replicate y la guarda.
     """
     if not REPLICATE_AVAILABLE:
         print("ERROR: API Replicate no disponible o no configurada.")
-        return False
+        return None
 
     print(f" - Enviando prompt a Replicate/Flux Schnell: '{prompt_en[:80]}...'")
     output_image_path = Path(output_image_path) # Convertir a Path si no lo es
@@ -88,24 +88,24 @@ def generar_imagen_con_replicate(
             # Verificar que se guardó
             if output_image_path.is_file() and output_image_path.stat().st_size > 0:
                  print(f"   - Imagen guardada exitosamente en: {output_image_path.name}")
-                 return True
+                 return str(output_image_path)  # Devolver la ruta como string
             else:
                  print(f"   - ERROR: Faltó guardar la imagen descargada en {output_image_path}")
-                 return False
+                 return None
 
         else:
             print(f"   - ERROR: La salida de Replicate no fue la esperada: {output}")
-            return False
+            return None
 
     except replicate.exceptions.ReplicateError as r_err:
          print(f"   - ERROR de API Replicate: {r_err}")
          # Podrías mirar r_err.status o r_err.detail para más info (ej. rate limits)
-         return False
+         return None
     except requests.exceptions.RequestException as req_err:
          print(f"   - ERROR al descargar imagen desde URL: {req_err}")
-         return False
+         return None
     except Exception as e:
         print(f"   - ERROR inesperado durante generación/descarga de imagen: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        return None

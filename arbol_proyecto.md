@@ -1,14 +1,19 @@
-# Árbol del Proyecto VideoPython
+Actualización del Árbol de Directorios del Proyecto VideoPython
+==================================================
+
+Este documento contiene la estructura de directorios del proyecto **VideoPython**, una herramienta para la creación y edición de videos a partir de imágenes.
+
+## Estructura de Directorios
 
 ```
 VideoPython/
-├── .gitignore
-├── README.md
+├── .env                    # Archivo de variables de entorno
+├── app.py                  # Aplicación principal
 ├── batch_tts.py            # Procesamiento por lotes de texto a voz
-├── check.py                # Script de verificación
-├── efectos.py              # Efectos para videos
-├── gemini_models.py        # Integración con modelos Gemini
-├── gui.py                  # Interfaz gráfica de usuario u punto de entrada de la app
+├── config.py               # Configuración general del proyecto
+├── directory_tree.py       # Script para generar árbol de directorios
+├── efectos.py              # Efectos visuales para los videos
+├── gui.py                  # Interfaz gráfica de usuario y punto de entrada de la app
 ├── image_generator.py      # Generador de imágenes
 ├── overlay_effects.py      # Efectos de superposición
 ├── prompt_generator.py     # Generador de prompts
@@ -42,23 +47,18 @@ VideoPython/
 
 ### Archivos principales
 
-- **gui.py**: Interfaz gráfica de usuario y punto de entrada de la app 
-- **subtitles.py**: Manejo de subtítulos y generación automática con Whisper
-- **tts_generator.py**: Generación de voz a partir de texto
-- **image_generator.py**: Generación de imágenes para videos
+- **gui.py**: Interfaz gráfica de usuario y punto de entrada de la app
+- **app.py**: Aplicación principal que conecta la interfaz con el backend
+- **efectos.py**: Contiene las clases para los efectos visuales como zoom, rotación, etc.
+- **transiciones.py**: Define las transiciones entre clips de video
+- **tts_generator.py**: Generador de texto a voz para voz en off
+- **batch_tts.py**: Procesamiento por lotes de texto a voz para múltiples proyectos
+- **subtitles.py**: Manejo de subtítulos para los videos
+- **config.py**: Configuraciones generales como tamaño de imágenes, FPS, etc.
 
-### Módulos
-- **app/**: Contiene la lógica principal para la creación y generación de videos
-- **ui/**: Componentes de la interfaz de usuario organizados en pestañas
+### Carpetas principales
 
-### Efectos y transiciones
-- **efectos.py**: Implementación de efectos visuales para videos
-- **overlay_effects.py**: Efectos de superposición en videos
-- **transiciones.py**: Transiciones entre clips de video
-
-### Recursos
-- **fonts/**: Fuentes tipográficas utilizadas en los videos
-- **Docs/**: Documentación del proyecto
-
-### Configuración
-- **settings.json**: Archivo de configuración de la aplicación
+- **app/**: Módulo que contiene la lógica principal para la creación de videos
+- **ui/**: Componentes de la interfaz de usuario divididos en pestañas para diferentes funcionalidades
+- **fonts/**: Fuentes personalizadas utilizadas en los videos y subtítulos
+- **Docs/**: Documentación del proyecto (puede incluir guías, tutoriales, etc.)
