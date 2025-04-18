@@ -869,6 +869,7 @@ class VideoCreatorApp:
         self.root.after(2000, self.update_queue_status)
         
     def trigger_video_generation_for_selected(self):
+        print("\n--- Iniciando trigger_video_generation_for_selected ---")
         """Inicia la generación de video para el proyecto seleccionado en la cola."""
         selected_items = self.tree_queue.selection()
         if not selected_items:
@@ -964,7 +965,7 @@ class VideoCreatorApp:
                     'aplicar_fade_out_voz': self.aplicar_fade_out_voz.get(),
                     'duracion_fade_out_voz': self.duracion_fade_out_voz.get(),
                     # Usar los subtítulos generados si existen
-                    'aplicar_subtitulos': job_data.get('aplicar_subtitulos', False),
+                    'aplicar_subtitulos': self.aplicar_subtitulos.get(),
                     'archivo_subtitulos': job_data.get('archivo_subtitulos', None),
                     'settings': current_settings,
                     'tamano_fuente_subtitulos': self.settings_subtitles_font_size.get(),

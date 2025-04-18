@@ -112,10 +112,10 @@ class SubtitleEffect:
             
             # Calcular el ancho del texto como un 90% del ancho del video
             text_width = int(video_width * 0.9)
-            print(f"Creando subtítulo con ancho: {text_width} (90% del ancho del video: {video_width})")
+            #print(f"Creando subtítulo con ancho: {text_width} (90% del ancho del video: {video_width})")
             
             # Crear TextClip con parámetros específicos según la documentación de MoviePy 2.x
-            print(f"Creando TextClip con: font={font}, text={text[:20]}..., font_size={font_size}")
+            #print(f"Creando TextClip con: font={font}, text={text[:20]}..., font_size={font_size}")
             subtitle_clip = TextClip(
                 font=font,                     # Ruta a la fuente a usar
                 text=text,                     # Texto a mostrar

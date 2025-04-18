@@ -3,6 +3,7 @@ from . import subtitles_worker
 from . import image_worker
 from . import video_worker
 from . import utils
+from . import audio_worker
 import traceback
 import logging
 import queue
@@ -16,12 +17,14 @@ import logging
 import traceback
 import tkinter as tk
 from tkinter import ttk, messagebox
-from pathlib import Path  # <--- AÑADE ESTA LÍNEA
+from pathlib import Path
 from datetime import datetime
 
-
-
-
+# Importar OUTPUT_FORMAT desde tts_generator o usar el valor de audio_worker
+try:
+    from tts_generator import OUTPUT_FORMAT
+except ImportError:
+    from .audio_worker import OUTPUT_FORMAT
 
 
 class BatchTTSManager:

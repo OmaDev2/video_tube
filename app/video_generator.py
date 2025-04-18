@@ -404,9 +404,11 @@ class VideoGenerator:
             if aplicar_efectos:
                 # 1. Intentar obtener de la secuencia específica
                 #    Asegurarse que secuencia_efectos es una lista y tiene elementos
-                if secuencia_efectos and isinstance(secuencia_efectos, list) and i < len(secuencia_efectos):
-                    tipo_efecto_a_aplicar = secuencia_efectos[i]
-                    print(f"DEBUG: Imagen {i+1}: Usando efecto de secuencia: '{tipo_efecto_a_aplicar}'")
+                if secuencia_efectos and isinstance(secuencia_efectos, list) and len(secuencia_efectos) > 0:
+                    # Aplicar la secuencia del usuario de forma CÍCLICA
+                    effect_index = i % len(secuencia_efectos) # <--- ¡Usa el módulo con la longitud de TU secuencia!
+                    tipo_efecto_a_aplicar = secuencia_efectos[effect_index]
+                    print(f"DEBUG: Imagen {i+1}: Usando efecto de secuencia de usuario (cíclico): '{tipo_efecto_a_aplicar}' (índice ciclo: {effect_index})")
                 # 2. Si no hay secuencia específica O está vacía O es corta, Y hay defaults disponibles
                 elif default_effects_list:
                     # Aplicar efecto por defecto CÍCLICO
@@ -455,10 +457,19 @@ class VideoGenerator:
 
         # Actualizar progreso si hay un callback definido
         if self.progress_callback:
-            # Asegurarse que la división por cero no ocurra si total_imagenes es 0
-            progreso = ((i + 1) / total_imagenes) * 100 if total_imagenes > 0 else 100
-            # Llamar al callback (podría necesitar ajustarse a lo que espera tu callback)
-            self.progress_callback(progreso)
+            # Calcular el progreso actual (i+1 es el índice actual de la imagen, empezando desde 0)
+            current_step = i + 1
+            # El total de pasos es el número total de imágenes
+            total_steps = total_imagenes
+            # Llamar al callback con ambos argumentos: current_step y total_steps
+            try:
+                # Intentar llamar con ambos argumentos (formato esperado por update_progress_bar)
+                self.progress_callback(current_step, total_steps)
+            except TypeError:
+                # Si falla, intentar el formato antiguo (solo con el porcentaje)
+                progreso = (current_step / total_steps) * 100 if total_steps > 0 else 100
+                print(f"DEBUG: Usando formato antiguo de callback de progreso: {progreso:.1f}%")
+                self.progress_callback(progreso)
 
 
         return clips
@@ -1050,11 +1061,11 @@ class VideoGenerator:
                         # Si es una fuente del sistema, usar directamente el nombre
                         if use_system_font and font_name:
                             font_to_use = font_name
-                            print(f"FORZANDO uso de fuente del sistema: {font_to_use}")
+                            #print(f"FORZANDO uso de fuente del sistema: {font_to_use}")
                         else:
                             # Para fuentes personalizadas, usar la ruta completa
                             font_to_use = font_path_str
-                            print(f"Usando fuente personalizada: {font_to_use}")
+                            #print(f"Usando fuente personalizada: {font_to_use}")
                         
                         try:
                             # Usar SubtitleEffect para crear el clip de subtítulo
@@ -1100,7 +1111,7 @@ class VideoGenerator:
                     try:
                         # Para fuentes del sistema, usar un enfoque simplificado
                         if use_system_font and font_name:
-                            print(f"FALLBACK: Creando TextClip con fuente del sistema: {font_name}")
+                            #print(f"FALLBACK: Creando TextClip con fuente del sistema: {font_name}")
                             return TextClip(
                                 font=font_name,               # Nombre de la fuente del sistema
                                 text=txt,                     # Texto

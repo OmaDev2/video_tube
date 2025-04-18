@@ -90,8 +90,8 @@ class BatchTabFrame(ttk.Frame):
                 
                 # Imprimir información de depuración sobre los estilos disponibles
                 #print("\n\n=== ESTILOS DE PROMPTS DISPONIBLES ===")
-                for i, (id, name) in enumerate(prompt_styles):
-                    print(f"  {i+1}. ID: '{id}', Nombre: '{name}'")
+                #for i, (id, name) in enumerate(prompt_styles):
+                #print(f"  {i+1}. ID: '{id}', Nombre: '{name}'")
             except Exception as e:
                 print(f"Error al cargar estilos de prompts: {e}")
         
@@ -110,9 +110,9 @@ class BatchTabFrame(ttk.Frame):
         self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
         
         # Imprimir el mapeo para depuración
-        print("\n=== MAPEO DE NOMBRES A IDS ===")
-        for name, id in self.prompt_style_map.items():
-            print(f"  Nombre: '{name}' -> ID: '{id}'")
+        #print("\n=== MAPEO DE NOMBRES A IDS ===")
+        #for name, id in self.prompt_style_map.items():
+        #    print(f"  Nombre: '{name}' -> ID: '{id}'")
             
         # Configurar un callback para cuando cambie el estilo seleccionado
         def on_prompt_style_change(event):
@@ -324,17 +324,25 @@ class BatchTabFrame(ttk.Frame):
         self.app.lbl_queue_status = ttk.Label(frame_queue, text="Cola vacía", style="Header.TLabel")
         self.app.lbl_queue_status.pack(anchor="w", padx=5, pady=(0, 5), before=frame_botones_principales)
 
+    # En ui/tab_batch.py, reemplaza la función existente por esta:
+
     def _add_project_to_queue(self):
         """Añade un nuevo proyecto a la cola de procesamiento."""
+        print("--- Iniciando _add_project_to_queue ---") # Debug
         title = self.entry_title.get().strip()
         script = self.txt_script.get("1.0", tk.END).strip()
         voice = self.app.selected_voice.get()
-        
-        # Capturar todos los ajustes actuales de la GUI para la creación de video
-        # Obtener secuencia de efectos
-        selected_effects_sequence = self.app.obtener_secuencia_efectos()
-        
-        # Recoger ajustes específicos de efectos
+
+        # --- Validaciones básicas ---
+        if not title:
+            messagebox.showerror("Error", "Por favor, introduce un título para el proyecto.")
+            return
+        if not script:
+            messagebox.showerror("Error", "Por favor, introduce un guion para el proyecto.")
+            return
+
+        # --- Recoger Ajustes Específicos de Efectos (Anidados) ---
+        # (Esto parece correcto como lo tenías)
         effect_settings = {
             'zoom_ratio': self.app.settings_zoom_ratio.get(),
             'zoom_quality': self.app.settings_zoom_quality.get(),
@@ -345,30 +353,43 @@ class BatchTabFrame(ttk.Frame):
             'kb_scale_factor': self.app.settings_kb_scale_factor.get(),
             'kb_quality': self.app.settings_kb_quality.get(),
             'kb_direction': self.app.settings_kb_direction.get(),
-            'overlay_opacity': self.app.settings_overlay_opacity.get(),
-            'overlay_blend_mode': self.app.settings_overlay_blend_mode.get()
+            'overlay_opacity': self.app.settings_overlay_opacity.get(), # ¿Esto es de efectos o overlay general? Ajustar si es necesario
+            'overlay_blend_mode': self.app.settings_overlay_blend_mode.get() # ¿Esto es de efectos o overlay general? Ajustar si es necesario
         }
-        
-        # Obtener overlays seleccionados
+        print(f"DEBUG UI - effect_settings anidados: {effect_settings}") # Debug
+
+        # --- Recoger Overlays ---
         overlays = self.app.obtener_overlays_seleccionados()
-        
-        # Crear diccionario con todos los ajustes para la creación de video
+        print(f"DEBUG UI - overlays seleccionados: {overlays}") # Debug
+
+        # --- Crear el Diccionario Principal 'video_settings' ---
+        # Añadimos todos los parámetros directos aquí
         video_settings = {
+            # Básicos
             'duracion_img': self.app.duracion_img.get(),
             'fps': self.app.fps.get(),
+
+            # Efectos Generales
             'aplicar_efectos': self.app.aplicar_efectos.get(),
-            'aplicar_subtitulos': self.app.aplicar_subtitulos.get(),
-            'secuencia_efectos': selected_effects_sequence,
+            # 'secuencia_efectos': None, # Lo añadiremos después
+
+            # Transiciones
             'aplicar_transicion': self.app.aplicar_transicion.get(),
             'tipo_transicion': self.app.tipo_transicion.get(),
             'duracion_transicion': self.app.duracion_transicion.get(),
+
+            # Fades Video
             'aplicar_fade_in': self.app.aplicar_fade_in.get(),
             'duracion_fade_in': self.app.duracion_fade_in.get(),
             'aplicar_fade_out': self.app.aplicar_fade_out.get(),
             'duracion_fade_out': self.app.duracion_fade_out.get(),
+
+            # Overlays
             'aplicar_overlay': bool(overlays),
             'archivos_overlay': [str(Path(ov).resolve()) for ov in overlays] if overlays else None,
-            'opacidad_overlay': self.app.opacidad_overlay.get(),
+            'opacidad_overlay': self.app.opacidad_overlay.get(), # Opacidad general del overlay
+
+            # Música
             'aplicar_musica': self.app.aplicar_musica.get(),
             'archivo_musica': str(Path(self.app.archivo_musica.get()).resolve()) if self.app.archivo_musica.get() else None,
             'volumen_musica': self.app.volumen_musica.get(),
@@ -376,14 +397,18 @@ class BatchTabFrame(ttk.Frame):
             'duracion_fade_in_musica': self.app.duracion_fade_in_musica.get(),
             'aplicar_fade_out_musica': self.app.aplicar_fade_out_musica.get(),
             'duracion_fade_out_musica': self.app.duracion_fade_out_musica.get(),
+
+            # Voz (Audio Principal)
             'volumen_voz': self.app.volumen_voz.get(),
             'aplicar_fade_in_voz': self.app.aplicar_fade_in_voz.get(),
             'duracion_fade_in_voz': self.app.duracion_fade_in_voz.get(),
             'aplicar_fade_out_voz': self.app.aplicar_fade_out_voz.get(),
             'duracion_fade_out_voz': self.app.duracion_fade_out_voz.get(),
-            'aplicar_subtitulos': self.app.aplicar_subtitulos.get() if hasattr(self.app, 'aplicar_subtitulos') else False,
-            
-            # --- Parámetros de estilo de subtítulos ---
+            'tts_rate': self.app.tts_rate_str.get(), # Rate/Pitch
+            'tts_pitch': self.app.tts_pitch_str.get(),
+
+            # Subtítulos (Aplicación y Apariencia)
+            'aplicar_subtitulos': self.app.aplicar_subtitulos.get(), # Leer del checkbox
             'color_fuente_subtitulos': self.app.settings_subtitles_font_color.get(),
             'tamano_fuente_subtitulos': self.app.settings_subtitles_font_size.get(),
             'font_name': self.app.settings_subtitles_font_name.get(),
@@ -393,115 +418,117 @@ class BatchTabFrame(ttk.Frame):
             'subtitles_align': self.app.settings_subtitles_align.get(),
             'subtitles_position_h': self.app.settings_subtitles_position_h.get(),
             'subtitles_position_v': self.app.settings_subtitles_position_v.get(),
-            'subtitles_uppercase': self.app.subtitles_uppercase.get() if hasattr(self.app, 'subtitles_uppercase') else False,
-            'subtitulos_margen': self.app.settings_subtitles_margin.get() if hasattr(self.app, 'settings_subtitles_margin') else 0.20,
-            
-            # --- Parámetros de ajuste de voz ---
-            'tts_rate': self.app.tts_rate_str.get(),
-            'tts_pitch': self.app.tts_pitch_str.get(),
-            
-            # Estilo de prompts para la generación de imágenes
-            # Obtener el ID del estilo a partir del nombre seleccionado en el dropdown
+            'subtitles_uppercase': self.app.subtitles_uppercase.get(),
+            'subtitulos_margen': self.app.settings_subtitles_margin.get(),
+
+            # Estilo Imágenes
             'estilo_imagenes': self.prompt_style_map.get(self.prompt_style_dropdown.get(), 'default'),
-            # Guardar también el nombre del estilo para depuración
             'nombre_estilo': self.prompt_style_dropdown.get(),
-            'settings': effect_settings
-            
+
+            # Ajustes anidados de efectos
+            'settings': effect_settings # El diccionario que creamos antes
         }
 
-        # Imprimir información de depuración sobre el estilo seleccionado
-        print(f"\n=== ESTILO SELECCIONADO PARA EL PROYECTO ===")
-        print(f"  Nombre mostrado: '{self.prompt_style_dropdown.get()}'")
-        print(f"  ID interno: '{self.prompt_style_map.get(self.prompt_style_dropdown.get(), 'default')}'") 
-        print(f"DEBUG UI Checkbox: Valor leído = {self.app.aplicar_subtitulos.get()}")
-        print(f"DEBUG UI Enviando aplicar_subtitulos = {video_settings.get('aplicar_subtitulos')}")
-        
-        # Depuración de parámetros de subtítulos
-        print(f"\n=== DEPURACIÓN DE PARÁMETROS DE SUBTÍTULOS ===")
-        print(f"DEBUG UI - Margen leído de la variable: {self.app.settings_subtitles_margin.get() if hasattr(self.app, 'settings_subtitles_margin') else 'No existe'}")
-        
-        # Depuración de parámetros de voz
-        print(f"\n=== DEPURACIÓN DE PARÁMETROS DE VOZ ===")
-        print(f"DEBUG UI - Rate: {video_settings.get('tts_rate')}")
-        print(f"DEBUG UI - Pitch: {video_settings.get('tts_pitch')}")
-        print(f"DEBUG UI - Margen añadido a video_settings: {video_settings.get('subtitulos_margen')}")
-        print(f"DEBUG UI - Color fuente: {video_settings.get('color_fuente_subtitulos')}")
-        print(f"DEBUG UI - Tamaño fuente: {video_settings.get('tamano_fuente_subtitulos')}")
-        print(f"DEBUG UI - Posición H: {video_settings.get('subtitles_position_h')}")
-        print(f"DEBUG UI - Posición V: {video_settings.get('subtitles_position_v')}")
-        print(f"DEBUG UI - Mayúsculas: {video_settings.get('subtitles_uppercase')}")
-               
-        
+        # --- AHORA OBTENER Y AÑADIR LA SECUENCIA DE EFECTOS ---
+        # Verifica que 'obtener_secuencia_efectos_actual' exista en self.app
+        if hasattr(self.app, 'obtener_secuencia_efectos_actual'):
+            
+            selected_effects_sequence = self.app.obtener_secuencia_efectos_actual()
+            print(f"DEBUG UI: La función obtener_secuencia_efectos_actual() devolvió: {selected_effects_sequence}")
+            video_settings['secuencia_efectos'] = selected_effects_sequence # Añadir/sobrescribir la clave
+        elif hasattr(self.app, 'obtener_secuencia_efectos'):
+            # Fallback a la versión anterior si _actual no existe (pero recuerda que depende de len(imagenes))
+            print("ADVERTENCIA: Usando obtener_secuencia_efectos() en lugar de _actual()")
+            selected_effects_sequence = self.app.obtener_secuencia_efectos()
+            print(f"DEBUG UI: La función obtener_secuencia_efectos() devolvió: {selected_effects_sequence}")
+            video_settings['secuencia_efectos'] = selected_effects_sequence # Añadir/sobrescribir la clave
+        else:
+            print("ERROR: No se encontró la función para obtener la secuencia de efectos en self.app.")
+            video_settings['secuencia_efectos'] = [] # Poner lista vacía como fallback seguro
+
+
+        # --- IMPRIMIR TODO PARA VERIFICAR (OPCIONAL PERO ÚTIL) ---
+        print("\n--- DEBUG UI: video_settings FINAL Enviado al Manager ---")
+        try:
+            # Usar json.dumps para una salida más legible de diccionarios/listas
+            # default=str es importante para manejar objetos Path si los hubiera (aunque los convertimos)
+            print(json.dumps(video_settings, indent=2, default=str))
+        except Exception as json_e:
+            print(f"Error al imprimir video_settings como JSON: {json_e}")
+            print(video_settings) # Imprimir como diccionario normal si falla JSON
+        print("-------------------------------------------------------\n")
+
+        # --- Llamar al Manager ---
         success = self.app.batch_tts_manager.add_project_to_queue(title, script, voice, video_settings)
-        
+
+        # --- Mostrar mensaje y limpiar ---
         if success:
-            from tkinter import messagebox
-            messagebox.showinfo("Proyecto Añadido", 
-                              f"El proyecto '{title}' ha sido añadido a la cola.\n\n" +
-                              "Nota: Para generar el video, crea manualmente una carpeta 'imagenes' " +
-                              "dentro de la carpeta del proyecto y coloca ahí las imágenes que quieres usar.")
+            messagebox.showinfo("Proyecto Añadido",
+                            f"El proyecto '{title}' ha sido añadido a la cola.")
+            # Eliminada nota sobre crear carpeta 'imagenes' manualmente si ya no aplica
             self._clear_project_fields()
             self.app.update_queue_status()
+        # (El manager ya muestra errores si add_project_to_queue falla internamente)
 
     def update_prompt_styles_dropdown(self):
-        """Actualiza el dropdown de estilos de prompts con los estilos disponibles"""
-        # Obtener estilos de prompts disponibles
-        prompt_styles = [("default", "Cinematográfico")]
-        if PROMPT_MANAGER_AVAILABLE:
-            try:
-                prompt_manager = PromptManager()
-                prompt_styles = prompt_manager.get_prompt_names()
-                
-                # Imprimir información de depuración sobre los estilos disponibles
-                print("\n\n=== ACTUALIZANDO ESTILOS DE PROMPTS ===")
-                for i, (id, name) in enumerate(prompt_styles):
-                    print(f"  {i+1}. ID: '{id}', Nombre: '{name}'")
-            except Exception as e:
-                print(f"Error al cargar estilos de prompts: {e}")
+            """Actualiza el dropdown de estilos de prompts con los estilos disponibles"""
+            # Obtener estilos de prompts disponibles
+            prompt_styles = [("default", "Cinematográfico")]
+            if PROMPT_MANAGER_AVAILABLE:
+                try:
+                    prompt_manager = PromptManager()
+                    prompt_styles = prompt_manager.get_prompt_names()
+                    
+                    # Imprimir información de depuración sobre los estilos disponibles
+                    print("\n\n=== ACTUALIZANDO ESTILOS DE PROMPTS ===")
+                    for i, (id, name) in enumerate(prompt_styles):
+                        print(f"  {i+1}. ID: '{id}', Nombre: '{name}'")
+                except Exception as e:
+                    print(f"Error al cargar estilos de prompts: {e}")
+            
+            # Actualizar el dropdown
+            prompt_style_values = [name for _, name in prompt_styles]
+            prompt_style_ids = [id for id, _ in prompt_styles]
+            
+            # Guardar el valor actual para restaurarlo si es posible
+            current_value = self.app.selected_prompt_style.get()
+            
+            # Actualizar los valores del dropdown
+            self.prompt_style_dropdown['values'] = prompt_style_values
+            
+            # Actualizar el mapeo de nombres a IDs
+            self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
+            
+            # Restaurar el valor seleccionado si aún existe, o seleccionar el primero
+            if current_value in prompt_style_values:
+                self.app.selected_prompt_style.set(current_value)
+            elif prompt_style_values:
+                self.app.selected_prompt_style.set(prompt_style_values[0])
+            
+            # Imprimir el mapeo actualizado para depuración
+            print("\n=== MAPEO DE NOMBRES A IDS ACTUALIZADO ===")
+            for name, id in self.prompt_style_map.items():
+                print(f"  Nombre: '{name}' -> ID: '{id}'")
         
-        # Actualizar el dropdown
-        prompt_style_values = [name for _, name in prompt_styles]
-        prompt_style_ids = [id for id, _ in prompt_styles]
-        
-        # Guardar el valor actual para restaurarlo si es posible
-        current_value = self.app.selected_prompt_style.get()
-        
-        # Actualizar los valores del dropdown
-        self.prompt_style_dropdown['values'] = prompt_style_values
-        
-        # Actualizar el mapeo de nombres a IDs
-        self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
-        
-        # Restaurar el valor seleccionado si aún existe, o seleccionar el primero
-        if current_value in prompt_style_values:
-            self.app.selected_prompt_style.set(current_value)
-        elif prompt_style_values:
-            self.app.selected_prompt_style.set(prompt_style_values[0])
-        
-        # Imprimir el mapeo actualizado para depuración
-        print("\n=== MAPEO DE NOMBRES A IDS ACTUALIZADO ===")
-        for name, id in self.prompt_style_map.items():
-            print(f"  Nombre: '{name}' -> ID: '{id}'")
-    
     def _clear_project_fields(self):
-        """Limpia los campos del formulario de proyecto."""
-        self.entry_title.delete(0, tk.END)
-        self.txt_script.delete("1.0", tk.END)
-    
+            """Limpia los campos del formulario de proyecto."""
+            self.entry_title.delete(0, tk.END)
+            self.txt_script.delete("1.0", tk.END)
+        
     def _get_selected_project(self):
-        """Obtiene el proyecto seleccionado en el Treeview."""
-        selected_items = self.app.tree_queue.selection()
-        if not selected_items:
-            from tkinter import messagebox
-            messagebox.showwarning("Selección Requerida", "Por favor, selecciona un proyecto de la cola.")
-            return None
-        
-        selected_id = selected_items[0]
-        if selected_id not in self.app.batch_tts_manager.jobs_in_gui:
-            messagebox.showerror("Error", "No se pudo encontrar el proyecto seleccionado en la cola.")
-            return None
-        
-        return selected_id, self.app.batch_tts_manager.jobs_in_gui[selected_id]
+            """Obtiene el proyecto seleccionado en el Treeview."""
+            selected_items = self.app.tree_queue.selection()
+            if not selected_items:
+                from tkinter import messagebox
+                messagebox.showwarning("Selección Requerida", "Por favor, selecciona un proyecto de la cola.")
+                return None
+            
+            selected_id = selected_items[0]
+            if selected_id not in self.app.batch_tts_manager.jobs_in_gui:
+                messagebox.showerror("Error", "No se pudo encontrar el proyecto seleccionado en la cola.")
+                return None
+            
+            return selected_id, self.app.batch_tts_manager.jobs_in_gui[selected_id]
     
     def _regenerar_audio(self):
         """Regenera el audio para el proyecto seleccionado."""
