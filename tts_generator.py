@@ -52,12 +52,12 @@ def split_text_into_chunks(text: str, max_chars: int = MAX_CHUNK_CHARS) -> list[
     print(f"Texto dividido en {len(chunks)} chunks.")
     return chunks
 
-async def text_chunk_to_speech(text: str, voice: str, output_path: str):
+async def text_chunk_to_speech(text: str, voice: str, output_path: str,rate: str = "+0%", pitch: str = "+0Hz"):
     """
     Convierte un único chunk de texto a audio usando edge-tts.
     """
     try:
-        communicate = edge_tts.Communicate(text, voice)
+        communicate = edge_tts.Communicate(text, voice,rate=rate, pitch=pitch)
         await communicate.save(output_path)
         print(f"Chunk de audio guardado en: {output_path}")
     except Exception as e:
@@ -65,7 +65,7 @@ async def text_chunk_to_speech(text: str, voice: str, output_path: str):
         # Podrías querer manejar este error de forma más robusta
         # (e.g., reintentar, registrar, devolver un indicador de error)
 
-async def generate_speech_for_chunks(chunks: list[str], voice: str, temp_dir: str) -> list[str]:
+async def generate_speech_for_chunks(chunks: list[str], voice: str, temp_dir: str,rate: str = "+0%", pitch: str = "+0Hz") -> list[str]:
     """
     Genera archivos de audio para una lista de chunks de texto de forma asíncrona.
     Devuelve la lista de rutas a los archivos de audio generados.
@@ -79,7 +79,7 @@ async def generate_speech_for_chunks(chunks: list[str], voice: str, temp_dir: st
         output_file = temp_path / f"chunk_{i+1}.{OUTPUT_FORMAT}"
         chunk_files.append(str(output_file))
         # Crea la tarea asíncrona para generar el audio de este chunk
-        tasks.append(text_chunk_to_speech(chunk, voice, str(output_file)))
+        tasks.append(text_chunk_to_speech(chunk, voice, str(output_file),rate=rate, pitch=pitch))
 
     # Ejecuta todas las tareas de generación de audio concurrentemente
     await asyncio.gather(*tasks)
@@ -146,7 +146,7 @@ def cleanup_files(file_list: list[str], temp_dir: str):
 
 # --- Función Principal de Orquestación ---
 
-async def create_voiceover_from_script(script_path: str, output_audio_path: str, voice: str = DEFAULT_VOICE):
+async def create_voiceover_from_script(script_path: str, output_audio_path: str, voice: str = DEFAULT_VOICE,rate: str = "+0%", pitch: str = "+0Hz"):
     """
     Orquesta el proceso completo: leer guion, dividir, generar TTS, concatenar y limpiar.
     """
@@ -172,7 +172,7 @@ async def create_voiceover_from_script(script_path: str, output_audio_path: str,
         return None
 
     # 3. Generar audio para cada chunk
-    temp_audio_files = await generate_speech_for_chunks(chunks, voice, TEMP_AUDIO_DIR)
+    temp_audio_files = await generate_speech_for_chunks(chunks, voice, TEMP_AUDIO_DIR, rate, pitch)
     if not temp_audio_files:
         print("Error: No se generaron archivos de audio para los chunks.")
         cleanup_files([], TEMP_AUDIO_DIR) # Intenta limpiar el directorio si se creó

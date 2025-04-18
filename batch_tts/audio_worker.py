@@ -36,12 +36,25 @@ def generar_audio(job_data, gui_root=None):
     voice = job_data['voz']
     audio_output_path = str(output_folder / f"voz.{OUTPUT_FORMAT}")
     start_time = time.time()
+    
+    # Obtener los parámetros de rate y pitch desde video_settings
+    video_settings = job_data.get('video_settings', {})
+    rate = video_settings.get('tts_rate', '+0%')
+    pitch = video_settings.get('tts_pitch', '+0Hz')
+    
+    # Guardar también estos valores directamente en job_data para que sean accesibles más fácilmente
+    job_data['tts_rate'] = rate
+    job_data['tts_pitch'] = pitch
+    
+    print(f"DEBUG: Generando audio con voz={voice}, rate={rate}, pitch={pitch}")
 
     try:
         final_audio_path = asyncio.run(create_voiceover_from_script(
             script_path=script_path,
             output_audio_path=audio_output_path,
-            voice=voice
+            voice=voice,
+            rate=rate,
+            pitch=pitch
         ))
 
         end_time = time.time()

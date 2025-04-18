@@ -2,9 +2,15 @@
 # Archivo: ui/tab_batch.py
 
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, filedialog, messagebox
 from pathlib import Path
-from tkinter import messagebox 
+import os
+import json
+import time
+import threading
+import asyncio
+import subprocess
+from datetime import datetime
 
 # Importar el gestor de prompts
 try:
@@ -12,6 +18,15 @@ try:
     PROMPT_MANAGER_AVAILABLE = True
 except ImportError:
     PROMPT_MANAGER_AVAILABLE = False
+
+# Importar el módulo de TTS
+try:
+    import sys
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from tts_generator import text_chunk_to_speech
+    TTS_AVAILABLE = True
+except ImportError:
+    TTS_AVAILABLE = False
 
 class BatchTabFrame(ttk.Frame):
     """
@@ -131,9 +146,83 @@ class BatchTabFrame(ttk.Frame):
                                       variable=self.app.aplicar_subtitulos)
         chk_subtitles.pack(side="top", anchor="w", padx=5, pady=5)
         
+        # Frame para controles de voz (rate y pitch)
+        frame_voice_controls = ttk.LabelFrame(frame_input, text="Ajustes de Voz")
+        frame_voice_controls.grid(row=4, column=0, columnspan=3, padx=5, pady=5, sticky="ew")
+        
+        # Variables numéricas para los sliders (valores internos)
+        if not hasattr(self.app, 'tts_rate_value'):
+            self.app.tts_rate_value = tk.IntVar(value=0)  # 0 = normal, -50 a +50
+        if not hasattr(self.app, 'tts_pitch_value'):
+            self.app.tts_pitch_value = tk.IntVar(value=0)  # 0 = normal, -50 a +50
+        
+        # Función para convertir valor del slider a formato de edge-tts
+        def update_rate_str(*args):
+            rate_val = self.app.tts_rate_value.get()
+            if rate_val >= 0:
+                self.app.tts_rate_str.set(f"+{rate_val}%")
+            else:
+                self.app.tts_rate_str.set(f"{rate_val}%")
+            lbl_rate_value.config(text=self.app.tts_rate_str.get())
+        
+        def update_pitch_str(*args):
+            pitch_val = self.app.tts_pitch_value.get()
+            if pitch_val >= 0:
+                self.app.tts_pitch_str.set(f"+{pitch_val}Hz")
+            else:
+                self.app.tts_pitch_str.set(f"{pitch_val}Hz")
+            lbl_pitch_value.config(text=self.app.tts_pitch_str.get())
+        
+        # Vincular las variables para que se actualicen automáticamente
+        self.app.tts_rate_value.trace_add("write", update_rate_str)
+        self.app.tts_pitch_value.trace_add("write", update_pitch_str)
+        
+        # Control de velocidad (Rate)
+        lbl_rate = ttk.Label(frame_voice_controls, text="Velocidad:")
+        lbl_rate.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        
+        # Frame para slider y su valor
+        rate_frame = ttk.Frame(frame_voice_controls)
+        rate_frame.grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        
+        # Slider para Rate
+        scale_rate = ttk.Scale(rate_frame, from_=-50, to=50, orient="horizontal", 
+                             variable=self.app.tts_rate_value, length=200)
+        scale_rate.pack(side="left", padx=5)
+        
+        # Etiqueta para mostrar el valor actual
+        lbl_rate_value = ttk.Label(rate_frame, text=self.app.tts_rate_str.get(), width=6)
+        lbl_rate_value.pack(side="left", padx=5)
+        
+        # Control de tono (Pitch)
+        lbl_pitch = ttk.Label(frame_voice_controls, text="Tono:")
+        lbl_pitch.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        
+        # Frame para slider y su valor
+        pitch_frame = ttk.Frame(frame_voice_controls)
+        pitch_frame.grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        
+        # Slider para Pitch
+        scale_pitch = ttk.Scale(pitch_frame, from_=-50, to=50, orient="horizontal", 
+                              variable=self.app.tts_pitch_value, length=200)
+        scale_pitch.pack(side="left", padx=5)
+        
+        # Etiqueta para mostrar el valor actual
+        lbl_pitch_value = ttk.Label(pitch_frame, text=self.app.tts_pitch_str.get(), width=6)
+        lbl_pitch_value.pack(side="left", padx=5)
+        
+        # Botón de vista previa
+        btn_preview = ttk.Button(frame_voice_controls, text="Probar Voz", 
+                               command=self._preview_voice, style="Secondary.TButton")
+        btn_preview.grid(row=2, column=1, padx=5, pady=10, sticky="e")
+        
+        # Inicializar los valores de los sliders
+        update_rate_str()
+        update_pitch_str()
+        
         # Botones de acción
         frame_buttons = ttk.Frame(frame_input)
-        frame_buttons.grid(row=4, column=1, padx=5, pady=10, sticky="e")
+        frame_buttons.grid(row=5, column=1, padx=5, pady=10, sticky="e")
         
         btn_add_queue = ttk.Button(frame_buttons, text="Añadir a la Cola",
                                   command=self._add_project_to_queue, style="Action.TButton")
@@ -307,6 +396,9 @@ class BatchTabFrame(ttk.Frame):
             'subtitles_uppercase': self.app.subtitles_uppercase.get() if hasattr(self.app, 'subtitles_uppercase') else False,
             'subtitulos_margen': self.app.settings_subtitles_margin.get() if hasattr(self.app, 'settings_subtitles_margin') else 0.20,
             
+            # --- Parámetros de ajuste de voz ---
+            'tts_rate': self.app.tts_rate_str.get(),
+            'tts_pitch': self.app.tts_pitch_str.get(),
             
             # Estilo de prompts para la generación de imágenes
             # Obtener el ID del estilo a partir del nombre seleccionado en el dropdown
@@ -327,6 +419,11 @@ class BatchTabFrame(ttk.Frame):
         # Depuración de parámetros de subtítulos
         print(f"\n=== DEPURACIÓN DE PARÁMETROS DE SUBTÍTULOS ===")
         print(f"DEBUG UI - Margen leído de la variable: {self.app.settings_subtitles_margin.get() if hasattr(self.app, 'settings_subtitles_margin') else 'No existe'}")
+        
+        # Depuración de parámetros de voz
+        print(f"\n=== DEPURACIÓN DE PARÁMETROS DE VOZ ===")
+        print(f"DEBUG UI - Rate: {video_settings.get('tts_rate')}")
+        print(f"DEBUG UI - Pitch: {video_settings.get('tts_pitch')}")
         print(f"DEBUG UI - Margen añadido a video_settings: {video_settings.get('subtitulos_margen')}")
         print(f"DEBUG UI - Color fuente: {video_settings.get('color_fuente_subtitulos')}")
         print(f"DEBUG UI - Tamaño fuente: {video_settings.get('tamano_fuente_subtitulos')}")
@@ -465,22 +562,99 @@ class BatchTabFrame(ttk.Frame):
     
     def _regenerar_subtitulos(self):
         """Regenera los subtítulos para el proyecto seleccionado."""
-        result = self._get_selected_project()
-        if not result:
+        # Obtener el proyecto seleccionado
+        proyecto_id = self._get_selected_project()
+        if not proyecto_id:
             return
         
-        job_id, job_data = result
+        # Regenerar subtítulos
+        self.app.batch_tts_manager.regenerar_subtitulos(proyecto_id)
+        messagebox.showinfo("Regeneración", "Se ha iniciado la regeneración de subtítulos.")
         
-        from tkinter import messagebox
-        if messagebox.askyesno("Confirmar Regeneración", 
-                             f"¿Estás seguro de regenerar los subtítulos para el proyecto '{job_data['titulo']}'?"):
-            # Actualizar el estado en la GUI
-            self.app.batch_tts_manager.update_job_status_gui(job_id, "Regenerando Subtítulos...")
-            
-            # Iniciar el proceso de regeneración en un hilo separado
-            import threading
-            threading.Thread(target=self.app.batch_tts_manager.regenerar_subtitulos, 
-                           args=(job_id,), daemon=True).start()
+    def _preview_voice(self):
+        """Genera y reproduce una muestra de voz con los parámetros actuales."""
+        if not TTS_AVAILABLE:
+            messagebox.showerror("Error", "El módulo TTS no está disponible.")
+            return
+        
+        # Obtener los valores actuales
+        voice = self.app.selected_voice.get()
+        rate = self.app.tts_rate_str.get()
+        pitch = self.app.tts_pitch_str.get()
+        
+        print(f"DEBUG: Generando vista previa con voz={voice}, rate={rate}, pitch={pitch}")
+        
+        # Texto de prueba
+        test_text = "Hola, esta es una prueba de la configuración de voz."
+        
+        # Crear un directorio temporal si no existe
+        temp_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / "temp_audio"
+        temp_dir.mkdir(exist_ok=True)
+        
+        # Ruta para el archivo de audio temporal
+        temp_audio_path = temp_dir / "preview_voice.mp3"
+        
+        # Guardar referencia al botón
+        if not hasattr(self, 'btn_preview'):
+            for widget in self.winfo_children():
+                if isinstance(widget, ttk.LabelFrame) and widget.winfo_children():
+                    for child in widget.winfo_children():
+                        if isinstance(child, ttk.Button) and child.cget('text') == "Probar Voz":
+                            self.btn_preview = child
+                            break
+        
+        # Deshabilitar el botón mientras se genera el audio
+        if hasattr(self, 'btn_preview'):
+            self.btn_preview.config(state="disabled")
+            self.btn_preview.config(text="Generando...")
+            self.update_idletasks()
+        
+        # Función para ejecutar la generación de voz en un hilo separado
+        def generate_voice_preview():
+            try:
+                # Ejecutar la generación de voz de forma asíncrona
+                asyncio.run(text_chunk_to_speech(
+                    text=test_text,
+                    voice=voice,
+                    output_path=str(temp_audio_path),
+                    rate=rate,
+                    pitch=pitch
+                ))
+                
+                # Reproducir el audio generado
+                self._play_audio(temp_audio_path)
+                
+                # Restaurar el botón
+                if hasattr(self, 'btn_preview'):
+                    self.btn_preview.config(state="normal")
+                    self.btn_preview.config(text="Probar Voz")
+            except Exception as e:
+                # Manejar errores
+                print(f"Error en la vista previa de voz: {e}")
+                messagebox.showerror("Error", f"No se pudo generar la vista previa: {e}")
+                if hasattr(self, 'btn_preview'):
+                    self.btn_preview.config(state="normal")
+                    self.btn_preview.config(text="Probar Voz")
+        
+        # Iniciar el hilo para la generación de voz
+        threading.Thread(target=generate_voice_preview, daemon=True).start()
+    
+    def _play_audio(self, audio_path):
+        """Reproduce un archivo de audio."""
+        try:
+            # Usar el reproductor adecuado según el sistema operativo
+            if os.name == 'posix':  # macOS o Linux
+                if 'darwin' in os.sys.platform:  # macOS
+                    subprocess.run(['afplay', str(audio_path)], check=True)
+                else:  # Linux
+                    subprocess.run(['paplay', str(audio_path)], check=True)
+            elif os.name == 'nt':  # Windows
+                os.startfile(audio_path)
+            else:
+                print(f"No se pudo determinar el reproductor para el sistema {os.name}")
+        except Exception as e:
+            print(f"Error al reproducir el audio: {e}")
+            messagebox.showerror("Error", f"No se pudo reproducir el audio: {e}")
     
     def _cargar_proyecto_existente(self):
         """Carga un proyecto existente desde la carpeta de proyectos."""

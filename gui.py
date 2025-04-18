@@ -44,11 +44,13 @@ class VideoCreatorApp:
         self.root = root
         self.root.title("Video Creator")
         self.root.geometry("1100x1000")  # Ventana más ancha y alta para mostrar todos los botones correctamente
-        
+       
         # Inicializar el gestor de procesamiento por lotes para TTS
         self.batch_tts_manager = BatchTTSManager(root)
         # ProjectManager desactivado temporalmente
         # self.project_manager = ProjectManager(self)
+        self.tts_rate_str = tk.StringVar(value="+0%")
+        self.tts_pitch_str = tk.StringVar(value="+0Hz")
         
         # --- Inicializar variables para subtítulos Configuración subtitulos---
         self.settings_subtitles = tk.BooleanVar(value=False)

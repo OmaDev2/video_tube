@@ -468,14 +468,51 @@ class BatchTTSManager:
         }
 
     def regenerar_audio(self, job_id):
-        """(Experimental) Intenta regenerar solo el audio y poner el job de nuevo en cola."""
-        # --- Implementación similar a la anterior ---
-        # ... (código de regenerar_audio) ...
-        # NOTA: Esta función debería probablemente añadir un NUEVO job a la cola
-        # con los datos actualizados, en lugar de modificar uno existente directamente.
-        # O requeriría una lógica más compleja para reinsertar el job en el worker.
-        print(f"Regeneración de audio para {job_id} - A IMPLEMENTAR CORRECTAMENTE (reinserción en cola)")
-        return False # Placeholder
+        """Regenera el audio para un trabajo existente utilizando los parámetros actuales."""
+        from . import audio_worker
+        import time
+        
+        # Buscar el trabajo en la lista
+        job_data = None
+        for job in self.jobs:
+            if job['id'] == job_id:
+                job_data = job
+                break
+        
+        if not job_data:
+            print(f"Error: No se encontró el trabajo con ID {job_id}")
+            self.update_job_status_gui(job_id, "Error: Trabajo no encontrado", "-")
+            return False
+        
+        try:
+            # Actualizar estado
+            self.update_job_status_gui(job_id, "Regenerando Audio...", "-")
+            
+            # Regenerar el audio
+            success_audio, audio_result = audio_worker.generar_audio(job_data, self.root)
+            
+            if not success_audio:
+                raise ValueError(f"Error en Audio: {audio_result}") 
+            
+            # Actualizar el job con los resultados
+            job_data.update(audio_result)
+            audio_tiempo_formateado = audio_result.get("tiempo_formateado", "-")
+            
+            # Actualizar estado
+            self.update_job_status_gui(job_id, "Audio Regenerado", audio_tiempo_formateado)
+            print(f"Audio regenerado exitosamente para el trabajo {job_id}")
+            
+            # Guardar los cambios en el archivo settings.json
+            self._save_job_settings(job_data)
+            
+            return True
+            
+        except Exception as e:
+            import traceback
+            print(f"Error al regenerar audio: {e}")
+            print(traceback.format_exc())
+            self.update_job_status_gui(job_id, f"Error: {str(e)}", "-")
+            return False
 
 
     def regenerar_subtitulos(self, job_id):
