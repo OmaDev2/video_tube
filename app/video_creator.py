@@ -17,5 +17,14 @@ def crear_video_desde_imagenes(project_folder, **kwargs):
     Returns:
         str: Ruta al video generado o None si hubo error
     """
-    generator = VideoGenerator(project_folder)
+    print(f"DEBUG video_creator: Recibidos kwargs claves: {list(kwargs.keys())}")
+    
+    # Extraer el diccionario anidado 'settings' de kwargs
+    effect_settings = kwargs.get('settings', {})
+    print(f"DEBUG video_creator: Ajustes de efectos extraídos: {effect_settings}")
+    
+    # Crear el generador de video pasando project_folder y effect_settings
+    generator = VideoGenerator(project_folder, effect_settings)
+    
+    # Llamar a generate_video con todos los kwargs originales
     return generator.generate_video(**kwargs)

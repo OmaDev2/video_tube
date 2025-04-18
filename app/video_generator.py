@@ -13,6 +13,7 @@ from moviepy.audio.AudioClip import CompositeAudioClip, concatenate_audioclips
 from moviepy.video.tools.subtitles import SubtitlesClip
 from moviepy.video.VideoClip import TextClip
 
+import random
 import os
 import re
 from glob import glob
@@ -34,19 +35,20 @@ class VideoGenerator:
     Clase para generar videos a partir de imágenes con efectos, transiciones, audio y subtítulos.
     """
     
-    def __init__(self, project_folder, settings=None):
+    def __init__(self, project_folder, effect_settings=None):
         """
         Inicializa el generador de videos.
         
         Args:
             project_folder: Ruta a la carpeta del proyecto
-            settings: Configuración personalizada para los efectos
+            effect_settings: Diccionario con ajustes para efectos. Default None.
         """
         self.project_folder = Path(project_folder)
         self.image_folder = self.project_folder / "imagenes"
         self.output_filename_base = self.project_folder.name
         self.output_video_path = self.project_folder / f"{self.output_filename_base}_final.mp4"
-        
+        self.settings = effect_settings if effect_settings is not None else {}
+        print(f"DEBUG VideoGenerator.__init__: self.settings inicializado con: {self.settings}")
         # Cargar configuración desde settings.json si existe
         settings_path = self.project_folder / "settings.json"
         if settings_path.exists():
@@ -54,7 +56,7 @@ class VideoGenerator:
             with open(settings_path, 'r') as f:
                 settings_data = json.load(f)
                 # Usar configuración personalizada si se proporciona, sino usar la predeterminada
-                self.settings = settings or settings_data.get('default_effects', {
+                self.settings = self.settings or settings_data.get('default_effects', {
                     'zoom_ratio': 0.5,
                     'zoom_quality': 'high',
                     'pan_scale_factor': 1.2,
@@ -345,69 +347,120 @@ class VideoGenerator:
     
     def _create_image_clips(self, duracion_img, aplicar_efectos, secuencia_efectos, tiempos_imagenes=None):
         """
-        Crea clips de imagen con efectos si se solicita.
-        
+        Crea clips de imagen con efectos si se solicita, aplicando un ciclo
+        de efectos por defecto si no se especifica una secuencia.
+
         Args:
-            duracion_img: Duración en segundos de cada imagen
-            aplicar_efectos: Aplicar efectos a las imágenes
-            secuencia_efectos: Lista de efectos a aplicar en secuencia
-            tiempos_imagenes: Lista de diccionarios con información de tiempos para cada imagen
-                Cada diccionario contiene: 'indice', 'inicio', 'fin', 'duracion'
-            
+            duracion_img: Duración base en segundos de cada imagen (si no hay tiempos específicos)
+            aplicar_efectos: Booleano para aplicar efectos a las imágenes
+            secuencia_efectos: Lista de strings con efectos específicos a aplicar en secuencia
+            tiempos_imagenes: Lista opcional de diccionarios con tiempos específicos para cada imagen
+
         Returns:
-            list: Lista de clips de imagen
+            list: Lista de clips de imagen (ImageClip)
         """
         clips = []
         total_imagenes = len(self.image_files)
-        
-        print(f"DEBUG _create_image_clips: aplicar_efectos={aplicar_efectos}, secuencia_efectos={secuencia_efectos}")
-        print(f"DEBUG _create_image_clips: tipo de secuencia_efectos={type(secuencia_efectos)}")
-        
-        # Verificar si tenemos información de tiempos y si coincide con el número de imágenes
-        usar_tiempos_personalizados = (tiempos_imagenes is not None and 
-                                       len(tiempos_imagenes) == total_imagenes)
-        
+
+        print(f"DEBUG _create_image_clips: aplicar_efectos={aplicar_efectos}, secuencia_recibida={secuencia_efectos}")
+        print(f"DEBUG _create_image_clips: tipo de secuencia_recibida={type(secuencia_efectos)}")
+
+        # --- Define la lista de efectos por defecto para el ciclo ---
+        default_effects_list = ['in', 'panright', 'out', 'panleft', 'panup', 'pandown']
+        # Puedes reordenar o cambiar esta lista como prefieras
+
+        if aplicar_efectos and not default_effects_list:
+            print("ADVERTENCIA: Efectos activados pero la lista de efectos por defecto está vacía.")
+            # aplicar_efectos = False # Podrías desactivarlos si no hay defaults
+
+        usar_tiempos_personalizados = (tiempos_imagenes is not None and
+                                    isinstance(tiempos_imagenes, list) and # Añadir verificación de tipo
+                                    len(tiempos_imagenes) == total_imagenes)
+
         if usar_tiempos_personalizados:
             print(f"Usando información de tiempos personalizada para {len(tiempos_imagenes)} imágenes")
-        
+
         for i, archivo in enumerate(self.image_files):
             # Determinar la duración de esta imagen
             if usar_tiempos_personalizados:
-                # Usar la duración específica para esta imagen
-                duracion_actual = tiempos_imagenes[i]['duracion']
-                print(f"Imagen {i+1}: Duración personalizada = {duracion_actual:.2f}s")
+                try:
+                    duracion_actual = tiempos_imagenes[i]['duracion']
+                    print(f"Imagen {i+1}: Duración personalizada = {duracion_actual:.2f}s")
+                except (IndexError, KeyError, TypeError):
+                    print(f"ADVERTENCIA: Error al obtener duración personalizada para imagen {i+1}. Usando duración base.")
+                    duracion_actual = duracion_img
             else:
-                # Usar la duración estándar para todas las imágenes
                 duracion_actual = duracion_img
-            
-            # Crear el clip con la duración adecuada
-            clip = ImageClip(archivo).with_duration(duracion_actual)
-            
-            # Aplicar efectos si se solicita
-            if aplicar_efectos and secuencia_efectos:
-                # Obtener el efecto para este clip según la secuencia
-                efecto_idx = i % len(secuencia_efectos)
-                tipo_efecto = secuencia_efectos[efecto_idx]
-                print(f"DEBUG: Procesando imagen {i+1}, tipo_efecto = '{tipo_efecto}'")
-                
-                # Pasar la duración específica de esta imagen al efecto
-                clip = self._apply_effect_to_clip(clip, tipo_efecto, duracion_actual, i)
+
+            # Crear el clip base con la duración adecuada
+            try:
+                clip = ImageClip(archivo).with_duration(duracion_actual)
+            except Exception as e:
+                print(f"ERROR: No se pudo crear ImageClip para {archivo}: {e}")
+                continue # Saltar esta imagen si falla la carga
+
+            tipo_efecto_a_aplicar = None # Variable para guardar el efecto decidido
+
+            if aplicar_efectos:
+                # 1. Intentar obtener de la secuencia específica
+                #    Asegurarse que secuencia_efectos es una lista y tiene elementos
+                if secuencia_efectos and isinstance(secuencia_efectos, list) and i < len(secuencia_efectos):
+                    tipo_efecto_a_aplicar = secuencia_efectos[i]
+                    print(f"DEBUG: Imagen {i+1}: Usando efecto de secuencia: '{tipo_efecto_a_aplicar}'")
+                # 2. Si no hay secuencia específica O está vacía O es corta, Y hay defaults disponibles
+                elif default_effects_list:
+                    # Aplicar efecto por defecto CÍCLICO
+                    default_idx = i % len(default_effects_list) # Índice cíclico
+                    tipo_efecto_a_aplicar = default_effects_list[default_idx]
+                    print(f"DEBUG: Imagen {i+1}: Usando efecto por defecto cíclico: '{tipo_efecto_a_aplicar}' (índice ciclo: {default_idx})")
+                # 3. Si los efectos están activos pero no hay secuencia ni defaults
+                else:
+                    print(f"DEBUG: Imagen {i+1}: Efectos habilitados pero sin secuencia específica ni defaults. No se aplica efecto.")
+
+            # Aplicar el efecto si se decidió uno
+            if tipo_efecto_a_aplicar:
+                try:
+                    # IMPORTANTE: Asegúrate de que 'self.settings' esté disponible aquí
+                    # Deberías asignarlo en generate_video: self.settings = kwargs.get('settings', {})
+                    if not hasattr(self, 'settings'):
+                        print("ADVERTENCIA: self.settings no encontrado en VideoGenerator. Usando diccionario vacío.")
+                        self.settings = {} # Fallback por si acaso
+
+                    clip = self._apply_effect_to_clip(clip, tipo_efecto_a_aplicar, duracion_actual, i)
+                except Exception as e_effect:
+                    print(f"ERROR al aplicar efecto '{tipo_efecto_a_aplicar}' a imagen {i+1}: {e_effect}")
+                    # Decidir si continuar con el clip sin efecto o manejar el error
             else:
-                print(f"DEBUG: NO se aplican efectos a imagen {i+1}. Condición: aplicar_efectos={aplicar_efectos} and secuencia_efectos={secuencia_efectos}")
-            
-            # Si tenemos información de tiempos, establecer el tiempo de inicio
+                # Log si no se aplicó ningún efecto intencionadamente
+                if aplicar_efectos:
+                    # Este caso ocurre si la lista default está vacía
+                    print(f"DEBUG: Imagen {i+1}: No se aplicó efecto (Sin secuencia específica ni defaults).")
+                else:
+                    print(f"DEBUG: Imagen {i+1}: Efectos deshabilitados.")
+
+
+            # Si tenemos información de tiempos, establecer el tiempo de inicio y fin
             if usar_tiempos_personalizados:
-                # Guardar el tiempo de inicio y fin como metadatos del clip para uso posterior
-                clip.start_time = tiempos_imagenes[i]['inicio']
-                clip.end_time = tiempos_imagenes[i]['fin']
-                print(f"  Tiempo inicio: {clip.start_time:.2f}s, Tiempo fin: {clip.end_time:.2f}s")
-            
+                try:
+                    # En MoviePy 2.x, el método correcto es with_start() en lugar de set_start()
+                    clip = clip.with_start(tiempos_imagenes[i]['inicio'])
+                    # Opcional: guardar end_time si lo necesitas después
+                    print(f"  Tiempo inicio: {clip.start:.2f}s, Tiempo fin calculado: {clip.end:.2f}s")
+                except (IndexError, KeyError, TypeError):
+                    print(f"ADVERTENCIA: Error al establecer tiempos personalizados para imagen {i+1}.")
+                    # El clip tendrá start=0 por defecto si falla
+
+
             clips.append(clip)
-            
-            # Actualizar progreso si hay un callback definido
-            if self.progress_callback:
-                self.progress_callback(i+1, total_imagenes)
-        
+
+        # Actualizar progreso si hay un callback definido
+        if self.progress_callback:
+            # Asegurarse que la división por cero no ocurra si total_imagenes es 0
+            progreso = ((i + 1) / total_imagenes) * 100 if total_imagenes > 0 else 100
+            # Llamar al callback (podría necesitar ajustarse a lo que espera tu callback)
+            self.progress_callback(progreso)
+
+
         return clips
     
     def _apply_effect_to_clip(self, clip, tipo_efecto, duracion_img, indice_imagen):
