@@ -152,9 +152,9 @@ class BatchTabFrame(ttk.Frame):
         
         # Variables numéricas para los sliders (valores internos)
         if not hasattr(self.app, 'tts_rate_value'):
-            self.app.tts_rate_value = tk.IntVar(value=0)  # 0 = normal, -50 a +50
+            self.app.tts_rate_value = tk.IntVar(value=-10)  # Valor por defecto: -10% (un poco más lento)
         if not hasattr(self.app, 'tts_pitch_value'):
-            self.app.tts_pitch_value = tk.IntVar(value=0)  # 0 = normal, -50 a +50
+            self.app.tts_pitch_value = tk.IntVar(value=-5)  # Valor por defecto: -5Hz (tono ligeramente más bajo)
         
         # Función para convertir valor del slider a formato de edge-tts
         def update_rate_str(*args):

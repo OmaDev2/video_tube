@@ -49,8 +49,9 @@ class VideoCreatorApp:
         self.batch_tts_manager = BatchTTSManager(root)
         # ProjectManager desactivado temporalmente
         # self.project_manager = ProjectManager(self)
-        self.tts_rate_str = tk.StringVar(value="+0%")
-        self.tts_pitch_str = tk.StringVar(value="+0Hz")
+        # Valores por defecto para TTS ajustados para mejor calidad de voz
+        self.tts_rate_str = tk.StringVar(value="-3%")  # Un poco más lento para mayor claridad
+        self.tts_pitch_str = tk.StringVar(value="-6Hz")  # Tono ligeramente más bajo para mayor naturalidad
         
         # --- Inicializar variables para subtítulos Configuración subtitulos---
         self.settings_subtitles = tk.BooleanVar(value=False)
@@ -67,7 +68,7 @@ class VideoCreatorApp:
         self.subtitles_uppercase = tk.BooleanVar(value=False)  # Subtítulos en mayúsculas
         
         # Variable para activar/desactivar subtítulos
-        self.aplicar_subtitulos = tk.BooleanVar(value=False)
+        self.aplicar_subtitulos = tk.BooleanVar(value=True)
         
         # --- Inicializar variables para configuración de Whisper ---
         self.whisper_model = None
@@ -100,13 +101,31 @@ class VideoCreatorApp:
         
         
         if not hasattr(self, 'efecto_checkboxes'):
+            # Inicializar checkboxes con algunos efectos marcados por defecto
             self.efecto_checkboxes = {
-                'in': tk.BooleanVar(), 'out': tk.BooleanVar(), 'panup': tk.BooleanVar(),
-                'pandown': tk.BooleanVar(), 'panleft': tk.BooleanVar(), 'panright': tk.BooleanVar(),
-                'kenburns': tk.BooleanVar(), 'kenburns1': tk.BooleanVar(), 'kenburns2': tk.BooleanVar(),
-                'kenburns3': tk.BooleanVar(), 'flip_horizontal': tk.BooleanVar(), 'flip_vertical': tk.BooleanVar(),
-                'vignette_zoom_in': tk.BooleanVar(), 'vignette_zoom_out': tk.BooleanVar(),
-                'rotate_clockwise': tk.BooleanVar(), 'rotate_counter_clockwise': tk.BooleanVar()
+                # Efectos de zoom marcados por defecto
+                'in': tk.BooleanVar(value=True),
+                'out': tk.BooleanVar(value=True),
+                
+                # Efectos de paneo - marcamos los horizontales por defecto
+                'panup': tk.BooleanVar(value=True),
+                'pandown': tk.BooleanVar(value=True),
+                'panleft': tk.BooleanVar(value=True),
+                'panright': tk.BooleanVar(value=True),
+                
+                # Efectos Ken Burns - marcamos el clásico por defecto
+                'kenburns': tk.BooleanVar(),
+                'kenburns1': tk.BooleanVar(),
+                'kenburns2': tk.BooleanVar(),
+                'kenburns3': tk.BooleanVar(),
+                
+                # Otros efectos
+                'flip_horizontal': tk.BooleanVar(),
+                'flip_vertical': tk.BooleanVar(),
+                'vignette_zoom_in': tk.BooleanVar(),
+                'vignette_zoom_out': tk.BooleanVar(),
+                'rotate_clockwise': tk.BooleanVar(),
+                'rotate_counter_clockwise': tk.BooleanVar()
             }
         
         # Lista ordenada para mantener el orden visual y de selección
@@ -210,6 +229,18 @@ class VideoCreatorApp:
         self.tipo_efecto = tk.StringVar(value="in")
         self.modo_efecto = tk.StringVar(value="2")
         self.secuencia_efectos = tk.StringVar()
+        
+        # Actualizar la secuencia de efectos basada en los checkboxes marcados por defecto
+        # Esto debe hacerse después de inicializar self.secuencia_efectos
+        efectos_seleccionados = []
+        for efecto, var in self.efecto_checkboxes.items():
+            if var.get():
+                efectos_seleccionados.append(efecto)
+        
+        # Actualizar la variable de secuencia con los efectos seleccionados por defecto
+        if efectos_seleccionados:
+            self.secuencia_efectos.set(','.join(efectos_seleccionados))
+            
         self.aplicar_transicion = tk.BooleanVar(value=True)
         self.tipo_transicion = tk.StringVar(value="dissolve")
         self.duracion_transicion = tk.DoubleVar(value=1.0)

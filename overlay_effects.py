@@ -49,21 +49,21 @@ class OverlayEffect:
             Clip con el overlay aplicado
         """
         if not os.path.exists(overlay_path):
-            print(f"Archivo de overlay no encontrado: {overlay_path}")
+            #print(f"Archivo de overlay no encontrado: {overlay_path}")
             return base_clip
         
         try:
             # Verificar si el clip base es un AudioFileClip (no tiene atributo size)
             if not hasattr(base_clip, 'size'):
                 # Si es un AudioFileClip, no podemos aplicar un overlay visual
-                print("No se puede aplicar overlay visual a un clip de audio")
+                #print("No se puede aplicar overlay visual a un clip de audio")
                 return base_clip
                 
             # Verificación adicional para asegurar que size es accesible
             _ = base_clip.size  # Intentar acceder al atributo para verificar que es válido
             
             # Cargar el video de overlay
-            print(f"Cargando overlay: {overlay_path}")
+           #print(f"Cargando overlay: {overlay_path}")
             overlay_clip = VideoFileClip(overlay_path)
             
             # Redimensionar el overlay para que coincida con el tamaño del clip base
@@ -76,7 +76,7 @@ class OverlayEffect:
             if overlay_clip.duration < base_clip.duration:
                 # Calcular cuántas repeticiones necesitamos
                 repetitions = int(np.ceil(base_clip.duration / overlay_clip.duration))
-                print(f"El overlay necesita {repetitions} repeticiones para cubrir el clip base")
+                #print(f"El overlay necesita {repetitions} repeticiones para cubrir el clip base")
                 # Crear una lista de clips para concatenar
                 clips_to_concat = [overlay_clip] * repetitions
                 # Concatenar los clips
@@ -88,16 +88,16 @@ class OverlayEffect:
                 overlay_clip = overlay_clip.with_duration(base_clip.duration)
             
             # Combinar los clips
-            print(f"Combinando clip base con overlay usando opacidad {opacity}")
+            #print(f"Combinando clip base con overlay usando opacidad {opacity}")
             final_clip = CompositeVideoClip([base_clip, overlay_clip])
             
             return final_clip
         except AttributeError as e:
-            print(f"Error de atributo al aplicar overlay: {str(e)}")
-            print("Es posible que el clip sea un clip de audio sin atributos visuales")
+            #print(f"Error de atributo al aplicar overlay: {str(e)}")
+            #print("Es posible que el clip sea un clip de audio sin atributos visuales")
             return base_clip
         except Exception as e:
-            print(f"Error al aplicar overlay: {str(e)}")
+            #print(f"Error al aplicar overlay: {str(e)}")
             return base_clip
         
     @staticmethod
