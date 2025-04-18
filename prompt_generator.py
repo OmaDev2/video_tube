@@ -142,17 +142,17 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
             from prompt_manager import PromptManager
             prompt_manager = PromptManager()
             
-            logging.info(f"\n\nEstilo solicitado: '{estilo_base}'")
-            logging.info(f"Estilos disponibles: {prompt_manager.get_prompt_ids()}")
+            #logging.info(f"\n\nEstilo solicitado: '{estilo_base}'")
+            #logging.info(f"Estilos disponibles: {prompt_manager.get_prompt_ids()}")
             
             # Caso especial para el estilo psicodélico
             if estilo_base == 'psicodelicas' or (estilo_base == 'default' and video_title and 'psicod' in video_title.lower()):
                 estilo_base = 'psicodelicas'
-                logging.info(f"*** APLICANDO ESTILO PSICODÉLICO ***")
+                #logging.info(f"*** APLICANDO ESTILO PSICODÉLICO ***")
             
             # Comprobar si el estilo existe en el gestor de prompts
             if estilo_base in prompt_manager.get_prompt_ids():
-                logging.info(f"Usando estilo: '{estilo_base}'")
+                #logging.info(f"Usando estilo: '{estilo_base}'")
                 
                 # Obtener el system prompt y user prompt del estilo seleccionado
                 system_prompt = prompt_manager.get_system_prompt(estilo_base)
@@ -160,22 +160,22 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
                 negative_prompt = prompt_manager.get_prompt(estilo_base)["negative_prompt"]
                 
                 # Imprimir los valores que se van a usar para formatear el prompt
-                logging.info(f"\n=== VALORES PARA FORMATEO DE PROMPT ===")
-                logging.info(f"SEGMENTO ORIGINAL: '{segmento[:100]}...' (truncado)" if len(segmento) > 100 else f"SEGMENTO ORIGINAL: '{segmento}'")
-                logging.info(f"TITULO DEL VIDEO: '{video_title}'")
-                logging.info(f"USER PROMPT ORIGINAL: '{user_prompt[:100]}...' (truncado)" if len(user_prompt) > 100 else f"USER PROMPT ORIGINAL: '{user_prompt}'")
+                #logging.info(f"\n=== VALORES PARA FORMATEO DE PROMPT ===")
+                #logging.info(f"SEGMENTO ORIGINAL: '{segmento[:100]}...' (truncado)" if len(segmento) > 100 else f"SEGMENTO ORIGINAL: '{segmento}'")
+                #logging.info(f"TITULO DEL VIDEO: '{video_title}'")
+                #logging.info(f"USER PROMPT ORIGINAL: '{user_prompt[:100]}...' (truncado)" if len(user_prompt) > 100 else f"USER PROMPT ORIGINAL: '{user_prompt}'")
                 
                 # Verificar si el user_prompt contiene los placeholders esperados
                 has_titulo_placeholder = "{titulo}" in user_prompt
                 has_escena_placeholder = "{escena}" in user_prompt
-                logging.info(f"USER PROMPT CONTIENE PLACEHOLDER TITULO: {has_titulo_placeholder}")
-                logging.info(f"USER PROMPT CONTIENE PLACEHOLDER ESCENA: {has_escena_placeholder}")
+                #logging.info(f"USER PROMPT CONTIENE PLACEHOLDER TITULO: {has_titulo_placeholder}")
+                #logging.info(f"USER PROMPT CONTIENE PLACEHOLDER ESCENA: {has_escena_placeholder}")
                 
                 # Asegurarse de que los placeholders {titulo} y {escena} se reemplacen correctamente
                 try:
                     # Intentar usar el user prompt con ambos placeholders
                     user_prompt_formateado = user_prompt.format(titulo=video_title, escena=segmento)
-                    logging.info(f"FORMATEO EXITOSO CON AMBOS PLACEHOLDERS")
+                    #logging.info(f"FORMATEO EXITOSO CON AMBOS PLACEHOLDERS")
                 except KeyError as e:
                     # Si falta alguno de los placeholders, usar el formato antiguo
                     logging.warning(f"ERROR DE FORMATEO: {e}")

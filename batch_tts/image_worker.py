@@ -91,6 +91,8 @@ def procesar_imagenes(job_data, gui_root=None):
                 estilo_base=estilo,
                 tiempos_imagenes=tiempos_imagenes # Pasar los tiempos calculados
             )
+            num_prompts_generados = len(lista_prompts) if lista_prompts else 0
+            print(f"DEBUG ImageWorker - Prompts generados: {num_prompts_generados}")
 
             if lista_prompts:
                 prompts_generados = lista_prompts
@@ -134,7 +136,7 @@ def procesar_imagenes(job_data, gui_root=None):
                 if not prompt_en or prompt_en.startswith("Error"):
                      print(f"Omitiendo imagen {idx+1} por prompt inválido: '{prompt_en}'")
                      continue
-
+                
                 # TODO: Añadir lógica para actualizar estado en GUI aquí si es necesario (llamando al manager)
                 # self.manager.update_job_status_gui(job_id, f"Generando imagen {idx+1}/{len(prompts_generados)}...")
 
@@ -142,13 +144,15 @@ def procesar_imagenes(job_data, gui_root=None):
                 img_filename = f"{base_name}_{idx+1:03d}.png"
                 img_path_str = str(image_output_folder / img_filename)
 
+                # Generar imagen
+                print(f"DEBUG ImageWorker - Intentando generar imagen {idx+1}/{num_prompts_generados}...")
                 generated_img_path = generar_imagen_con_replicate(prompt_en, img_path_str)
-
+                
                 if generated_img_path and Path(generated_img_path).exists():
+                    print(f"DEBUG ImageWorker - Imagen {idx+1} generada OK: {generated_img_path}")
                     imagenes_generadas.append(generated_img_path)
                 else:
-                    print(f"Error o no se generó imagen {idx+1} para prompt: {prompt_en}")
-
+                    print(f"DEBUG ImageWorker - Error al generar imagen {idx+1}")
             if imagenes_generadas:
                 results['imagenes_generadas'] = imagenes_generadas
                 results['imagenes_usadas_para_video'] = imagenes_generadas # Marcar para el worker de video
@@ -184,9 +188,10 @@ def procesar_imagenes(job_data, gui_root=None):
          print(f"Omitiendo generación de imágenes. {reason}")
          status_msg += f"Imágenes Omitidas ({reason.strip()}). "
 
-
+    print(f"DEBUG ImageWorker - Total imágenes generadas exitosamente: {len(imagenes_generadas)}")
+    results['imagenes_usadas_para_video'] = imagenes_generadas # o como lo almacenes
     results['status_msg'] = status_msg.strip()
-
+    
     # Se considera éxito si al menos tenemos imágenes para intentar hacer el video
     # O si el proceso se completó sin errores fatales, aunque no se generaran imágenes.
     # El worker de video decidirá si puede continuar.

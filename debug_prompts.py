@@ -23,9 +23,9 @@ def main():
     prompt_style_ids = [id for id, _ in prompt_styles]
     prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
     
-    print("\n=== MAPEO DE NOMBRES A IDS ===")
-    for name, id in prompt_style_map.items():
-        print(f"Nombre: '{name}' -> ID: '{id}'")
+    #print("\n=== MAPEO DE NOMBRES A IDS ===")
+    #for name, id in prompt_style_map.items():
+    #    print(f"Nombre: '{name}' -> ID: '{id}'")
     
     # Probar la generación de prompts con cada estilo
     print("\n=== PRUEBA DE GENERACIÓN DE PROMPTS ===")
