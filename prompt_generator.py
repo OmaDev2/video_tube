@@ -123,23 +123,19 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
     if len(segmentos) < num_imagenes:
         logging.warning(f"Advertencia: Se generarán solo {len(segmentos)} prompts porque hay pocos segmentos.")
     
-    # Imprimir información detallada sobre los segmentos generados
-    logging.info("\n=== SEGMENTOS GENERADOS PARA PROMPTS ===")
-    logging.info(f"TÍTULO DEL VIDEO: '{video_title}'")
-    logging.info(f"ESTILO SELECCIONADO: '{estilo_base}'")
-    logging.info(f"TOTAL DE SEGMENTOS: {len(segmentos)}")
-    for i, segmento in enumerate(segmentos):
-        logging.info(f"\nSEGMENTO {i+1}/{len(segmentos)}:")
-        # Mostrar solo los primeros 100 caracteres si es muy largo
-        if len(segmento) > 100:
-            logging.info(f"'{segmento[:100]}...' (truncado, longitud total: {len(segmento)} caracteres)")
-        else:
-            logging.info(f"'{segmento}'")
-    logging.info("=== FIN DE SEGMENTOS ===")
+    # Resumen simple de los prompts a generar
+    logging.info(f"[PROMPTS] Título: '{video_title}' | Estilo: '{estilo_base}' | Total prompts a generar: {len(segmentos)}")
+    logging.info(f"[PROMPTS] Proceso de generación de prompts iniciado...")
+    # Si quieres ver un ejemplo del primer segmento, lo mostramos truncado
+    if segmentos:
+        logging.info(f"[PROMPTS] Ejemplo de segmento 1: '{segmentos[0][:100]}{'...' if len(segmentos[0]) > 100 else ''}'")
+    # (Opcional: si quieres mostrar todos los segmentos, puedes habilitar un flag o usar nivel DEBUG)
+    # logging.debug(f"Todos los segmentos: {segmentos}")
 
     resultados_prompts = []  # Lista para almacenar resultados
     for i, segmento in enumerate(segmentos):
-        logging.info(f" - Generando prompt para segmento {i+1}/{len(segmentos)}...")
+        porcentaje = ((i+1) / len(segmentos)) * 100
+        logging.info(f"[PROMPTS] Generando prompt {i+1} de {len(segmentos)}... ({porcentaje:.1f}% completado)")
 
         # Usar el gestor de prompts si está disponible
         try:
@@ -214,7 +210,7 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
                     user_prompt=user_prompt_formateado,
                     openai_model="gpt-3.5-turbo",  # Puedes cambiar a gpt-4-turbo si prefieres
                     gemini_retries=2,  # Número de reintentos para Gemini
-                    gemini_initial_delay=45,  # Delay inicial en segundos
+                    gemini_initial_delay=3,  # Delay inicial en segundos (ajustado a 3)
                     safety_settings=safety_settings
                 )
                 
@@ -240,7 +236,7 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
                     user_prompt=user_prompt_formateado,
                     openai_model="gpt-3.5-turbo",
                     gemini_retries=2,
-                    gemini_initial_delay=45,
+                    gemini_initial_delay=3,
                     safety_settings=safety_settings
                 )
                 
@@ -266,7 +262,7 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
                 user_prompt=user_prompt_formateado,
                 openai_model="gpt-3.5-turbo",
                 gemini_retries=2,
-                gemini_initial_delay=45,
+                gemini_initial_delay=3,
                 safety_settings=safety_settings
             )
             

@@ -13,9 +13,9 @@ from prompt_generator import generar_prompts_con_gemini
 def main():
     # Mostrar los estilos disponibles
     prompt_manager = PromptManager()
-    print("\n=== ESTILOS DE PROMPTS DISPONIBLES ===")
-    for prompt_id, prompt_info in prompt_manager.get_all_prompts().items():
-        print(f"ID: '{prompt_id}', Nombre: '{prompt_info['name']}'")
+    #print("\n=== ESTILOS DE PROMPTS DISPONIBLES ===")
+    #for prompt_id, prompt_info in prompt_manager.get_all_prompts().items():
+    #    print(f"ID: '{prompt_id}', Nombre: '{prompt_info['name']}'")
     
     # Verificar el mapeo de nombres a IDs
     prompt_styles = prompt_manager.get_prompt_names()

@@ -52,9 +52,17 @@ VideoPython/
 - **efectos.py**: Contiene las clases para los efectos visuales como zoom, rotación, etc.
 - **transiciones.py**: Define las transiciones entre clips de video
 - **tts_generator.py**: Generador de texto a voz para voz en off
-- **batch_tts.py**: Procesamiento por lotes de texto a voz para múltiples proyectos
+- **batch_tts/**: Módulo de procesamiento por lotes para TTS, imágenes y video (ver detalle abajo)
 - **subtitles.py**: Manejo de subtítulos para los videos
 - **config.py**: Configuraciones generales como tamaño de imágenes, FPS, etc.
+
+#### batch_tts/
+- **manager.py**: Orquestador de la cola y lógica principal
+- **audio_worker.py**: Lógica de TTS y generación de audio
+- **image_worker.py**: Lógica de prompts e imágenes
+- **video_worker.py**: Lógica de generación de video
+- **subtitles_worker.py**: Lógica de subtítulos
+- **utils.py**: Funciones auxiliares
 
 ### Carpetas principales
 

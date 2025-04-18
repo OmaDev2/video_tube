@@ -51,7 +51,7 @@ class VideoCreatorApp:
         # self.project_manager = ProjectManager(self)
         
         # --- Inicializar variables para subtítulos Configuración subtitulos---
-        self.settings_subtitles = tk.BooleanVar(value=True)
+        self.settings_subtitles = tk.BooleanVar(value=False)
         self.settings_subtitles_font_size = tk.IntVar(value=48)  # Cambiado a 48
         self.settings_subtitles_font_color = tk.StringVar(value='white')
         self.settings_subtitles_stroke_color = tk.StringVar(value='black')
@@ -61,6 +61,11 @@ class VideoCreatorApp:
         self.settings_subtitles_position_v = tk.StringVar(value='bottom')
         self.settings_subtitles_font_name = tk.StringVar(value="Arial Black")  # Cambiado a Arial Black
         self.settings_use_system_font = tk.BooleanVar(value=True)  # Activado para usar fuente del sistema
+        self.settings_subtitles_margin = tk.DoubleVar(value=0.20)  # Margen para los subtítulos
+        self.subtitles_uppercase = tk.BooleanVar(value=False)  # Subtítulos en mayúsculas
+        
+        # Variable para activar/desactivar subtítulos
+        self.aplicar_subtitulos = tk.BooleanVar(value=False)
         
         # --- Inicializar variables para configuración de Whisper ---
         self.whisper_model = None

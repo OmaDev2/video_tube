@@ -2,8 +2,9 @@
 # Archivo: ui/tab_batch.py
 
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk
 from pathlib import Path
+from tkinter import messagebox 
 
 # Importar el gestor de prompts
 try:
@@ -42,34 +43,9 @@ class BatchTabFrame(ttk.Frame):
         self.entry_title = ttk.Entry(frame_input, width=60)
         self.entry_title.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
-        # --- Configuración de Tiempo ---
-        # Duración de imagen
-        lbl_duracion = ttk.Label(frame_input, text="Duración imagen (s):")
-        lbl_duracion.grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        
-        # Crear variable para duración si no existe en la app
-        if not hasattr(self.app, 'duracion_img_batch'):
-            self.app.duracion_img_batch = tk.DoubleVar(value=10.0)
-            
-        spin_duracion = ttk.Spinbox(frame_input, from_=1, to=30, increment=0.5, 
-                                    textvariable=self.app.duracion_img_batch, width=5)
-        spin_duracion.grid(row=1, column=1, padx=5, pady=5, sticky="w")
-        
-        # FPS
-        lbl_fps = ttk.Label(frame_input, text="FPS:")
-        lbl_fps.grid(row=2, column=0, padx=5, pady=5, sticky="w")
-        
-        # Crear variable para FPS si no existe en la app
-        if not hasattr(self.app, 'fps_batch'):
-            self.app.fps_batch = tk.IntVar(value=30)
-            
-        spin_fps = ttk.Spinbox(frame_input, from_=15, to=60, increment=1, 
-                              textvariable=self.app.fps_batch, width=5)
-        spin_fps.grid(row=2, column=1, padx=5, pady=5, sticky="w")
-        
         # Selección de voz
         lbl_voice = ttk.Label(frame_input, text="Voz:")
-        lbl_voice.grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        lbl_voice.grid(row=1, column=0, padx=5, pady=5, sticky="w")
         
         # Lista de voces disponibles (puedes ampliar esta lista)
         voces = [
@@ -84,7 +60,7 @@ class BatchTabFrame(ttk.Frame):
         
         # Selección de estilo de prompts
         lbl_prompt_style = ttk.Label(frame_input, text="Estilo de Imágenes:")
-        lbl_prompt_style.grid(row=4, column=0, padx=5, pady=5, sticky="w")
+        lbl_prompt_style.grid(row=2, column=0, padx=5, pady=5, sticky="w")
         
         # Crear variable para el estilo de prompts si no existe
         if not hasattr(self.app, 'selected_prompt_style'):
@@ -98,7 +74,7 @@ class BatchTabFrame(ttk.Frame):
                 prompt_styles = prompt_manager.get_prompt_names()
                 
                 # Imprimir información de depuración sobre los estilos disponibles
-                print("\n\n=== ESTILOS DE PROMPTS DISPONIBLES ===")
+                #print("\n\n=== ESTILOS DE PROMPTS DISPONIBLES ===")
                 for i, (id, name) in enumerate(prompt_styles):
                     print(f"  {i+1}. ID: '{id}', Nombre: '{name}'")
             except Exception as e:
@@ -106,25 +82,14 @@ class BatchTabFrame(ttk.Frame):
         
         self.app.selected_voice = tk.StringVar(value="es-MX-JorgeNeural")
         voice_combo = ttk.Combobox(frame_input, textvariable=self.app.selected_voice, values=voces, width=30)
-        voice_combo.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+        voice_combo.grid(row=1, column=1, padx=5, pady=5, sticky="w")
         
         # Dropdown para estilos de prompts
         prompt_style_values = [name for _, name in prompt_styles]
         prompt_style_ids = [id for id, _ in prompt_styles]
         self.prompt_style_dropdown = ttk.Combobox(frame_input, textvariable=self.app.selected_prompt_style, 
-                                               values=prompt_style_values, width=30, state="readonly")
-        self.prompt_style_dropdown.grid(row=4, column=1, padx=5, pady=5, sticky="w")
-        
-        # Checkbutton para aplicar subtítulos (si existen)
-        if not hasattr(self.app, 'aplicar_subtitulos_batch'):
-            self.app.aplicar_subtitulos_batch = tk.BooleanVar(value=True)  # Por defecto activado
-            
-        self.chk_aplicar_subtitulos = ttk.Checkbutton(
-            frame_input, 
-            text="Aplicar subtítulos (si existen) a los videos",
-            variable=self.app.aplicar_subtitulos_batch
-        )
-        self.chk_aplicar_subtitulos.grid(row=4, column=2, padx=5, pady=5, sticky="w")
+                                              values=prompt_style_values, width=30, state="readonly")
+        self.prompt_style_dropdown.grid(row=2, column=1, padx=5, pady=5, sticky="w")
         
         # Mapeo de nombres a IDs para recuperar el ID correcto
         self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
@@ -144,20 +109,28 @@ class BatchTabFrame(ttk.Frame):
 
         # Guion del proyecto
         lbl_script = ttk.Label(frame_input, text="Guion:")
-        lbl_script.grid(row=5, column=0, padx=5, pady=5, sticky="nw")
+        lbl_script.grid(row=3, column=0, padx=5, pady=5, sticky="nw")
         
         # Frame para el Text y Scrollbar
         frame_text = ttk.Frame(frame_input)
-        frame_text.grid(row=5, column=1, padx=5, pady=5, sticky="nsew")
+        frame_text.grid(row=3, column=1, padx=5, pady=5, sticky="nsew")
         frame_input.grid_columnconfigure(1, weight=1)  # Hacer que columna 1 se expanda
-        frame_input.grid_rowconfigure(5, weight=1)     # Hacer que fila 5 se expanda
+        frame_input.grid_rowconfigure(3, weight=1)     # Hacer que fila 3 se expanda
 
         self.txt_script = tk.Text(frame_text, wrap="word", height=15, width=60)
         scrollbar_script = ttk.Scrollbar(frame_text, orient="vertical", command=self.txt_script.yview)
         self.txt_script.configure(yscrollcommand=scrollbar_script.set)
         self.txt_script.pack(side="left", fill="both", expand=True)
         scrollbar_script.pack(side="right", fill="y")
-
+        
+        # Checkbox para subtítulos
+        frame_subtitles = ttk.Frame(frame_input)
+        frame_subtitles.grid(row=3, column=2, padx=5, pady=5, sticky="nw")
+        
+        chk_subtitles = ttk.Checkbutton(frame_subtitles, text="Generar subtítulos", 
+                                      variable=self.app.aplicar_subtitulos)
+        chk_subtitles.pack(side="top", anchor="w", padx=5, pady=5)
+        
         # Botones de acción
         frame_buttons = ttk.Frame(frame_input)
         frame_buttons.grid(row=4, column=1, padx=5, pady=10, sticky="e")
@@ -180,8 +153,8 @@ class BatchTabFrame(ttk.Frame):
         self.app.tree_queue.heading("titulo", text="Título del Proyecto")
         self.app.tree_queue.heading("estado", text="Estado")
         self.app.tree_queue.heading("tiempo", text="Tiempo")
-        self.app.tree_queue.column("titulo", width=250)  # Columna de título más pequeña
-        self.app.tree_queue.column("estado", width=300, anchor="center")  # Columna de estado más grande
+        self.app.tree_queue.column("titulo", width=400)
+        self.app.tree_queue.column("estado", width=150, anchor="center")
         self.app.tree_queue.column("tiempo", width=100, anchor="center")
 
         # Frame para contener el Treeview y su scrollbar
@@ -202,126 +175,71 @@ class BatchTabFrame(ttk.Frame):
         
         # Botón para cargar proyectos existentes
         btn_cargar_proyecto = ttk.Button(frame_botones_principales,
-                                       text="Cargar Proyecto Existente",
-                                       command=self._cargar_proyecto_existente,
-                                       style="Secondary.TButton",
-                                       width=20)
-        btn_cargar_proyecto.pack(side="left", padx=10, pady=10)
+                                      text="Cargar Proyecto Existente",
+                                      command=self._cargar_proyecto_existente,
+                                      style="Secondary.TButton")
+        btn_cargar_proyecto.pack(side="left", padx=5, pady=5)
         
-        # Botón para generar vídeo (más grande y destacado)
+        # Botón para generar vídeo
         btn_generate_video = ttk.Button(frame_botones_principales,
-                                       text="GENERAR VÍDEO",
-                                       command=self.app.trigger_video_generation_for_selected,
-                                       style="Action.TButton",
-                                       width=20)
-        btn_generate_video.pack(side="right", padx=10, pady=10)
+                                      text="Generar Vídeo",
+                                      command=self.app.trigger_video_generation_for_selected,
+                                      style="Action.TButton")
+        btn_generate_video.pack(side="right", padx=5, pady=5)
         
         # --- BARRA DE HERRAMIENTAS DE REGENERACIÓN ---
-        # Crear un frame con borde para los botones de regeneración
-        frame_regeneracion = ttk.LabelFrame(frame_queue, text="Regenerar Componentes")
-        frame_regeneracion.pack(fill="x", pady=10, padx=5)
+        # Crear un frame para los botones de regeneración
+        frame_regeneracion = ttk.Frame(frame_queue)
+        frame_regeneracion.pack(fill="x", pady=(0, 5))
         
-        # Crear un grid para organizar los botones de manera más ordenada
-        frame_grid = ttk.Frame(frame_regeneracion)
-        frame_grid.pack(fill="x", padx=10, pady=10)
+        # Etiqueta para los botones de regeneración
+        lbl_regenerar = ttk.Label(frame_regeneracion, text="Regenerar:", font=("Helvetica", 10, "bold"))
+        lbl_regenerar.pack(side="left", padx=5, pady=5)
         
-        # Botón para regenerar audio (más grande y con icono visual)
-        btn_regenerar_audio = ttk.Button(frame_grid,
-                                        text="Audio",
-                                        command=self._regenerar_audio,
-                                        style="Secondary.TButton",
-                                        width=15)
-        btn_regenerar_audio.grid(row=0, column=0, padx=10, pady=5, sticky="ew")
+        # Botón para regenerar audio
+        btn_regenerar_audio = ttk.Button(frame_regeneracion,
+                                       text="Audio",
+                                       command=self._regenerar_audio,
+                                       style="Secondary.TButton",
+                                       width=10)
+        btn_regenerar_audio.pack(side="left", padx=5, pady=5)
         
         # Botón para regenerar prompts
-        btn_regenerar_prompts = ttk.Button(frame_grid,
-                                         text="Prompts",
-                                         command=self._regenerar_prompts,
-                                         style="Secondary.TButton",
-                                         width=15)
-        btn_regenerar_prompts.grid(row=0, column=1, padx=10, pady=5, sticky="ew")
+        btn_regenerar_prompts = ttk.Button(frame_regeneracion,
+                                        text="Prompts",
+                                        command=self._regenerar_prompts,
+                                        style="Secondary.TButton",
+                                        width=10)
+        btn_regenerar_prompts.pack(side="left", padx=5, pady=5)
         
         # Botón para regenerar imágenes
-        btn_regenerar_imagenes = ttk.Button(frame_grid,
-                                          text="Imágenes",
-                                          command=self._regenerar_imagenes,
-                                          style="Secondary.TButton",
-                                          width=15)
-        btn_regenerar_imagenes.grid(row=1, column=0, padx=10, pady=5, sticky="ew")
+        btn_regenerar_imagenes = ttk.Button(frame_regeneracion,
+                                         text="Imágenes",
+                                         command=self._regenerar_imagenes,
+                                         style="Secondary.TButton",
+                                         width=10)
+        btn_regenerar_imagenes.pack(side="left", padx=5, pady=5)
         
         # Botón para regenerar subtítulos
-        btn_regenerar_subtitulos = ttk.Button(frame_grid,
-                                            text="Subtítulos",
-                                            command=self._regenerar_subtitulos,
-                                            style="Secondary.TButton",
-                                            width=15)
-        btn_regenerar_subtitulos.grid(row=1, column=1, padx=10, pady=5, sticky="ew")
-        
-        # Configurar el grid para que las columnas se expandan uniformemente
-        frame_grid.columnconfigure(0, weight=1)
-        frame_grid.columnconfigure(1, weight=1)
+        btn_regenerar_subtitulos = ttk.Button(frame_regeneracion,
+                                           text="Subtítulos",
+                                           command=self._regenerar_subtitulos,
+                                           style="Secondary.TButton",
+                                           width=10)
+        btn_regenerar_subtitulos.pack(side="left", padx=5, pady=5)
         
         # Asignar el Treeview al gestor de cola
         self.app.batch_tts_manager.tree_queue = self.app.tree_queue
         
-        # Etiqueta de estado de la cola (más visible y destacada)
-        status_frame = ttk.Frame(frame_queue, style="Card.TFrame")
-        status_frame.pack(fill="x", padx=5, pady=5, before=frame_botones_principales)
-        
-        self.app.lbl_queue_status = ttk.Label(status_frame, text="Cola vacía", 
-                                             style="Header.TLabel", 
-                                             font=("Helvetica", 12, "bold"),
-                                             foreground="#d35400")
-        self.app.lbl_queue_status.pack(anchor="w", padx=10, pady=5)
+        # Etiqueta de estado de la cola (mover arriba para que sea más visible)
+        self.app.lbl_queue_status = ttk.Label(frame_queue, text="Cola vacía", style="Header.TLabel")
+        self.app.lbl_queue_status.pack(anchor="w", padx=5, pady=(0, 5), before=frame_botones_principales)
 
     def _add_project_to_queue(self):
         """Añade un nuevo proyecto a la cola de procesamiento."""
         title = self.entry_title.get().strip()
         script = self.txt_script.get("1.0", tk.END).strip()
         voice = self.app.selected_voice.get()
-        
-        # --- Obtener valores necesarios ANTES de la validación ---
-        # Obtener si la música está activada y la ruta del archivo
-        try:
-            aplicar_musica_seleccionado = self.app.aplicar_musica.get()
-            archivo_musica_seleccionado = self.app.archivo_musica.get()
-        except AttributeError:
-            print("Advertencia: No se encontraron variables para música en self.app. Omitiendo validación de música.")
-            aplicar_musica_seleccionado = False
-            archivo_musica_seleccionado = ""
-
-        # Obtener si los subtítulos están activados
-        try:
-            aplicar_subtitulos_seleccionado = self.app.aplicar_subtitulos_batch.get()
-        except AttributeError:
-            print("Advertencia: No se encontró variable para subtítulos en self.app. Asumiendo True.")
-            aplicar_subtitulos_seleccionado = True
-
-        # --- INICIO: Validación Previa ---
-
-        # 1. Validar Música
-        if aplicar_musica_seleccionado and not archivo_musica_seleccionado:
-            # Mostrar una advertencia, pero permitir continuar
-            messagebox.showwarning(
-                title="Advertencia: Falta Archivo de Música",
-                message="La opción 'Aplicar Música' está activada, pero no has seleccionado un archivo de música.\n\n"
-                        "El video se generará sin música de fondo. Puedes seleccionarla en la pestaña 'Audio'."
-            )
-
-        # 2. Validar Subtítulos (Confirmar si están desactivados)
-        if not aplicar_subtitulos_seleccionado:
-            # Preguntar al usuario si está seguro de que NO quiere subtítulos
-            confirmar_sin_subtitulos = messagebox.askyesno(
-                title="Confirmar: Subtítulos Desactivados",
-                message="La opción 'Aplicar Subtítulos' está desactivada.\n"
-                        "El video se generará sin subtítulos, aunque se haya generado un archivo .srt.\n\n"
-                        "\u00bfEstás seguro de que quieres continuar así?"
-            )
-            if not confirmar_sin_subtitulos: # Si el usuario presiona "No"
-                print("Proceso cancelado por el usuario (confirmación de subtítulos).")
-                return # Detener la función, no añadir a la cola
-
-        # --- FIN: Validación Previa ---
         
         # Capturar todos los ajustes actuales de la GUI para la creación de video
         # Obtener secuencia de efectos
@@ -347,9 +265,10 @@ class BatchTabFrame(ttk.Frame):
         
         # Crear diccionario con todos los ajustes para la creación de video
         video_settings = {
-            'duracion_img': self.app.duracion_img_batch.get(),  # Usar duración de la pestaña batch
-            'fps': self.app.fps_batch.get(),  # Usar FPS de la pestaña batch
+            'duracion_img': self.app.duracion_img.get(),
+            'fps': self.app.fps.get(),
             'aplicar_efectos': self.app.aplicar_efectos.get(),
+            'aplicar_subtitulos': self.app.aplicar_subtitulos.get(),
             'secuencia_efectos': selected_effects_sequence,
             'aplicar_transicion': self.app.aplicar_transicion.get(),
             'tipo_transicion': self.app.tipo_transicion.get(),
@@ -373,26 +292,21 @@ class BatchTabFrame(ttk.Frame):
             'duracion_fade_in_voz': self.app.duracion_fade_in_voz.get(),
             'aplicar_fade_out_voz': self.app.aplicar_fade_out_voz.get(),
             'duracion_fade_out_voz': self.app.duracion_fade_out_voz.get(),
-            # Usar el valor del nuevo Checkbutton para aplicar subtítulos en lotes
-            'aplicar_subtitulos': self.app.aplicar_subtitulos_batch.get(),
+            'aplicar_subtitulos': self.app.aplicar_subtitulos.get() if hasattr(self.app, 'aplicar_subtitulos') else False,
             
-            # --- CONFIGURACIÓN DE ESTILO DE SUBTÍTULOS ---
-            # Fuente y tamaño
-            'tamano_fuente_subtitulos': getattr(self.app, 'settings_subtitles_font_size', tk.IntVar(value=60)).get(),
-            'font_name': getattr(self.app, 'settings_subtitles_font_name', tk.StringVar(value='Roboto-Regular')).get(),
-            'use_system_font': getattr(self.app, 'settings_use_system_font', tk.BooleanVar(value=False)).get(),
-            'subtitles_uppercase': getattr(self.app, 'subtitles_uppercase', tk.BooleanVar(value=False)).get(),
+            # --- Parámetros de estilo de subtítulos ---
+            'color_fuente_subtitulos': self.app.settings_subtitles_font_color.get(),
+            'tamano_fuente_subtitulos': self.app.settings_subtitles_font_size.get(),
+            'font_name': self.app.settings_subtitles_font_name.get(),
+            'use_system_font': self.app.settings_use_system_font.get(),
+            'color_borde_subtitulos': self.app.settings_subtitles_stroke_color.get(),
+            'grosor_borde_subtitulos': self.app.settings_subtitles_stroke_width.get(),
+            'subtitles_align': self.app.settings_subtitles_align.get(),
+            'subtitles_position_h': self.app.settings_subtitles_position_h.get(),
+            'subtitles_position_v': self.app.settings_subtitles_position_v.get(),
+            'subtitles_uppercase': self.app.subtitles_uppercase.get() if hasattr(self.app, 'subtitles_uppercase') else False,
+            'subtitulos_margen': self.app.settings_subtitles_margin.get() if hasattr(self.app, 'settings_subtitles_margin') else 0.20,
             
-            # Colores y bordes
-            'color_fuente_subtitulos': getattr(self.app, 'settings_subtitles_font_color', tk.StringVar(value='white')).get(),
-            'color_borde_subtitulos': getattr(self.app, 'settings_subtitles_stroke_color', tk.StringVar(value='black')).get(),
-            'grosor_borde_subtitulos': getattr(self.app, 'settings_subtitles_stroke_width', tk.IntVar(value=3)).get(),
-            
-            # Posición y alineación
-            'subtitulos_align': getattr(self.app, 'settings_subtitles_align', tk.StringVar(value='center')).get(),
-            'subtitulos_position_h': getattr(self.app, 'settings_subtitles_position_h', tk.StringVar(value='center')).get(),
-            'subtitulos_position_v': getattr(self.app, 'settings_subtitles_position_v', tk.StringVar(value='bottom')).get(),
-            'subtitulos_margen': getattr(self.app, 'settings_subtitles_margin', tk.DoubleVar(value=0.05)).get(),
             
             # Estilo de prompts para la generación de imágenes
             # Obtener el ID del estilo a partir del nombre seleccionado en el dropdown
@@ -400,12 +314,26 @@ class BatchTabFrame(ttk.Frame):
             # Guardar también el nombre del estilo para depuración
             'nombre_estilo': self.prompt_style_dropdown.get(),
             'settings': effect_settings
+            
         }
-        
+
         # Imprimir información de depuración sobre el estilo seleccionado
         print(f"\n=== ESTILO SELECCIONADO PARA EL PROYECTO ===")
         print(f"  Nombre mostrado: '{self.prompt_style_dropdown.get()}'")
-        print(f"  ID interno: '{self.prompt_style_map.get(self.prompt_style_dropdown.get(), 'default')}'")        
+        print(f"  ID interno: '{self.prompt_style_map.get(self.prompt_style_dropdown.get(), 'default')}'") 
+        print(f"DEBUG UI Checkbox: Valor leído = {self.app.aplicar_subtitulos.get()}")
+        print(f"DEBUG UI Enviando aplicar_subtitulos = {video_settings.get('aplicar_subtitulos')}")
+        
+        # Depuración de parámetros de subtítulos
+        print(f"\n=== DEPURACIÓN DE PARÁMETROS DE SUBTÍTULOS ===")
+        print(f"DEBUG UI - Margen leído de la variable: {self.app.settings_subtitles_margin.get() if hasattr(self.app, 'settings_subtitles_margin') else 'No existe'}")
+        print(f"DEBUG UI - Margen añadido a video_settings: {video_settings.get('subtitulos_margen')}")
+        print(f"DEBUG UI - Color fuente: {video_settings.get('color_fuente_subtitulos')}")
+        print(f"DEBUG UI - Tamaño fuente: {video_settings.get('tamano_fuente_subtitulos')}")
+        print(f"DEBUG UI - Posición H: {video_settings.get('subtitles_position_h')}")
+        print(f"DEBUG UI - Posición V: {video_settings.get('subtitles_position_v')}")
+        print(f"DEBUG UI - Mayúsculas: {video_settings.get('subtitles_uppercase')}")
+               
         
         success = self.app.batch_tts_manager.add_project_to_queue(title, script, voice, video_settings)
         

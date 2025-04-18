@@ -233,6 +233,16 @@ class VideoGenerator:
         use_system_font = kwargs.get('use_system_font', False)
         subtitles_uppercase = kwargs.get('subtitles_uppercase', False)
         
+        # Depuración de parámetros de subtítulos
+        print(f"\n=== DEPURACIÓN DE PARÁMETROS DE SUBTÍTULOS EN GENERATE_VIDEO ===")
+        print(f"DEBUG generate_video - Margen extraído de kwargs: {subtitulos_margen}")
+        print(f"DEBUG generate_video - Color fuente: {color_fuente_subtitulos}")
+        print(f"DEBUG generate_video - Tamaño fuente: {tamano_fuente_subtitulos}")
+        print(f"DEBUG generate_video - Posición H: {subtitulos_position_h}")
+        print(f"DEBUG generate_video - Posición V: {subtitulos_position_v}")
+        print(f"DEBUG generate_video - Mayúsculas: {subtitles_uppercase}")
+        print(f"DEBUG generate_video - Margen: {subtitulos_margen}")
+        
         # Imprimir información de fuente para depuración
         if font_name:
             print(f"GENERATE_VIDEO: Fuente seleccionada: {font_name}, Sistema: {use_system_font}")
@@ -945,14 +955,21 @@ class VideoGenerator:
                                 print(f"Usando fuente del sistema como respaldo: {system_font}")
                                 break
                 
+                # Depuración de parámetros de subtítulos en _apply_subtitles
+                print(f"\n=== DEPURACIÓN DE PARÁMETROS DE SUBTÍTULOS EN _APPLY_SUBTITLES ===")
+                print(f"DEBUG _apply_subtitles - Margen recibido como parámetro: {subtitulos_margen}")
+                print(f"DEBUG _apply_subtitles - Posición V original: {subtitulos_position_v}")
+                
                 # Definir la posición con margen personalizado
                 posicion_v_ajustada = subtitulos_position_v
                 
                 # Si la posición es 'bottom', convertirla a valor numérico con margen
                 if subtitulos_position_v == 'bottom':
                     posicion_v_ajustada = 1.0 - subtitulos_margen
+                    print(f"DEBUG _apply_subtitles - Posición V ajustada para 'bottom': {posicion_v_ajustada} (1.0 - {subtitulos_margen})")
                 elif subtitulos_position_v == 'top':
                     posicion_v_ajustada = 0.0 + subtitulos_margen
+                    print(f"DEBUG _apply_subtitles - Posición V ajustada para 'top': {posicion_v_ajustada} (0.0 + {subtitulos_margen})")
                 
                 # Crear la tupla de posición
                 subtitulos_position = (subtitulos_position_h, posicion_v_ajustada)
