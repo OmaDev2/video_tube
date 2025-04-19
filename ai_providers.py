@@ -211,10 +211,11 @@ class AIProviders:
             return None
     
     def generate_prompt_with_fallback(self, system_prompt: str, user_prompt: str,
-                                     openai_model: str = "gpt-3.5-turbo",
-                                     gemini_retries: int = 1,
-                                     gemini_initial_delay: int = 45,
-                                     safety_settings: Optional[list] = None) -> Tuple[Optional[str], str]:
+                                 openai_model: str = "gpt-3.5-turbo",
+                                 gemini_retries: int = 1,
+                                 gemini_initial_delay: int = 45,
+                                 safety_settings: Optional[list] = None,
+                                 use_large_context_model: bool = False) -> Tuple[Optional[str], str]:
         """
         Intenta generar prompt con Gemini, si falla, usa OpenAI como fallback.
         
@@ -225,6 +226,7 @@ class AIProviders:
             gemini_retries: Número de reintentos para Gemini.
             gemini_initial_delay: Delay inicial para reintento Gemini.
             safety_settings: Configuración de seguridad para Gemini.
+            use_large_context_model: Si es True, usa modelos con capacidad de contexto largo.
             
         Returns:
             Tupla con (prompt generado, proveedor usado).
@@ -235,6 +237,16 @@ class AIProviders:
         
         # Intentar con Gemini
         try:
+            # Seleccionar el modelo adecuado según el tamaño del contexto
+            gemini_model_name = 'gemini-2.0-flash-thinking-exp'
+            if use_large_context_model:
+                gemini_model_name = 'gemini-2.0-flash-thinking-exp-large-context'
+                logging.info(f"Usando modelo Gemini de contexto largo: {gemini_model_name}")
+            
+            # Configurar el modelo
+            if GEMINI_AVAILABLE and self.gemini_api_key:
+                self.gemini_model = genai.GenerativeModel(gemini_model_name)
+            
             prompt = self.call_gemini_api(
                 system_prompt,
                 user_prompt,
@@ -243,7 +255,7 @@ class AIProviders:
                 safety_settings=safety_settings
             )
             if prompt:
-                provider = "Gemini"
+                provider = f"Gemini ({gemini_model_name})"
                 
         except GeminiAPIFailure as e:
             logging.warning(f"Fallo de Gemini detectado ({e}). Intentando fallback con OpenAI...")
@@ -255,9 +267,16 @@ class AIProviders:
         
         # Si Gemini falló, intentar con OpenAI
         if not prompt:
-            prompt = self.call_openai_api(system_prompt, user_prompt, model=openai_model)
+            # Seleccionar el modelo adecuado según el tamaño del contexto
+            selected_openai_model = openai_model
+            if use_large_context_model:
+                # Usar GPT-4 para contextos largos
+                selected_openai_model = "gpt-4-turbo"
+                logging.info(f"Usando modelo OpenAI de contexto largo: {selected_openai_model}")
+            
+            prompt = self.call_openai_api(system_prompt, user_prompt, model=selected_openai_model)
             if prompt:
-                provider = f"OpenAI ({openai_model})"
+                provider = f"OpenAI ({selected_openai_model})"
             else:
                 logging.error("Fallback a OpenAI también falló.")
                 provider = "None"

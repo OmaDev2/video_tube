@@ -212,18 +212,17 @@ def generar_seccion(numero_seccion: int, instruccion_seccion: str, titulo: str, 
     return respuesta_ai.strip()
 
 def revisar_guion(guion_borrador: str, titulo: str, estilo_prompt: str = 'default') -> str | None:
-    """Revisa y pule el guion completo."""
+    """Revisa y pule el guion completo usando IA y un modelo de contexto largo."""
     if not AI_PROVIDER_AVAILABLE: return None
     
     # Obtener la plantilla de prompt para la revisión
     prompt_template = obtener_prompt(estilo_prompt, 'revision')
     if not prompt_template: return None
     
-    # Podrías necesitar truncar el guion si excede el límite de tokens
-    # Limitamos a 15000 caracteres para evitar problemas con el contexto
-    guion_truncado = guion_borrador[:15000] if len(guion_borrador) > 15000 else guion_borrador
-    if len(guion_borrador) > 15000:
-        print(f"ADVERTENCIA: Guion truncado de {len(guion_borrador)} a 15000 caracteres para la revisión.")
+    # Usaremos un modelo de contexto largo, por lo que no necesitamos truncar el guion
+    # Solo registramos la longitud para referencia
+    print(f"DEBUG: Iniciando revisar_guion para '{titulo}'. Longitud borrador: {len(guion_borrador)} caracteres.")
+    guion_truncado = guion_borrador  # Ya no truncamos
     
     # Dividir en system prompt y user prompt
     system_prompt_revision = "Revisa y mejora este guion para un video de YouTube manteniendo su estructura y contenido principal."
@@ -233,10 +232,14 @@ def revisar_guion(guion_borrador: str, titulo: str, estilo_prompt: str = 'defaul
     try:
         if 'generar_prompt_simulado' in globals(): # Modo simulación si falló la importación
             respuesta_ai, proveedor = generar_prompt_simulado(system_prompt_revision, user_prompt_completo)
+            respuesta_ai = f"--- GUION REVISADO (SIMULADO) ---\n{respuesta_ai}" # Añadir prefijo
         else:
+            print(f"Enviando guion de {len(guion_borrador)} caracteres para revisión (usando modelo grande)...")
+            # Llamar a la IA pidiendo explícitamente un modelo de contexto largo
             respuesta_ai, proveedor = ai_providers.generate_prompt_with_fallback(
                 system_prompt=system_prompt_revision,
-                user_prompt=user_prompt_completo
+                user_prompt=user_prompt_completo,
+                use_large_context_model=True  # <-- ¡Importante para guiones largos!
             )
         print(f"Proveedor usado para revisión de guion: {proveedor}")
     except Exception as e:
