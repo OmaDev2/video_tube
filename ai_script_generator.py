@@ -5,6 +5,14 @@ import json
 import asyncio
 from dotenv import load_dotenv
 
+# Importar el gestor de prompts
+try:
+    from script_prompt_manager import ScriptPromptManager
+    SCRIPT_PROMPT_MANAGER_AVAILABLE = True
+except ImportError:
+    print("ADVERTENCIA: No se pudo importar ScriptPromptManager. Se usarán prompts internos si existen.")
+    SCRIPT_PROMPT_MANAGER_AVAILABLE = False
+
 # --- IMPORTACIÓN CORREGIDA ---
 AI_PROVIDER_AVAILABLE = False
 try:
@@ -45,32 +53,27 @@ except Exception as e:
     AI_PROVIDER_AVAILABLE = False
 
 
-# --- Gestión de Prompts (Versión Inicial Simple) ---
-# Más adelante, esto debería venir de un ScriptPromptManager o archivos
-PROMPTS = {
-    'default': {
-        'esquema': """Vamos a crear el guion de un video de YouTube educativo y entretenido sobre: {titulo}\nContexto adicional: {contexto}\n\nGenera la estructura del guion. Responde ÚNICAMENTE con un objeto JSON válido que tenga una sola clave "secciones". El valor de "secciones" debe ser una lista con EXACTAMENTE {num_secciones} strings. Cada string debe ser la instrucción detallada para esa sección del guion.\n\nEjemplo de formato de salida:\n{{"secciones": ["Instrucción para sección 1...", "Instrucción para sección 2...", ...]}}\n\nIMPORTANTE: Tu respuesta debe ser SOLO el JSON válido, sin texto adicional antes o después.""",
-        'seccion': """Desarrolla la sección {numero_seccion} del guion ({instruccion_seccion}) para un video sobre {titulo}, basándote en el contexto: {contexto}. Escribe EXACTAMENTE {num_palabras} palabras solo de la voz en off, con un tono conversacional, educativo pero accesible. Incluye datos interesantes, anécdotas y elementos que mantengan la atención del espectador. No incluyas instrucciones de producción ni elementos visuales, solo el texto que se leerá.""",
-        'revision': """Revisa y humaniza el siguiente guion completo para YouTube (aprox 7500 palabras). Canal: Vidas Santas. Tema: {titulo}.\n\nObjetivos de la revisión:\n1. Mejorar la fluidez y naturalidad del lenguaje para que suene conversacional\n2. Eliminar repeticiones y redundancias\n3. Asegurar que las transiciones entre secciones sean suaves\n4. Añadir elementos de intriga y mantener el interés\n5. Corregir errores gramaticales o de estilo\n\nGuion a revisar:\n\n{guion_borrador}""",
-        'metadata': """Basado en el siguiente guion final para un video de YouTube titulado '{titulo}' para el canal 'Vidas Santas', genera los siguientes metadatos en formato JSON:\n- 4 títulos clickbait (clave: "titulos")\n- 4 frases cortas y llamativas para la miniatura (clave: "frases_miniatura")\n- 4 prompts de imagen detallados para generar la miniatura (clave: "prompts_miniatura")\n- 1 descripción optimizada para YouTube (clave: "descripcion")\n- 1 lista de tags relevantes (clave: "tags")\n\nGuion:\n{guion_final}\n\nRespuesta JSON:"""
-    },
-    'educativo': {
-        'esquema': """Crea un esquema educativo detallado para un video documental sobre: {titulo}\nContexto adicional: {contexto}\n\nEstructura el guion en 5 secciones educativas (aprox 500 palabras cada una). Cada sección debe enseñar un aspecto específico del tema, con datos verificables y explicaciones claras. Genera una lista numerada con instrucciones específicas para cada sección.""",
-        'seccion': """Desarrolla la sección {numero_seccion} del guion educativo ({instruccion_seccion}) para un video sobre {titulo}, basándote en el contexto: {contexto}. Escribe unas {num_palabras} palabras con un tono académico pero accesible. Incluye datos verificables, explicaciones claras y ejemplos ilustrativos. El objetivo es que el espectador aprenda de forma efectiva.""",
-        'revision': """Revisa y mejora el siguiente guion educativo para YouTube (aprox 7500 palabras). Tema: {titulo}.\n\nObjetivos de la revisión:\n1. Asegurar precisión académica y claridad explicativa\n2. Mantener un tono educativo pero accesible\n3. Mejorar la estructura pedagógica\n4. Verificar que los conceptos fluyan de forma lógica\n5. Corregir errores técnicos o conceptuales\n\nGuion a revisar:\n\n{guion_borrador}""",
-        'metadata': """Basado en el siguiente guion educativo para un video de YouTube titulado '{titulo}', genera los siguientes metadatos en formato JSON:\n- 4 títulos educativos pero atractivos (clave: "titulos")\n- 4 frases informativas para la miniatura (clave: "frases_miniatura")\n- 4 prompts de imagen para una miniatura educativa (clave: "prompts_miniatura")\n- 1 descripción optimizada para YouTube con enfoque educativo (clave: "descripcion")\n- 1 lista de tags educativos relevantes (clave: "tags")\n\nGuion:\n{guion_final}\n\nRespuesta JSON:"""
-    },
-    'historico': {
-        'esquema': """Crea un esquema histórico detallado para un video sobre: {titulo}\nContexto adicional: {contexto}\n\nEstructura el guion en 5 secciones cronológicas (aprox 500 palabras cada una). Cada sección debe cubrir un período o aspecto histórico relevante, con fechas precisas y acontecimientos importantes. Genera una lista numerada con instrucciones específicas para cada sección.""",
-        'seccion': """Desarrolla la sección {numero_seccion} del guion histórico ({instruccion_seccion}) para un video sobre {titulo}, basándote en el contexto: {contexto}. Escribe unas {num_palabras} palabras con un tono narrativo pero riguroso. Incluye fechas, personajes históricos y acontecimientos relevantes. El objetivo es transportar al espectador a la época descrita mientras aprende.""",
-        'revision': """Revisa y mejora el siguiente guion histórico para YouTube (aprox 7500 palabras). Tema: {titulo}.\n\nObjetivos de la revisión:\n1. Asegurar precisión histórica y cronológica\n2. Mantener un tono narrativo pero riguroso\n3. Mejorar la estructura temporal y causal de los acontecimientos\n4. Verificar que los hechos históricos estén correctamente contextualizados\n5. Corregir errores factuales o anacronismos\n\nGuion a revisar:\n\n{guion_borrador}""",
-        'metadata': """Basado en el siguiente guion histórico para un video de YouTube titulado '{titulo}', genera los siguientes metadatos en formato JSON:\n- 4 títulos históricos pero atractivos (clave: "titulos")\n- 4 frases impactantes sobre hechos históricos para la miniatura (clave: "frases_miniatura")\n- 4 prompts de imagen para una miniatura histórica (clave: "prompts_miniatura")\n- 1 descripción optimizada para YouTube con enfoque histórico (clave: "descripcion")\n- 1 lista de tags históricos relevantes (clave: "tags")\n\nGuion:\n{guion_final}\n\nRespuesta JSON:"""
-    }
-}
+# --- Instancia del Gestor de Prompts de Guion ---
+if SCRIPT_PROMPT_MANAGER_AVAILABLE:
+    script_manager = ScriptPromptManager()  # Asume que encuentra script_prompts.json
+    print("INFO: Gestor de prompts de guion inicializado.")
+else:
+    script_manager = None  # No hay gestor disponible
+    print("ADVERTENCIA: Gestor de prompts no disponible. Se usarán prompts internos.")
+# --- Fin Instancia ---
+
+# --- Gestión de Prompts (Usando ScriptPromptManager) ---
+# Los prompts ahora se gestionan a través del ScriptPromptManager y se cargan desde script_prompts.json
 
 def obtener_prompt(estilo: str, tipo_prompt: str) -> str:
-    """Obtiene la plantilla de prompt para un estilo y tipo dados."""
-    return PROMPTS.get(estilo, PROMPTS['default']).get(tipo_prompt, "")
+    """Obtiene la plantilla de prompt usando el ScriptPromptManager."""
+    if script_manager:  # Verifica si el gestor se pudo crear
+        return script_manager.get_prompt_template(estilo, tipo_prompt)
+    else:
+        # Fallback si el manager no está disponible (error crítico)
+        print(f"ERROR FATAL: ScriptPromptManager no disponible. No se puede obtener prompt '{tipo_prompt}' para estilo '{estilo}'.")
+        # Devuelve un string vacío o lanza una excepción según prefieras
+        return ""  # O: raise RuntimeError("ScriptPromptManager no disponible")
 
 # --- Funciones de Generación ---
 

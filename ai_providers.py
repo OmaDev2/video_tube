@@ -54,7 +54,9 @@ class AIProviders:
         if GEMINI_AVAILABLE and self.gemini_api_key:
             try:
                 genai.configure(api_key=self.gemini_api_key)
-                self.gemini_model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp')  # Usar el mismo modelo que ya usas
+                self.gemini_model = genai.GenerativeModel('gemini-2.0-flash-thinking-exp')  # Modelo estándar
+                # También definimos el nombre del modelo para contexto largo como constante de clase
+                self.GEMINI_LARGE_CONTEXT_MODEL = 'gemini-2.5-flash-preview-04-17'
                 logging.info("Cliente Gemini configurado correctamente.")
             except Exception as e:
                 logging.error(f"Error al configurar Gemini: {e}")
@@ -65,6 +67,8 @@ class AIProviders:
         if OPENAI_AVAILABLE and self.openai_api_key:
             try:
                 self.openai_client = OpenAI(api_key=self.openai_api_key)
+                # Definimos el modelo de OpenAI para contexto largo
+                self.OPENAI_LARGE_CONTEXT_MODEL = "gpt-4-turbo"
                 logging.info("Cliente OpenAI configurado correctamente.")
             except Exception as e:
                 logging.error(f"Error al configurar OpenAI: {e}")
@@ -240,7 +244,7 @@ class AIProviders:
             # Seleccionar el modelo adecuado según el tamaño del contexto
             gemini_model_name = 'gemini-2.0-flash-thinking-exp'
             if use_large_context_model:
-                gemini_model_name = 'gemini-2.0-flash-thinking-exp-large-context'
+                gemini_model_name = self.GEMINI_LARGE_CONTEXT_MODEL  # Usar la constante de clase
                 logging.info(f"Usando modelo Gemini de contexto largo: {gemini_model_name}")
             
             # Configurar el modelo
@@ -270,8 +274,8 @@ class AIProviders:
             # Seleccionar el modelo adecuado según el tamaño del contexto
             selected_openai_model = openai_model
             if use_large_context_model:
-                # Usar GPT-4 para contextos largos
-                selected_openai_model = "gpt-4-turbo"
+                # Usar el modelo definido para contextos largos
+                selected_openai_model = self.OPENAI_LARGE_CONTEXT_MODEL
                 logging.info(f"Usando modelo OpenAI de contexto largo: {selected_openai_model}")
             
             prompt = self.call_openai_api(system_prompt, user_prompt, model=selected_openai_model)
