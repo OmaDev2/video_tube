@@ -49,7 +49,7 @@ except Exception as e:
 # Más adelante, esto debería venir de un ScriptPromptManager o archivos
 PROMPTS = {
     'default': {
-        'esquema': """Vamos a crear el guion de un video de YouTube educativo y entretenido sobre: {titulo}\nContexto adicional: {contexto}\n\nEstructura del guion con EXACTAMENTE {num_secciones} secciones principales. Cada sección debe tener un propósito claro y debe fluir naturalmente a la siguiente. Genera una lista numerada con instrucciones específicas para cada sección.\n\nIMPORTANTE: Genera EXACTAMENTE {num_secciones} puntos numerados, ni uno más ni uno menos.""",
+        'esquema': """Vamos a crear el guion de un video de YouTube educativo y entretenido sobre: {titulo}\nContexto adicional: {contexto}\n\nGenera la estructura del guion. Responde ÚNICAMENTE con un objeto JSON válido que tenga una sola clave "secciones". El valor de "secciones" debe ser una lista con EXACTAMENTE {num_secciones} strings. Cada string debe ser la instrucción detallada para esa sección del guion.\n\nEjemplo de formato de salida:\n{{"secciones": ["Instrucción para sección 1...", "Instrucción para sección 2...", ...]}}\n\nIMPORTANTE: Tu respuesta debe ser SOLO el JSON válido, sin texto adicional antes o después.""",
         'seccion': """Desarrolla la sección {numero_seccion} del guion ({instruccion_seccion}) para un video sobre {titulo}, basándote en el contexto: {contexto}. Escribe EXACTAMENTE {num_palabras} palabras solo de la voz en off, con un tono conversacional, educativo pero accesible. Incluye datos interesantes, anécdotas y elementos que mantengan la atención del espectador. No incluyas instrucciones de producción ni elementos visuales, solo el texto que se leerá.""",
         'revision': """Revisa y humaniza el siguiente guion completo para YouTube (aprox 7500 palabras). Canal: Vidas Santas. Tema: {titulo}.\n\nObjetivos de la revisión:\n1. Mejorar la fluidez y naturalidad del lenguaje para que suene conversacional\n2. Eliminar repeticiones y redundancias\n3. Asegurar que las transiciones entre secciones sean suaves\n4. Añadir elementos de intriga y mantener el interés\n5. Corregir errores gramaticales o de estilo\n\nGuion a revisar:\n\n{guion_borrador}""",
         'metadata': """Basado en el siguiente guion final para un video de YouTube titulado '{titulo}' para el canal 'Vidas Santas', genera los siguientes metadatos en formato JSON:\n- 4 títulos clickbait (clave: "titulos")\n- 4 frases cortas y llamativas para la miniatura (clave: "frases_miniatura")\n- 4 prompts de imagen detallados para generar la miniatura (clave: "prompts_miniatura")\n- 1 descripción optimizada para YouTube (clave: "descripcion")\n- 1 lista de tags relevantes (clave: "tags")\n\nGuion:\n{guion_final}\n\nRespuesta JSON:"""
@@ -74,7 +74,7 @@ def obtener_prompt(estilo: str, tipo_prompt: str) -> str:
 
 # --- Funciones de Generación ---
 
-def generar_esquema(titulo: str, contexto: str, estilo_prompt: str = 'default', num_secciones_deseadas: int = 5) -> list[str] | None:
+def generar_esquema(titulo: str, contexto: str, estilo_prompt: str = 'default', num_secciones: int = 5) -> list[str] | None:
     """Genera el esquema del guion y devuelve una lista de instrucciones por sección."""
     if not AI_PROVIDER_AVAILABLE: return None
     
@@ -83,11 +83,11 @@ def generar_esquema(titulo: str, contexto: str, estilo_prompt: str = 'default', 
     if not prompt_template: return None
     
     # Dividir en system prompt y user prompt
-    system_prompt_esquema = f"Genera una estructura de guion detallada con exactamente {num_secciones_deseadas} secciones para un video de YouTube."
+    system_prompt_esquema = f"Genera una estructura de guion detallada con exactamente {num_secciones} secciones para un video de YouTube."
     user_prompt_completo = prompt_template.format(
         titulo=titulo, 
         contexto=contexto,
-        num_secciones=num_secciones_deseadas
+        num_secciones=num_secciones
     )
     
     # --- LLAMADA CORREGIDA A LA IA ---
@@ -109,14 +109,60 @@ def generar_esquema(titulo: str, contexto: str, estilo_prompt: str = 'default', 
         print("ERROR: La IA no generó respuesta para el esquema.")
         return None
 
-    # --- Parsear la respuesta para obtener la lista de instrucciones ---
+    # --- Parsear la respuesta JSON para obtener la lista de instrucciones ---
     print(f"Respuesta AI (Esquema):\n{respuesta_ai[:200]}...\n---")
-    lineas = respuesta_ai.strip().split('\n')
-    esquema = [linea.split('.', 1)[-1].strip() for linea in lineas if re.match(r'^\s*\d+\.\s+', linea)]
     
-    if not esquema:
-        print("ERROR: No se pudo parsear el esquema desde la respuesta AI.")
-        print(f"Respuesta AI completa:\n{respuesta_ai}")
+    try:
+        # Intentar parsear la respuesta como JSON
+        # Primero, limpiar posible texto antes/después del JSON
+        json_match = re.search(r'\{.*\}', respuesta_ai, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(0)
+            data = json.loads(json_str)
+            
+            # Extraer la lista de secciones del JSON
+            if "secciones" in data and isinstance(data["secciones"], list):
+                esquema = data["secciones"]
+                if len(esquema) == 0:
+                    print("ERROR: La lista de secciones está vacía.")
+                    return None
+            else:
+                # Intento alternativo si no hay clave "secciones"
+                # Buscar cualquier lista en el JSON
+                for key, value in data.items():
+                    if isinstance(value, list) and len(value) > 0:
+                        print(f"ADVERTENCIA: Usando lista alternativa '{key}' en lugar de 'secciones'.")
+                        esquema = value
+                        break
+                else:
+                    print("ERROR: No se encontró ninguna lista en el JSON.")
+                    print(f"JSON parseado:\n{data}")
+                    return None
+        else:
+            # Fallback: intentar el método anterior basado en expresiones regulares
+            print("ADVERTENCIA: No se encontró JSON válido. Intentando parseo alternativo...")
+            lineas = respuesta_ai.strip().split('\n')
+            esquema = [linea.split('.', 1)[-1].strip() for linea in lineas if re.match(r'^\s*\d+\.\s+', linea)]
+            
+            if not esquema:
+                print("ERROR: No se pudo parsear el esquema desde la respuesta AI.")
+                print(f"Respuesta AI completa:\n{respuesta_ai}")
+                return None
+    except json.JSONDecodeError as e:
+        print(f"ERROR: Falló el parseo JSON: {e}")
+        print(f"JSON intentado: {json_match.group(0) if json_match else 'No encontrado'}")
+        
+        # Fallback: intentar el método anterior basado en expresiones regulares
+        print("Intentando parseo alternativo...")
+        lineas = respuesta_ai.strip().split('\n')
+        esquema = [linea.split('.', 1)[-1].strip() for linea in lineas if re.match(r'^\s*\d+\.\s+', linea)]
+        
+        if not esquema:
+            print("ERROR: No se pudo parsear el esquema desde la respuesta AI.")
+            print(f"Respuesta AI completa:\n{respuesta_ai}")
+            return None
+    except Exception as e:
+        print(f"ERROR inesperado parseando esquema: {e}")
         return None
 
     print(f"Esquema generado con {len(esquema)} secciones.")
