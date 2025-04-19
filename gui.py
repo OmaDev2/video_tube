@@ -23,6 +23,14 @@ from app import crear_video_desde_imagenes
 # Importar el gestor de procesamiento por lotes para TTS
 from batch_tts import BatchTTSManager
 
+# Importar el gestor de prompts para guiones
+try:
+    from script_prompt_manager import ScriptPromptManager
+    SCRIPT_PROMPT_MANAGER_AVAILABLE = True
+except ImportError:
+    print("ADVERTENCIA: No se pudo importar ScriptPromptManager. La generación de guiones con IA puede no funcionar correctamente.")
+    SCRIPT_PROMPT_MANAGER_AVAILABLE = False
+
 # Importar el formato de salida de audio
 try:
     from tts_generator import OUTPUT_FORMAT
@@ -49,6 +57,21 @@ class VideoCreatorApp:
         self.batch_tts_manager = BatchTTSManager(root)
         # ProjectManager desactivado temporalmente
         # self.project_manager = ProjectManager(self)
+        
+        # Inicializar el gestor de prompts para guiones
+        self.script_prompt_manager = None
+        if SCRIPT_PROMPT_MANAGER_AVAILABLE:
+            try:
+                self.script_prompt_manager = ScriptPromptManager()
+                print("INFO: Gestor de prompts para guiones inicializado.")
+            except Exception as e:
+                print(f"ERROR: No se pudo inicializar el gestor de prompts para guiones: {e}")
+                
+        # Variables para la generación de guiones con IA
+        self.script_creation_mode = tk.StringVar(value="manual")  # "manual" o "ai"
+        self.selected_script_style = tk.StringVar(value="Cinematográfico")
+        self.script_num_secciones = tk.IntVar(value=5)
+        self.script_palabras_seccion = tk.IntVar(value=150)
         # Valores por defecto para TTS ajustados para mejor calidad de voz
         self.tts_rate_str = tk.StringVar(value="-3%")  # Un poco más lento para mayor claridad
         self.tts_pitch_str = tk.StringVar(value="-6Hz")  # Tono ligeramente más bajo para mayor naturalidad
@@ -69,6 +92,16 @@ class VideoCreatorApp:
         
         # Variable para activar/desactivar subtítulos
         self.aplicar_subtitulos = tk.BooleanVar(value=True)
+        
+        # --- Variables para Modo de Creación de Guion ---
+        self.script_creation_mode = tk.StringVar(value="manual")  # Modos: "manual", "ai"
+        
+        # --- Variables para Input de IA ---
+        self.script_idea_titulo = tk.StringVar()  # Para el Entry de Título/Idea en modo AI
+        self.script_contexto = None  # El Text widget no usa tk.StringVar directamente
+        self.selected_script_style = tk.StringVar()  # Para el Combobox de Estilo de Guion
+        self.script_num_secciones = tk.IntVar(value=5)  # Para el Spinbox de Num Secciones
+        self.script_palabras_seccion = tk.IntVar(value=300)  # Para el Spinbox de Palabras/Sección
         
         # --- Inicializar variables para configuración de Whisper ---
         self.whisper_model = None
@@ -886,18 +919,38 @@ class VideoCreatorApp:
         # Aplicar configuración de overlay    
     def update_queue_status(self):
         """Actualiza la etiqueta de estado de la cola."""
-        status = self.batch_tts_manager.get_queue_status()
-        
-        if status['total'] == 0:
-            self.lbl_queue_status.config(text="Cola vacía")
-        else:
-            self.lbl_queue_status.config(
-                text=f"Total: {status['total']} | Pendientes: {status['pendientes']} | "
-                     f"Completados: {status['completados']} | Errores: {status['errores']}"
-            )
-        
-        # Programar la próxima actualización
-        self.root.after(2000, self.update_queue_status)
+        try:
+            # Verificar si el frame existe
+            if not hasattr(self, 'frame_queue_status'):
+                print("ADVERTENCIA: frame_queue_status no existe. Creando frame...")
+                # Crear el frame si no existe (usamos el frame principal como padre)
+                self.frame_queue_status = ttk.Frame(self.root)
+                self.frame_queue_status.pack(side="bottom", fill="x", padx=10, pady=5)
+            
+            # Verificar si la etiqueta existe
+            if not hasattr(self, 'lbl_queue_status'):
+                print("ADVERTENCIA: lbl_queue_status no existe. Creando etiqueta de estado...")
+                # Crear la etiqueta si no existe
+                self.lbl_queue_status = ttk.Label(self.frame_queue_status, text="Cola vacía")
+                self.lbl_queue_status.pack(side="left", padx=5, pady=5)
+            
+            # Obtener el estado de la cola
+            status = self.batch_tts_manager.get_queue_status()
+            
+            # Actualizar la etiqueta
+            if status['total'] == 0:
+                self.lbl_queue_status.config(text="Cola vacía")
+            else:
+                self.lbl_queue_status.config(
+                    text=f"Total: {status['total']} | Pendientes: {status['pendientes']} | "
+                         f"Completados: {status['completados']} | Errores: {status['errores']}"
+                )
+            
+            # Programar la próxima actualización
+            self.root.after(2000, self.update_queue_status)
+        except Exception as e:
+            print(f"Error en update_queue_status: {e}")
+            # No programar la próxima actualización si hay un error para evitar bucles infinitos de errores
         
     def trigger_video_generation_for_selected(self):
         print("\n--- Iniciando trigger_video_generation_for_selected ---")

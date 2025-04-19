@@ -1,9 +1,18 @@
+# Importa tu módulo generador de IA
+try:
+    import ai_script_generator # ¡Asegúrate de que el nombre del archivo sea correcto!
+    AI_SCRIPT_GEN_AVAILABLE = ai_script_generator.AI_PROVIDER_AVAILABLE
+except ImportError:
+    print("ERROR FATAL: No se pudo importar el módulo ai_script_generator.")
+    AI_SCRIPT_GEN_AVAILABLE = False
+# También importa los workers que ya usabas
 from . import audio_worker
 from . import subtitles_worker
 from . import image_worker
 from . import video_worker
 from . import utils
-from . import audio_worker
+import asyncio
+import json
 import traceback
 import logging
 import queue
@@ -30,7 +39,8 @@ except ImportError:
 class BatchTTSManager:
     """Gestor de procesamiento por lotes para la generación de voz en off."""
 
-    def __init__(self, root, default_voice="es-MX-JorgeNeural"):
+    def __init__(self, root):
+        
         """
         Inicializa el gestor de procesamiento por lotes.
 
@@ -39,27 +49,20 @@ class BatchTTSManager:
             default_voice: La voz predeterminada para la generación de TTS
         """
         self.root = root
-        self.default_voice = default_voice
-
-        # Configuración de directorios
+        self.job_queue = queue.Queue()
+        self.jobs_in_gui = {}
+        self.job_counter = 0
+        self.worker_thread = None
+        self.worker_running = False
         self.project_base_dir = Path("proyectos_video")
         self.project_base_dir.mkdir(parents=True, exist_ok=True)
+        self.default_voice = "es-MX-JorgeNeural" # O leer de config
+        self.tree_queue = None # Se asignará desde BatchTabFrame
+        
+       
+  
 
-        # Cola de trabajos y contador
-        self.job_queue = queue.Queue()
-        self.jobs_in_gui = {}  # Diccionario para rastrear trabajos y sus IDs en el Treeview
-        self.job_counter = 0  # Para IDs únicos
-
-        # Estado del worker
-        self.worker_running = False
-        self.worker_thread = None
-
-        # Variables para la interfaz
-        self.tree_queue = None  # Se inicializará cuando se cree la interfaz
-
-    
-
-    def add_project_to_queue(self, title, script, voice=None, video_settings=None):
+    def add_project_to_queue(self, title, script, voice=None, video_settings=None,script_contexto=None):
         """
         Añade un nuevo proyecto a la cola de procesamiento.
 
@@ -74,7 +77,7 @@ class BatchTTSManager:
         """
         if not title:
             messagebox.showerror("Error", "Por favor, introduce un título para el proyecto.")
-            return False
+            return None  
 
         if not script:
             messagebox.showerror("Error", "Por favor, introduce un guion para el proyecto.")
@@ -92,58 +95,80 @@ class BatchTTSManager:
             messagebox.showerror("Error", f"No se pudo crear la carpeta del proyecto:\n{project_folder}\nError: {e}")
             return False
 
-        # Guardar guion
-        script_file_path = project_folder / "guion.txt"
-        try:
-            with open(script_file_path, "w", encoding="utf-8") as f:
-                f.write(script)
-        except IOError as e:
-            messagebox.showerror("Error", f"No se pudo guardar el guion:\n{script_file_path}\nError: {e}")
-            # Considerar eliminar la carpeta creada si falla el guardado del guion
-            # try:
-            #     project_folder.rmdir()
-            # except OSError:
-            #     pass # Ignorar si no se puede borrar
-            return False
+       # Guardar guion MANUAL si se proporcionó
+        script_file_path = None
+        if script: # Si se pasó un guion (modo manual)
+            script_file_path = project_folder / "guion.txt"
+            try:
+                with open(script_file_path, "w", encoding="utf-8") as f:
+                    f.write(script)
+                print(f"Guion manual guardado en {script_file_path}")
+            except IOError as e:
+                messagebox.showerror("Error", f"No se pudo guardar el guion:\n{script_file_path}\nError: {e}")
+                return None
 
         # Crear y añadir trabajo a la cola
         self.job_counter += 1
         job_id = f"job_{self.job_counter}"
+        needs_ai_generation = (script is None) # True si no se pasó guion manual
 
         job_data = {
             'id': job_id,
             'titulo': title,  # Guardamos el título original para mostrar
-            'guion_path': str(script_file_path),
+            'guion_path': str(script_file_path) if script_file_path else None,
             'carpeta_salida': str(project_folder),
             'voz': voice or self.default_voice,
             'estado': 'Pendiente',
             'tiempo_inicio': None,
             'tiempo_fin': None,
-            # Guardar ajustes para la creación del video (asegurarse que es un dict)
-            'video_settings': video_settings if isinstance(video_settings, dict) else {}
+            # Guarda video_settings (que ahora puede incluir params de IA)
+            'video_settings': video_settings if isinstance(video_settings, dict) else {},
+            'needs_script_generation': needs_ai_generation,
+            'script_contexto': script_contexto # Guarda el contexto si se pasó
         }
 
         # Guardar configuración del proyecto en un archivo JSON
+        # En batch_tts/manager.py, dentro de add_project_to_queue
+
+# (Asegúrate de tener 'import json' y 'from pathlib import Path' al principio del archivo .py)
+
         settings_file_path = project_folder / "settings.json"
         try:
-            import json
+            # 1. Obtener el diccionario de video_settings de forma segura
+            settings_to_save = job_data.get('video_settings', {})
+            serializable_settings = {} # Diccionario para la versión serializable
+
+            if settings_to_save: # Solo si hay algo que guardar
+                # 2. Preparar la versión serializable UNA SOLA VEZ
+                #    Convierte objetos Path a string para que JSON los entienda
+                print("DEBUG MANAGER: Preparando settings para guardar...") # Debug opcional
+                for key, value in settings_to_save.items():
+                    if isinstance(value, Path):
+                        serializable_settings[key] = str(value)
+                        # print(f"  - Convertido Path a str para key '{key}'") # Debug detallado
+                    elif isinstance(value, list) and value and isinstance(value[0], Path):
+                        # Si es una lista y el primer elemento es Path, asume que todos lo son
+                        serializable_settings[key] = [str(p) for p in value]
+                        # print(f"  - Convertida lista de Paths a strs para key '{key}'") # Debug detallado
+                    # Puedes añadir más conversiones aquí si usas otros tipos no serializables por defecto
+                    else:
+                        # Asume que los demás tipos son serializables (str, int, float, bool, list, dict, None)
+                        serializable_settings[key] = value
+            else:
+                print("DEBUG MANAGER: No hay video_settings que guardar.") # Debug opcional
+
+            # 3. Guardar el diccionario serializable en el archivo UNA SOLA VEZ
             with open(settings_file_path, "w", encoding="utf-8") as f:
-                # Asegurarse de que los datos sean serializables
-                serializable_settings = {}
-                current_settings = job_data['video_settings'] # Usar los settings del job_data
-                if current_settings:
-                    serializable_settings = current_settings.copy()
-                    # Convertir rutas a strings si es necesario
-                    for key, value in serializable_settings.items():
-                        if isinstance(value, Path):
-                            serializable_settings[key] = str(value)
-                        elif isinstance(value, list) and value and isinstance(value[0], Path):
-                            serializable_settings[key] = [str(p) for p in value]
                 json.dump(serializable_settings, f, indent=4, ensure_ascii=False)
-            print(f"Configuración guardada en {settings_file_path}")
+
+            print(f"Configuración (video_settings) guardada en {settings_file_path}") # Mensaje de éxito
+
         except Exception as e:
-            print(f"Error al guardar la configuración: {e}")
-            # Continuamos aunque falle el guardado de la configuración
+            # Captura cualquier error durante la preparación o guardado
+            print(f"ERROR al preparar o guardar la configuración en {settings_file_path}: {e}")
+            import traceback
+            traceback.print_exc()
+            # Considera si quieres continuar si falla el guardado. Por ahora continuamos.
 
         self.job_queue.put(job_data)
 
@@ -153,7 +178,7 @@ class BatchTTSManager:
             self.jobs_in_gui[job_id] = job_data # Asegurarse de añadirlo aquí
 
         print(f"Proyecto '{title}' añadido a la cola (ID: {job_id}).")
-        return True
+        return job_id # Devuelve el ID del trabajo añadido
 
     def add_existing_project_to_queue(self, title, script, project_folder, voice=None, video_settings=None):
         """
@@ -297,22 +322,102 @@ class BatchTTSManager:
         """Procesa los trabajos en la cola de forma secuencial llamando a los workers."""
         while self.worker_running:
             current_job = None
+            job_id = None # Inicializar job_id fuera del try principal
+            output_folder = None # Inicializar output_folder
+            
             try:
                 try:
                     current_job = self.job_queue.get(timeout=1)
+                    job_id = current_job['id']
+                    title = current_job['titulo']
+                    output_folder = Path(current_job['carpeta_salida'])
+                    print(f"Procesando trabajo {job_id}: '{title}'")
                 except queue.Empty:
                     continue
-
-                job_id = current_job['id']
-                title = current_job['titulo']
-                output_folder = Path(current_job['carpeta_salida'])
-                print(f"Procesando trabajo {job_id}: '{title}'")
-
+                
                 # Actualizar estado y tiempo de inicio
                 current_job['tiempo_inicio'] = time.time()
                 self.update_job_status_gui(job_id, "Iniciando...", "-")
+                
+                # --- ============================================ ---
+                # --- PASO NUEVO: GENERACIÓN DE GUION CON IA (si aplica) ---
+                # --- ============================================ ---
+                if current_job.get('needs_script_generation'):
+                    if not AI_SCRIPT_GEN_AVAILABLE:
+                         raise ValueError("Se requiere generación AI pero el módulo/proveedor no está disponible.")
+
+                    self.update_job_status_gui(job_id, "Generando Guion AI...", "-")
+                    print(f"Trabajo {job_id}: Iniciando generación de guion con IA...")
+
+                    # Extraer parámetros necesarios de job_data y video_settings
+                    titulo_script = current_job.get('titulo')
+                    contexto_script = current_job.get('script_contexto', "") # Usar "" si no hay contexto
+                    video_settings = current_job.get('video_settings', {})
+                    estilo_script = video_settings.get('script_style', 'default')
+                    num_sec = video_settings.get('script_num_secciones', 5)
+                    pal_sec = video_settings.get('script_palabras_seccion', 300)
+
+                    # Llamar a la función orquestadora de ai_script_generator
+                    # Usamos asyncio.run porque estamos en un thread síncrono
+                    # ¡Esto puede bloquear este hilo mientras la IA trabaja!
+                    # Considera alternativas más avanzadas si necesitas que el manager haga otras cosas mientras.
+                    try:
+                        guion_final, metadata = asyncio.run(
+                            ai_script_generator.crear_guion_completo_y_metadata(
+                                titulo=titulo_script,
+                                contexto=contexto_script,
+                                estilo_prompt=estilo_script,
+                                palabras_seccion=pal_sec,
+                                num_secciones=num_sec
+                            )
+                        )
+                    except Exception as e_async_run:
+                         print(f"ERROR al ejecutar asyncio.run para el generador de IA: {e_async_run}")
+                         raise ValueError(f"Fallo en asyncio para Guion AI: {e_async_run}")
+
+
+                    if not guion_final:
+                        raise ValueError("Fallo completo en la generación del guion con IA.")
+
+                    # Guardar el guion generado en guion.txt
+                    script_file_path = output_folder / "guion.txt"
+                    try:
+                        with open(script_file_path, "w", encoding="utf-8") as f:
+                            f.write(guion_final)
+                        current_job['guion_path'] = str(script_file_path) # Actualiza el path en job_data
+                        print(f"Guion AI guardado en: {script_file_path}")
+                    except IOError as e_write_script:
+                        raise ValueError(f"Error al guardar guion AI: {e_write_script}")
+
+                    # Guardar metadata (opcional)
+                    if metadata:
+                        metadata_file_path = output_folder / "metadata.json"
+                        try:
+                            with open(metadata_file_path, "w", encoding="utf-8") as f:
+                                json.dump(metadata, f, indent=4, ensure_ascii=False)
+                            print(f"Metadata AI guardada en: {metadata_file_path}")
+                            current_job['metadata_path'] = str(metadata_file_path) # Guardar path si quieres
+                        except Exception as e_write_meta:
+                            print(f"ADVERTENCIA: No se pudo guardar metadata AI: {e_write_meta}")
+
+                    # Marcar como completado y actualizar estado GUI
+                    current_job['needs_script_generation'] = False
+                    self.update_job_status_gui(job_id, "Guion AI OK", "-") # Actualiza estado
+
+                # --- FIN PASO NUEVO ---
+                # --- ================ ---
+                
+                
+                
+                
+                
+                
+                
 
                 # --- 1. Generación de Audio ---
+                if not current_job.get('guion_path'): # Comprobar si tenemos guion ahora
+                    raise ValueError("No hay guion disponible para generar audio.")
+                
                 self.update_job_status_gui(job_id, "Generando Audio...", "-")
                 success_audio, audio_result = audio_worker.generar_audio(current_job, self.root) # Pasar root si es necesario para config
                 if not success_audio:
@@ -391,6 +496,8 @@ class BatchTTSManager:
                 print(error_msg)
                 logging.error(error_msg, exc_info=True)
                 traceback.print_exc()
+                # ... (actualizar GUI con error) ...
+                if job_id: self.update_job_status_gui(job_id, f"Error: {str(e_job)[:60]}", tiempo_formateado_error)
 
                 # Calcular tiempo transcurrido incluso en caso de error
                 tiempo_formateado_error = "-"

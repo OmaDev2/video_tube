@@ -481,3 +481,36 @@ if __name__ == "__main__":
     # Ejecuta la función de prueba asíncrona
     import asyncio
     asyncio.run(run_test_completo())
+
+
+# Función para generar guiones completos (para ser llamada desde la UI)
+def generar_guion(titulo: str, contexto: str, estilo: str = 'default', num_secciones: int = 5, palabras_por_seccion: int = 150):
+    """Genera un guion completo para un video."""
+    print(f"Generando guion para: '{titulo}' con estilo '{estilo}'")
+    print(f"Parámetros: {num_secciones} secciones, {palabras_por_seccion} palabras por sección")
+    
+    try:
+        # Crear un nuevo bucle de eventos si no hay uno activo
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        
+        # Ejecutar la función asíncrona
+        guion_completo, _ = loop.run_until_complete(crear_guion_completo_y_metadata(
+            titulo=titulo,
+            contexto=contexto,
+            estilo_prompt=estilo,
+            palabras_seccion=palabras_por_seccion,
+            num_secciones=num_secciones
+        ))
+        
+        if not guion_completo:
+            raise Exception("No se pudo generar el guion. Verifica los logs para más detalles.")
+        
+        return guion_completo
+        
+    except Exception as e:
+        print(f"Error al generar guion: {e}")
+        raise

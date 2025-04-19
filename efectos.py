@@ -391,7 +391,7 @@ class KenBurnsEffect(Effect):
 
 # Variantes predefinidas del efecto Ken Burns con diferentes configuraciones
 
-class KenBurnsZoomInPanRight(KenBurnsEffect):
+class KenBurnsEffect(KenBurnsEffect):
     """Ken Burns: Zoom In + Pan Right (efecto clásico de documental)"""
     def __init__(self, zoom_ratio=0.03, pan_speed=0.04, scale_factor=1.4, clip_duration=None):
         super().__init__(zoom_direction='in', pan_direction='right', 
