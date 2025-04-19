@@ -524,7 +524,7 @@ class BatchTabFrame(ttk.Frame):
         
         # Botón GENERAR GUION destacado - Más grande y visible
         btn_frame = ttk.Frame(frame_input)
-        btn_frame.grid(row=4, column=0, columnspan=4, padx=5, pady=10, sticky="ew")
+        btn_frame.grid(row=5, column=0, columnspan=4, padx=5, pady=10, sticky="ew")
         
         # Checkbox para encolado automático (junto al botón)
         self.auto_queue_ai_script = tk.BooleanVar(value=False)
@@ -1043,8 +1043,8 @@ class BatchTabFrame(ttk.Frame):
             # El título ya lo leímos antes (usamos el mismo campo)
             script_contexto = self.txt_contexto_ai.get("1.0", tk.END).strip()
             estilo_script = self.app.selected_script_style.get()
-            num_secciones = self.app.script_num_secciones.get()
-            palabras_seccion = self.app.script_palabras_seccion.get()
+            num_secciones = self.app.ai_num_sections.get()
+            palabras_seccion = self.app.ai_words_per_section.get()
 
             if not script_contexto: # El contexto podría ser opcional, decide tú
                 print("ADVERTENCIA UI: Contexto para IA está vacío.")
