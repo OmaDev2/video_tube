@@ -75,6 +75,8 @@ class VideoCreatorApp:
         # Valores por defecto para TTS ajustados para mejor calidad de voz
         self.tts_rate_str = tk.StringVar(value="-3%")  # Un poco más lento para mayor claridad
         self.tts_pitch_str = tk.StringVar(value="-6Hz")  # Tono ligeramente más bajo para mayor naturalidad
+        self.tts_rate_value = tk.DoubleVar(value=-3.0)   # Valor inicial sugerido para el slider
+        self.tts_pitch_value = tk.DoubleVar(value=-6.0)  # Valor inicial sugerido para el slider
         
         # --- Inicializar variables para subtítulos Configuración subtitulos---
         self.settings_subtitles = tk.BooleanVar(value=False)
@@ -286,14 +288,29 @@ class VideoCreatorApp:
         
         # Variables para audio
         self.aplicar_musica = tk.BooleanVar(value=True)
+        # --- Audio general ---
+        self.aplicar_audio = tk.BooleanVar(value=True)
+        self.audio_file = tk.StringVar()
+        self.audio_volume = tk.DoubleVar(value=0.8)
+        self.aplicar_fade_in_audio = tk.BooleanVar(value=False)
+        self.duracion_fade_in_audio = tk.DoubleVar(value=1.0)
+        self.aplicar_fade_out_audio = tk.BooleanVar(value=False)
+        self.duracion_fade_out_audio = tk.DoubleVar(value=1.0)
+        # --- Música ---
         self.archivo_musica = tk.StringVar()
         self.volumen_musica = tk.DoubleVar(value=0.65)
         self.aplicar_fade_in_musica = tk.BooleanVar(value=True)
         self.duracion_fade_in_musica = tk.DoubleVar(value=1.0)
         self.aplicar_fade_out_musica = tk.BooleanVar(value=True)
         self.duracion_fade_out_musica = tk.DoubleVar(value=2.0)
-        
+        # --- Voz ---
         self.aplicar_voz = tk.BooleanVar(value=True)
+        self.voz_file = tk.StringVar()
+        self.voz_volume = tk.DoubleVar(value=0.8)
+        self.aplicar_fade_in_voz = tk.BooleanVar(value=False)
+        self.duracion_fade_in_voz = tk.DoubleVar(value=1.0)
+        self.aplicar_fade_out_voz = tk.BooleanVar(value=False)
+        self.duracion_fade_out_voz = tk.DoubleVar(value=1.0)
         self.archivo_voz = tk.StringVar()
         self.volumen_voz = tk.DoubleVar(value=0.75)
         self.aplicar_fade_in_voz = tk.BooleanVar(value=False)

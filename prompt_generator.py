@@ -149,15 +149,29 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
             if estilo_base == 'psicodelicas' or (estilo_base == 'default' and video_title and 'psicod' in video_title.lower()):
                 estilo_base = 'psicodelicas'
                 #logging.info(f"*** APLICANDO ESTILO PSICODÉLICO ***")
-            
             # Comprobar si el estilo existe en el gestor de prompts
             if estilo_base in prompt_manager.get_prompt_ids():
                 #logging.info(f"Usando estilo: '{estilo_base}'")
                 
                 # Obtener el system prompt y user prompt del estilo seleccionado
-                system_prompt = prompt_manager.get_system_prompt(estilo_base)
-                user_prompt = prompt_manager.get_user_prompt(estilo_base, video_title, segmento)
-                negative_prompt = prompt_manager.get_prompt(estilo_base)["negative_prompt"]
+                # --- NUEVA LÓGICA DE PROMPT UNIFICADO ---
+                image_parts = prompt_manager.get_image_prompt_parts(estilo_base)
+                system_prompt = image_parts.get('system', '')
+                user_prompt_template = image_parts.get('user', '')
+                negative_prompt = image_parts.get('negative', '')
+                # Formatear plantilla user_prompt
+                try:
+                    user_prompt = user_prompt_template.format(titulo=video_title, escena=segmento)
+                except KeyError:
+                    context = f"{video_title}: {segmento}" if video_title else segmento
+                    try:
+                        user_prompt = user_prompt_template.format(escena=context)
+                    except Exception as e_fmt:
+                        logging.error(f"Error formateando plantilla user '{estilo_base}' con fallback: {e_fmt}. Usando formato genérico.")
+                        user_prompt = f"Generate an image prompt for the following scene from '{video_title}': {segmento}"
+                except Exception as e_fmt_general:
+                    logging.error(f"Error inesperado formateando plantilla user '{estilo_base}': {e_fmt_general}. Usando formato genérico.")
+                    user_prompt = f"Generate an image prompt for the following scene from '{video_title}': {segmento}"
                 
                 # Imprimir los valores que se van a usar para formatear el prompt
                 #logging.info(f"\n=== VALORES PARA FORMATEO DE PROMPT ===")
