@@ -59,6 +59,15 @@ class BatchTabFrame(ttk.Frame):
         # Llamar al método que crea y posiciona los widgets
         self._setup_widgets()
 
+        # --- Inicializar mapas y variables de estilo ---
+        self.image_style_map = {}
+        self.script_style_map = {}
+        if not hasattr(self.app, 'selected_image_style_name'):
+            self.app.selected_image_style_name = tk.StringVar()
+        if not hasattr(self.app, 'selected_script_style_name'):
+            self.app.selected_script_style_name = tk.StringVar()
+
+
     def _toggle_script_inputs(self):
         """Muestra u oculta los campos según el modo de creación de guion."""
         mode = self.app.script_creation_mode.get()
@@ -379,24 +388,26 @@ class BatchTabFrame(ttk.Frame):
             print(f"ERROR al mostrar mensaje de error: {e}")
     
     def _setup_widgets(self):
-        """Configura la pestaña de cola de proyectos para TTS (Refactorizado con Grid)."""
-        # Usar un PanedWindow para dividir entrada y cola
+        """Configura la pestaña usando grid para mejorar el layout."""
+        # PanedWindow setup (se mantiene)
         self.paned_window = ttk.PanedWindow(self, orient="vertical")
         self.paned_window.pack(fill="both", expand=True, padx=5, pady=5)
 
         # --- Sección de Entrada (Usando Grid) ---
         frame_input = ttk.LabelFrame(self.paned_window, text="Nuevo Proyecto")
-        self.paned_window.add(frame_input, weight=1) # Peso inicial para la parte de entrada
+        self.paned_window.add(frame_input, weight=1) # Peso 1 para la parte de entrada
 
-        # Configurar columnas para el frame de entrada (ej: 4 columnas)
-        frame_input.columnconfigure(1, weight=1) # Columna para Título/Guion Manual/Contexto
-        frame_input.columnconfigure(3, weight=1) # Columna para Voz/Controles AI
+        # Configurar columnas para el frame_input (ej: 6 columnas flexibles)
+        for i in range(6):
+            frame_input.columnconfigure(i, weight=1, uniform="input_cols") # Uniform para que crezcan igual
 
         # --- Fila 0: Modo ---
         frame_mode = ttk.Frame(frame_input)
-        frame_mode.grid(row=0, column=0, columnspan=4, padx=5, pady=5, sticky="w")
+        # columnspan=6 para que ocupe todo el ancho de las columnas configuradas
+        frame_mode.grid(row=0, column=0, columnspan=6, padx=5, pady=5, sticky="w")
         lbl_mode = ttk.Label(frame_mode, text="Método Guion:")
         lbl_mode.pack(side="left", padx=(0, 5))
+        # Asumiendo que self.app.script_creation_mode existe y es un tk.StringVar()
         rb_manual = ttk.Radiobutton(frame_mode, text="Manual",
                                 variable=self.app.script_creation_mode, value="manual",
                                 command=self._toggle_script_inputs)
@@ -406,439 +417,190 @@ class BatchTabFrame(ttk.Frame):
                             command=self._toggle_script_inputs)
         rb_ai.pack(side="left", padx=2)
 
-        # --- Fila 1: Título y Voz ---
-        self.lbl_title = ttk.Label(frame_input, text="Título:") # Guardar referencia si la usas
+        # --- Fila 1: Título, Voz, Estilo Imágenes ---
+        self.lbl_title = ttk.Label(frame_input, text="Título:")
         self.lbl_title.grid(row=1, column=0, padx=5, pady=5, sticky="w")
         self.entry_title = ttk.Entry(frame_input)
-        self.entry_title.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        # columnspan=2 para darle más espacio al título
+        self.entry_title.grid(row=1, column=1, columnspan=2, padx=5, pady=5, sticky="ew")
 
         lbl_voice = ttk.Label(frame_input, text="Voz:")
-        lbl_voice.grid(row=1, column=2, padx=5, pady=5, sticky="w")
-        voces = [ "es-EC-LuisNeural", "es-ES-ElviraNeural", "es-MX-DaliaNeural",
-                  "es-AR-ElenaNeural", "es-CO-GonzaloNeural", "es-CL-CatalinaNeural",
-                  "es-MX-JorgeNeural"]
-        if not hasattr(self.app, 'selected_voice'): # Crear si no existe
-             self.app.selected_voice = tk.StringVar(value="es-MX-JorgeNeural")
-        voice_combo = ttk.Combobox(frame_input, textvariable=self.app.selected_voice, values=voces, state="readonly", width=25)
-        voice_combo.grid(row=1, column=3, padx=5, pady=5, sticky="ew")
+        lbl_voice.grid(row=1, column=3, padx=5, pady=5, sticky="w")
+        voces = [ "es-EC-LuisNeural", "es-ES-ElviraNeural", "es-MX-DaliaNeural", "es-AR-ElenaNeural", "es-CO-GonzaloNeural", "es-CL-CatalinaNeural", "es-MX-JorgeNeural"]
+        if not hasattr(self.app, 'selected_voice'): self.app.selected_voice = tk.StringVar(value="es-MX-JorgeNeural")
+        voice_combo = ttk.Combobox(frame_input, textvariable=self.app.selected_voice, values=voces, state="readonly", width=20)
+        voice_combo.grid(row=1, column=4, padx=5, pady=5, sticky="ew")
 
-        # --- Fila 2: Contenedor para Guion Manual o Parámetros AI ---
-        self.script_container = ttk.Frame(frame_input)
-        self.script_container.grid(row=2, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
-        frame_input.rowconfigure(2, weight=1) # Permitir que esta fila crezca verticalmente
-        self.script_container.rowconfigure(0, weight=1) # El contenido del container también debe crecer
-        self.script_container.columnconfigure(0, weight=1)
-
-        # --- Frame Guion Manual (Dentro de script_container) ---
-        self.frame_script_manual = ttk.Frame(self.script_container)
-        # NO USAR pack aquí, se controla en _toggle_script_inputs
-        
-        # Crear un frame para el texto y la barra de desplazamiento
-        text_frame = ttk.Frame(self.frame_script_manual)
-        text_frame.pack(fill="both", expand=True, padx=2, pady=2)
-        
-        self.txt_script = tk.Text(text_frame, wrap="word", height=10)
-        scrollbar_script = ttk.Scrollbar(text_frame, orient="vertical", command=self.txt_script.yview)
-        self.txt_script.configure(yscrollcommand=scrollbar_script.set)
-        
-        # Usar pack para el texto y la barra de desplazamiento
-        self.txt_script.pack(side="left", fill="both", expand=True)
-        scrollbar_script.pack(side="right", fill="y")
-
-        # --- Frame Parámetros AI (Dentro de script_container) ---
-        self.frame_script_ai = ttk.Frame(self.script_container)
-        # NO USAR grid/pack aquí, se controla en _toggle_script_inputs
-        
-        # Crear un LabelFrame específico para el contexto/notas
-        contexto_frame = ttk.LabelFrame(self.frame_script_ai, text="Contexto/Notas para Generación IA")
-        contexto_frame.pack(side="top", fill="both", expand=True, padx=5, pady=5)
-        
-        # Crear el widget de texto para el contexto con configuración explícita
-        self.txt_contexto_ai = tk.Text(contexto_frame, 
-                                      wrap="word", 
-                                      height=8, 
-                                      width=40,
-                                      state="normal",
-                                      bg="white", 
-                                      fg="black",
-                                      relief="sunken", 
-                                      borderwidth=2,
-                                      font=("Arial", 10))
-        
-        # Configurar scrollbar
-        scrollbar_contexto = ttk.Scrollbar(contexto_frame, orient="vertical", command=self.txt_contexto_ai.yview)
-        self.txt_contexto_ai.configure(yscrollcommand=scrollbar_contexto.set)
-        
-        # Posicionar widgets con pack
-        self.txt_contexto_ai.pack(side="left", fill="both", expand=True, padx=(5, 0), pady=5)
-        scrollbar_contexto.pack(side="right", fill="y", padx=(0, 5), pady=5)
-        
-        # Insertar texto de ayuda
-        self.txt_contexto_ai.insert("1.0", "Escribe aquí el contexto o notas para guiar la generación del guion...")
-        
-        # Frame para controles adicionales
-        controls_frame = ttk.Frame(self.frame_script_ai)
-        controls_frame.pack(side="top", fill="x", padx=5, pady=5)
-        
-        # Frame para parámetros de IA (palabras y capítulos)
-        params_frame = ttk.Frame(frame_input)
-        params_frame.grid(row=3, column=0, columnspan=4, padx=5, pady=5, sticky="ew")
-        
-        # Número de capítulos/secciones
-        sections_frame = ttk.Frame(params_frame)
-        sections_frame.pack(side="left", fill="x", expand=True, padx=5, pady=2)
-        
-        lbl_sections = ttk.Label(sections_frame, text="Capítulos:")
-        lbl_sections.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'ai_num_sections'):
-            self.app.ai_num_sections = tk.IntVar(value=5)
-            
-        sections_values = list(range(1, 11))  # De 1 a 10 capítulos
-        self.combo_sections = ttk.Combobox(
-            sections_frame,
-            textvariable=self.app.ai_num_sections,
-            values=sections_values,
-            width=5
-        )
-        self.combo_sections.pack(side="left", padx=5, pady=2)
-        
-        # Palabras por sección
-        words_frame = ttk.Frame(params_frame)
-        words_frame.pack(side="right", fill="x", expand=True, padx=5, pady=2)
-        
-        lbl_words = ttk.Label(words_frame, text="Palabras/Sección:")
-        lbl_words.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'ai_words_per_section'):
-            self.app.ai_words_per_section = tk.IntVar(value=300)
-            
-        words_values = [100, 150, 200, 250, 300, 350, 400, 450, 500]
-        self.combo_words = ttk.Combobox(
-            words_frame,
-            textvariable=self.app.ai_words_per_section,
-            values=words_values,
-            width=5
-        )
-        self.combo_words.pack(side="left", padx=5, pady=2)
-        
-        # Botón GENERAR GUION destacado - Más grande y visible
-        btn_frame = ttk.Frame(frame_input)
-        btn_frame.grid(row=5, column=0, columnspan=4, padx=5, pady=10, sticky="ew")
-        
-        # Checkbox para encolado automático (junto al botón)
-        self.auto_queue_ai_script = tk.BooleanVar(value=False)
-        chk_auto_queue = ttk.Checkbutton(
-            btn_frame, 
-            text="Encolar automáticamente al finalizar",
-            variable=self.auto_queue_ai_script
-        )
-        chk_auto_queue.pack(side="left", padx=10, pady=5)
-        
-        # Botón GENERAR GUION
-        self.btn_generar_guion = ttk.Button(
-            btn_frame,
-            text="GENERAR GUION",
-            command=self._generar_guion_ai,
-            style="Accent.TButton",
-            width=20,
-            padding=(10, 5)  # Padding horizontal y vertical para hacerlo más grande
-        )
-        self.btn_generar_guion.pack(side="right", padx=10, pady=5)
-        
-        # El checkbox de encolado automático ya está definido arriba junto al botón
-        
-        # Frame para opciones adicionales
-        options_frame = ttk.Frame(self.frame_script_ai)
-        options_frame.pack(side="top", fill="x", padx=5, pady=5)
-        
-        # Controles para palabras por sección y número de capítulos
-        params_frame = ttk.Frame(options_frame)
-        params_frame.pack(side="top", fill="x", padx=0, pady=5)
-        
-        # Número de capítulos/secciones
-        sections_frame = ttk.Frame(params_frame)
-        sections_frame.pack(side="left", fill="x", expand=True, padx=5, pady=2)
-        
-        lbl_sections = ttk.Label(sections_frame, text="Capítulos:")
-        lbl_sections.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'ai_num_sections'):
-            self.app.ai_num_sections = tk.IntVar(value=5)
-            
-        sections_values = list(range(1, 11))  # De 1 a 10 capítulos
-        self.combo_sections = ttk.Combobox(
-            sections_frame,
-            textvariable=self.app.ai_num_sections,
-            values=sections_values,
-            width=5
-        )
-        self.combo_sections.pack(side="left", padx=5, pady=2)
-        
-        # Palabras por sección
-        words_frame = ttk.Frame(params_frame)
-        words_frame.pack(side="right", fill="x", expand=True, padx=5, pady=2)
-        
-        lbl_words = ttk.Label(words_frame, text="Palabras/Sección:")
-        lbl_words.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'ai_words_per_section'):
-            self.app.ai_words_per_section = tk.IntVar(value=300)
-            
-        words_values = [100, 150, 200, 250, 300, 350, 400, 450, 500]
-        self.combo_words = ttk.Combobox(
-            words_frame,
-            textvariable=self.app.ai_words_per_section,
-            values=words_values,
-            width=5
-        )
-        self.combo_words.pack(side="left", padx=5, pady=2)
-        
-        # Estilo de guion
-        style_frame = ttk.Frame(options_frame)
-        style_frame.pack(side="top", fill="x", padx=0, pady=2)
-        
-        lbl_estilo_script = ttk.Label(style_frame, text="Estilo Guion:")
-        lbl_estilo_script.pack(side="left", padx=5, pady=2)
-        
-        # Obtener estilos disponibles
-        style_names = ["(No disponible)"]
-        if SCRIPT_PROMPT_MANAGER_AVAILABLE and hasattr(self.app, 'script_prompt_manager') and self.app.script_prompt_manager:
-            try:
-                style_tuples = self.app.script_prompt_manager.get_style_names()
-                style_names = [name for _, name in style_tuples]
-                self.script_style_map = dict(style_tuples) # Mapeo inverso
-            except Exception as e: 
-                print(f"Error obteniendo estilos: {e}")
-        
-        if not hasattr(self.app, 'selected_script_style'): 
-            self.app.selected_script_style = tk.StringVar()
-        
-        self.combo_estilo_script = ttk.Combobox(
-            style_frame, 
-            textvariable=self.app.selected_script_style, 
-            values=style_names, 
-            state="readonly", 
-            width=20
-        )
-        self.combo_estilo_script.pack(side="left", fill="x", expand=True, padx=5, pady=2)
-        
-        if style_names and style_names[0] != "(No disponible)": 
-            self.combo_estilo_script.current(0)
-        
-        # Nº Secciones
-        sections_frame = ttk.Frame(options_frame)
-        sections_frame.pack(side="top", fill="x", padx=0, pady=2)
-        
-        lbl_num_sec = ttk.Label(sections_frame, text="Nº Secciones:")
-        lbl_num_sec.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'script_num_secciones'):
-            self.app.script_num_secciones = tk.IntVar(value=5)
-        
-        spin_num_sec = ttk.Spinbox(
-            sections_frame, 
-            from_=3, 
-            to=15, 
-            increment=1, 
-            textvariable=self.app.script_num_secciones, 
-            width=5
-        )
-        spin_num_sec.pack(side="left", padx=5, pady=2)
-        
-        # Palabras por sección
-        words_frame = ttk.Frame(options_frame)
-        words_frame.pack(side="top", fill="x", padx=0, pady=2)
-        
-        lbl_pal_sec = ttk.Label(words_frame, text="Palabras/Sección:")
-        lbl_pal_sec.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'script_palabras_seccion'):
-            self.app.script_palabras_seccion = tk.IntVar(value=300)
-        
-        spin_pal_sec = ttk.Spinbox(
-            words_frame, 
-            from_=100, 
-            to=800, 
-            increment=50, 
-            textvariable=self.app.script_palabras_seccion, 
-            width=7
-        )
-        spin_pal_sec.pack(side="left", padx=5, pady=2)
-        
-        # Estilo Imágenes
-        images_frame = ttk.Frame(options_frame)
-        images_frame.pack(side="top", fill="x", padx=0, pady=2)
-        
-        lbl_prompt_style = ttk.Label(images_frame, text="Estilo Imágenes:")
-        lbl_prompt_style.pack(side="left", padx=5, pady=2)
-        # Obtener estilos de prompt disponibles
-        prompt_styles = [("default", "Cinematográfico")]
+        lbl_img_style = ttk.Label(frame_input, text="Estilo Img:")
+        lbl_img_style.grid(row=1, column=5, padx=(10, 5), pady=5, sticky="w") # Añadido padding izquierdo
+        # --- Poblar Dropdown Estilo Imágenes (Usando PromptManager Unificado) ---
+        style_names = ["(Error)"]
+        style_ids = ["default"]
+        self.image_style_map = {}
         if PROMPT_MANAGER_AVAILABLE:
             try:
                 prompt_manager = PromptManager()
-                prompt_styles = prompt_manager.get_prompt_names()
-            except Exception as e:
-                print(f"Error prompt styles: {e}")
-                
-        prompt_style_values = [name for _, name in prompt_styles]
-        prompt_style_ids = [id for id, _ in prompt_styles]
-        
-        if not hasattr(self.app, 'selected_prompt_style'):
-            self.app.selected_prompt_style = tk.StringVar(value="Cinematográfico")
-            
-        self.prompt_style_dropdown = ttk.Combobox(
-            images_frame, 
-            textvariable=self.app.selected_prompt_style, 
-            values=prompt_style_values, 
-            state="readonly", 
-            width=20
-        )
-        self.prompt_style_dropdown.pack(side="left", fill="x", expand=True, padx=5, pady=2)
-        self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
-        
-        # Vincular evento de cambio de estilo
-        def on_prompt_style_change(event):
-            print(f"Estilo de prompt cambiado a: {self.app.selected_prompt_style.get()}")
-            
-        self.prompt_style_dropdown.bind("<<ComboboxSelected>>", on_prompt_style_change)
+                style_tuples = prompt_manager.get_prompt_names()
+                if style_tuples:
+                     style_names = [name for _, name in style_tuples]
+                     style_ids = [id for id, _ in style_tuples]
+                     self.image_style_map = dict(zip(style_names, style_ids))
+                     if not hasattr(self.app, 'selected_image_style_name'): self.app.selected_image_style_name = tk.StringVar()
+                     default_img_style_name = "Cinematográfico" # O tu default
+                     self.app.selected_image_style_name.set(default_img_style_name if default_img_style_name in style_names else style_names[0])
+            except Exception as e: print(f"Error cargando estilos: {e}")
+        else:
+             if not hasattr(self.app, 'selected_image_style_name'): self.app.selected_image_style_name = tk.StringVar(value=style_names[0])
+
+        self.combo_image_style = ttk.Combobox(frame_input, textvariable=self.app.selected_image_style_name, values=style_names, state="readonly", width=20)
+        self.combo_image_style.grid(row=1, column=6, padx=5, pady=5, sticky="ew") # Usa columna 6
+        # Aumentar columnspan de los elementos en la fila 1 para que ocupen 6 columnas en total
+        frame_input.columnconfigure(6, weight=1, uniform="input_cols") # Configurar columna 6
+
+        # --- Fila 2: Contenedor Script (ocupa todo el ancho) ---
+        self.script_container = ttk.Frame(frame_input)
+        self.script_container.grid(row=2, column=0, columnspan=7, padx=5, pady=5, sticky="nsew") # columnspan=7
+        frame_input.rowconfigure(2, weight=1) # Fila del script expandible verticalmente
+        self.script_container.rowconfigure(0, weight=1) # Contenido expandible
+        self.script_container.columnconfigure(0, weight=1)
+
+        # -- Frame Manual (se añadirá/quitará con grid en _toggle_script_inputs) --
+        self.frame_script_manual = ttk.Frame(self.script_container)
+        self.frame_script_manual.columnconfigure(0, weight=1)
+        self.frame_script_manual.rowconfigure(0, weight=1)
+        self.txt_script = tk.Text(self.frame_script_manual, wrap="word", height=10, undo=True)
+        scrollbar_script = ttk.Scrollbar(self.frame_script_manual, orient="vertical", command=self.txt_script.yview)
+        self.txt_script.configure(yscrollcommand=scrollbar_script.set)
+        self.txt_script.grid(row=0, column=0, sticky="nsew")
+        scrollbar_script.grid(row=0, column=1, sticky="ns")
+
+        # -- Frame AI (se añadirá/quitará con grid en _toggle_script_inputs) --
+        self.frame_script_ai = ttk.LabelFrame(self.script_container, text="Parámetros Generación IA")
+        self.frame_script_ai.columnconfigure(0, weight=3) # Columna Contexto
+        self.frame_script_ai.columnconfigure(1, weight=1) # Columna Controles
+        self.frame_script_ai.rowconfigure(1, weight=1) # Fila Contexto expandible
+
+        # Contexto (Col 0)
+        lbl_contexto = ttk.Label(self.frame_script_ai, text="Contexto/Notas:")
+        lbl_contexto.grid(row=0, column=0, sticky="nw", padx=5, pady=(5,0))
+        self.txt_contexto_ai = tk.Text(self.frame_script_ai, wrap="word", height=8, undo=True) # Habilitar undo
+        scrollbar_contexto = ttk.Scrollbar(self.frame_script_ai, orient="vertical", command=self.txt_contexto_ai.yview)
+        self.txt_contexto_ai.configure(yscrollcommand=scrollbar_contexto.set)
+        self.txt_contexto_ai.grid(row=1, column=0, rowspan=7, sticky="nsew", padx=(5,0), pady=(0,5)) # rowspan para ocupar espacio vertical
+        scrollbar_contexto.grid(row=1, column=0, rowspan=7, sticky="nse", padx=(0,5), pady=(0,5))
+
+        # Controles AI (Col 1)
+        ai_controls_row = 0
+        # Estilo Guion
+        lbl_script_style = ttk.Label(self.frame_script_ai, text="Estilo Guion:")
+        lbl_script_style.grid(row=ai_controls_row, column=1, sticky="w", padx=5, pady=2)
+        # Usar la misma lista de estilos que para imágenes
+        self.script_style_map = self.image_style_map # Comparten mapa Nombre->ID
+        if not hasattr(self.app, 'selected_script_style_name'):
+            self.app.selected_script_style_name = tk.StringVar()
+            default_script_style_name = "Predeterminado (Vidas Santas - Polémico/Enganche)"
+            self.app.selected_script_style_name.set(default_script_style_name if default_script_style_name in style_names else style_names[0])
+        self.combo_script_style = ttk.Combobox(self.frame_script_ai, textvariable=self.app.selected_script_style_name, values=style_names, state="readonly", width=20)
+        self.combo_script_style.grid(row=ai_controls_row, column=1, sticky="e", padx=5, pady=2)
+        ai_controls_row += 1
+
+        # Nº Secciones
+        lbl_num_sec = ttk.Label(self.frame_script_ai, text="Nº Secciones:")
+        lbl_num_sec.grid(row=ai_controls_row, column=1, sticky="w", padx=5, pady=2)
+        if not hasattr(self.app, 'ai_num_sections'): self.app.ai_num_sections = tk.IntVar(value=5) # Asegurar que existe
+        spin_num_sec = ttk.Spinbox(self.frame_script_ai, from_=1, to=15, increment=1, textvariable=self.app.ai_num_sections, width=5)
+        spin_num_sec.grid(row=ai_controls_row, column=1, sticky="e", padx=5, pady=2)
+        ai_controls_row += 1
+
+        # Palabras/Sección
+        lbl_pal_sec = ttk.Label(self.frame_script_ai, text="Palabras/Sección:")
+        lbl_pal_sec.grid(row=ai_controls_row, column=1, sticky="w", padx=5, pady=2)
+        if not hasattr(self.app, 'ai_words_per_section'): self.app.ai_words_per_section = tk.IntVar(value=300) # Asegurar que existe
+        spin_pal_sec = ttk.Spinbox(self.frame_script_ai, from_=50, to=1000, increment=50, textvariable=self.app.ai_words_per_section, width=7)
+        spin_pal_sec.grid(row=ai_controls_row, column=1, sticky="e", padx=5, pady=2)
+        ai_controls_row += 1
 
         # Subtítulos Checkbox
-        subtitles_frame = ttk.Frame(options_frame)
-        subtitles_frame.pack(side="top", fill="x", padx=0, pady=2)
-        
-        if not hasattr(self.app, 'aplicar_subtitulos'):
-            self.app.aplicar_subtitulos = tk.BooleanVar(value=True)
-            
-        chk_subtitles = ttk.Checkbutton(
-            subtitles_frame, 
-            text="Generar subtítulos", 
-            variable=self.app.aplicar_subtitulos
-        )
-        chk_subtitles.pack(side="left", padx=5, pady=2)
+        if not hasattr(self.app, 'aplicar_subtitulos'): self.app.aplicar_subtitulos = tk.BooleanVar(value=True)
+        chk_subtitles = ttk.Checkbutton(self.frame_script_ai, text="Generar Subtítulos", variable=self.app.aplicar_subtitulos)
+        chk_subtitles.grid(row=ai_controls_row, column=1, sticky="w", padx=5, pady=5)
+        ai_controls_row += 1
 
         # Auto-Queue Checkbox
         self.auto_queue_ai_script = tk.BooleanVar(value=False) # Definir la variable
-        auto_queue_frame = ttk.Frame(options_frame)
-        auto_queue_frame.pack(side="top", fill="x", padx=0, pady=2)
-        chk_auto_queue = ttk.Checkbutton(
-            auto_queue_frame, 
-            text="Encolar automáticamente", 
-            variable=self.auto_queue_ai_script
-        )
-        chk_auto_queue.pack(side="left", padx=5, pady=2)
+        chk_auto_queue = ttk.Checkbutton(self.frame_script_ai, text="Encolar Auto.", variable=self.auto_queue_ai_script)
+        chk_auto_queue.grid(row=ai_controls_row, column=1, sticky="w", padx=5, pady=5)
+        ai_controls_row += 1
 
-        # --- Ajustes de Voz ---
-        voice_frame = ttk.LabelFrame(frame_input, text="Ajustes de Voz")
-        voice_frame.grid(row=4, column=0, columnspan=4, padx=5, pady=5, sticky="ew")
-
-        # Variables para rate/pitch
-        if not hasattr(self.app, 'tts_rate_value'): 
-            self.app.tts_rate_value = tk.IntVar(value=-10)
-        if not hasattr(self.app, 'tts_pitch_value'): 
-            self.app.tts_pitch_value = tk.IntVar(value=-5)
-        if not hasattr(self.app, 'tts_rate_str'): 
-            self.app.tts_rate_str = tk.StringVar(value="-10%")
-        if not hasattr(self.app, 'tts_pitch_str'): 
-            self.app.tts_pitch_str = tk.StringVar(value="-5Hz")
-
-        # Control de velocidad (Rate)
-        rate_frame = ttk.Frame(voice_frame)
-        rate_frame.pack(fill="x", padx=5, pady=5)
-        
-        lbl_rate = ttk.Label(rate_frame, text="Velocidad:")
-        lbl_rate.pack(side="left", padx=5)
-        
-        lbl_rate_value = ttk.Label(rate_frame, text=self.app.tts_rate_str.get(), width=6)
-        lbl_rate_value.pack(side="right", padx=5)
-        
-        scale_rate = ttk.Scale(
-            rate_frame, 
-            from_=-50, 
-            to=50, 
-            orient="horizontal", 
-            variable=self.app.tts_rate_value, 
-            length=300
+        # GENERAR GUION Button - ¡Asegúrate de que se añade!
+        self.btn_generar_guion = ttk.Button(
+            self.frame_script_ai,
+            text="GENERAR GUION",
+            command=self._generar_guion_ai,
+            style="Accent.TButton" # O usa "Action.TButton" si lo prefieres más llamativo
         )
-        scale_rate.pack(side="left", fill="x", expand=True, padx=5)
-        
-        # Control de tono (Pitch)
-        pitch_frame = ttk.Frame(voice_frame)
-        pitch_frame.pack(fill="x", padx=5, pady=5)
-        
-        lbl_pitch = ttk.Label(pitch_frame, text="Tono:")
-        lbl_pitch.pack(side="left", padx=5)
-        
-        lbl_pitch_value = ttk.Label(pitch_frame, text=self.app.tts_pitch_str.get(), width=6)
-        lbl_pitch_value.pack(side="right", padx=5)
-        
-        scale_pitch = ttk.Scale(
-            pitch_frame, 
-            from_=-50, 
-            to=50, 
-            orient="horizontal", 
-            variable=self.app.tts_pitch_value, 
-            length=300
-        )
-        scale_pitch.pack(side="left", fill="x", expand=True, padx=5)
-        
-        # Funciones para actualizar etiquetas
-        def update_rate_str(*args):
-            rate_val = self.app.tts_rate_value.get()
-            text = f"+{rate_val}%" if rate_val >= 0 else f"{rate_val}%"
-            lbl_rate_value.config(text=text)
-            self.app.tts_rate_str.set(text)
-            
-        def update_pitch_str(*args):
-            pitch_val = self.app.tts_pitch_value.get()
-            text = f"+{pitch_val}Hz" if pitch_val >= 0 else f"{pitch_val}Hz"
-            lbl_pitch_value.config(text=text)
-            self.app.tts_pitch_str.set(text)
-            
-        # Vincular variables a funciones de actualización
-        self.app.tts_rate_value.trace_add("write", update_rate_str)
-        self.app.tts_pitch_value.trace_add("write", update_pitch_str)
-        
-        # Botón de vista previa
-        preview_frame = ttk.Frame(voice_frame)
-        preview_frame.pack(fill="x", padx=5, pady=5)
-        
-        self.btn_preview = ttk.Button(
-            preview_frame, 
-            text="Probar Voz", 
-            command=self._preview_voice, 
-            style="Secondary.TButton"
-        )
-        self.btn_preview.pack(side="right", padx=5)
+        # sticky="ew" para que ocupe el ancho de la columna, pady para espaciarlo
+        self.btn_generar_guion.grid(row=ai_controls_row, column=1, sticky="ew", padx=5, pady=(10, 5))
+        ai_controls_row += 1 # Incrementar por si añades algo más debajo
 
-        # Inicializar etiquetas
-        update_rate_str(); update_pitch_str()
+
+        # --- Fila 3: Ajustes de Voz ---
+        frame_voice_controls = ttk.LabelFrame(frame_input, text="Ajustes de Voz")
+        frame_voice_controls.grid(row=3, column=0, columnspan=7, padx=5, pady=5, sticky="ew") # columnspan=7
+        frame_voice_controls.columnconfigure(1, weight=1) # Columna del slider expandible
+
+        # Rate
+        lbl_rate = ttk.Label(frame_voice_controls, text="Velocidad:")
+        lbl_rate.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        # ... (resto de widgets de Rate, usando grid) ...
+        scale_rate = ttk.Scale(frame_voice_controls, from_=-50, to=50, orient="horizontal", variable=self.app.tts_rate_value, length=200)
+        scale_rate.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        lbl_rate_value = ttk.Label(frame_voice_controls, textvariable=self.app.tts_rate_str, width=6) # Usa textvariable
+        lbl_rate_value.grid(row=0, column=2, padx=5, pady=5, sticky="w")
+
+        # Pitch
+        lbl_pitch = ttk.Label(frame_voice_controls, text="Tono:")
+        lbl_pitch.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        # ... (resto de widgets de Pitch, usando grid) ...
+        scale_pitch = ttk.Scale(frame_voice_controls, from_=-50, to=50, orient="horizontal", variable=self.app.tts_pitch_value, length=200)
+        scale_pitch.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        lbl_pitch_value = ttk.Label(frame_voice_controls, textvariable=self.app.tts_pitch_str, width=6) # Usa textvariable
+        lbl_pitch_value.grid(row=1, column=2, padx=5, pady=5, sticky="w")
+
+        # Preview Button
+        self.btn_preview = ttk.Button(frame_voice_controls, text="Probar Voz", command=self._preview_voice, style="Secondary.TButton")
+        self.btn_preview.grid(row=0, rowspan=2, column=3, padx=10, pady=5, sticky="e") # Columna 3 para alinear a la derecha
+
+        # Inicializar textos de rate/pitch (ya se hace con trace_add en __init__ si las variables existen)
+
 
         # --- Fila 4: Botones de Acción Principales ---
         frame_buttons = ttk.Frame(frame_input)
-        frame_buttons.grid(row=4, column=0, columnspan=4, padx=5, pady=10, sticky="e")
+        frame_buttons.grid(row=4, column=0, columnspan=7, padx=5, pady=10, sticky="e") # Alinear a la derecha
         btn_clear = ttk.Button(frame_buttons, text="Limpiar Campos", command=self._clear_project_fields, style="Secondary.TButton")
-        btn_clear.pack(side="right", padx=5)
+        btn_clear.pack(side="right", padx=5) # Pack dentro de este frame está bien
         btn_add_queue = ttk.Button(frame_buttons, text="Añadir a la Cola", command=self._add_project_to_queue, style="Action.TButton")
         btn_add_queue.pack(side="right", padx=5)
 
 
-        # --- Sección de Cola (Debajo, en el PanedWindow) ---
+        # --- Sección de Cola (Inferior) ---
         frame_queue = ttk.LabelFrame(self.paned_window, text="Cola de Procesamiento")
-        self.paned_window.add(frame_queue, weight=2) # Más peso para que sea más grande
+        self.paned_window.add(frame_queue, weight=2) # Darle más peso para que sea más grande
 
-        # Configurar Treeview y Scrollbar (como ya tenías)
-        # ... (código del treeview, scrollbar, botones de la cola - parece estar bien) ...
-        self.app.tree_queue = ttk.Treeview(frame_queue, columns=("titulo", "estado", "tiempo"), show="headings", height=10) # Más altura
+        # Treeview y botones de la cola (tu código aquí parece correcto, usa pack internamente)
+        # ... (Código del Treeview, scrollbar, frame_botones_principales, frame_regeneracion) ...
+        # ... Asegúrate de que self.app.tree_queue se asigna aquí ...
+        # --- Copiado de tu código anterior para la sección de cola ---
+        self.app.tree_queue = ttk.Treeview(frame_queue, columns=("titulo", "estado", "tiempo"), show="headings", height=10)
         self.app.tree_queue.heading("titulo", text="Título del Proyecto"); self.app.tree_queue.column("titulo", width=450)
         self.app.tree_queue.heading("estado", text="Estado"); self.app.tree_queue.column("estado", width=180, anchor="center")
         self.app.tree_queue.heading("tiempo", text="Tiempo"); self.app.tree_queue.column("tiempo", width=100, anchor="center")
-        frame_treeview = ttk.Frame(frame_queue); frame_treeview.pack(fill="both", expand=True, pady=(0, 5))
+        frame_treeview = ttk.Frame(frame_queue); frame_treeview.pack(fill="both", expand=True, pady=(5, 5)) # Añadido pady
         scrollbar_queue = ttk.Scrollbar(frame_treeview, orient="vertical", command=self.app.tree_queue.yview)
         self.app.tree_queue.configure(yscrollcommand=scrollbar_queue.set)
         self.app.tree_queue.pack(side="left", fill="both", expand=True)
         scrollbar_queue.pack(side="right", fill="y")
-        # ... (botones de la cola: Cargar, Generar Video, Regenerar...) ...
+        # Botones de la cola
         frame_botones_principales = ttk.Frame(frame_queue); frame_botones_principales.pack(fill="x", pady=(5, 0))
         btn_cargar_proyecto = ttk.Button(frame_botones_principales, text="Cargar Proyecto Existente", command=self._cargar_proyecto_existente, style="Secondary.TButton")
         btn_cargar_proyecto.pack(side="left", padx=5, pady=5)
@@ -850,35 +612,72 @@ class BatchTabFrame(ttk.Frame):
         btn_regenerar_prompts = ttk.Button(frame_regeneracion, text="Prompts", command=self._regenerar_prompts, style="Secondary.TButton", width=10); btn_regenerar_prompts.pack(side="left", padx=5, pady=5)
         btn_regenerar_imagenes = ttk.Button(frame_regeneracion, text="Imágenes", command=self._regenerar_imagenes, style="Secondary.TButton", width=10); btn_regenerar_imagenes.pack(side="left", padx=5, pady=5)
         btn_regenerar_subtitulos = ttk.Button(frame_regeneracion, text="Subtítulos", command=self._regenerar_subtitulos, style="Secondary.TButton", width=10); btn_regenerar_subtitulos.pack(side="left", padx=5, pady=5)
+        # --- Fin sección cola ---
 
-        # --- Final ---
-        # Asignar treeview al manager
-        self.app.batch_tts_manager.tree_queue = self.app.tree_queue
-        # Llamada inicial para mostrar/ocultar según el modo
+        # --- Final de _setup_widgets ---
+
+        # Asignar treeview al manager (asegúrate que esta línea esté antes del sashpos)
+        if hasattr(self.app, 'batch_tts_manager') and hasattr(self.app.batch_tts_manager, 'tree_queue'):
+             self.app.batch_tts_manager.tree_queue = self.app.tree_queue
+
+        # --- NUEVO: Establecer posición inicial del separador ---
+        # Forzar a Tkinter a calcular los tamaños iniciales
+        self.paned_window.update_idletasks()
+        try:
+            # Obtener la altura total actual de la ventana (o del paned_window)
+            total_height = self.paned_window.winfo_height()
+            if total_height <= 1: # Si aún no tiene tamaño, usar un valor fijo
+                 total_height = 800 # O un valor que sepas que es razonable para tu ventana
+
+            # Calcular una posición inicial (ej: 60% para el panel superior)
+            initial_sash_pos = int(total_height * 0.60)
+            # O simplemente un valor fijo en píxeles si lo prefieres:
+            # initial_sash_pos = 550 # Ajusta este valor según necesites
+
+            if initial_sash_pos < 100: initial_sash_pos = 100 # Mínimo para el panel superior
+            if initial_sash_pos > total_height - 50: initial_sash_pos = total_height - 50 # Dejar mínimo para el inferior
+
+            print(f"DEBUG: Intentando establecer sash en {initial_sash_pos} (altura total: {total_height})")
+            self.paned_window.sashpos(0, initial_sash_pos) # 0 es el índice del primer sash (solo hay uno)
+
+        except tk.TclError as e:
+             # A veces falla si la ventana es muy pequeña al inicio
+             print(f"ADVERTENCIA: No se pudo establecer la posición inicial del sash: {e}")
+        except Exception as e:
+             print(f"ERROR inesperado estableciendo sash: {e}")
+        # --- FIN NUEVO ---
+
+        # Llamada inicial para mostrar/ocultar según el modo (esta debe ser la última línea)
         self._toggle_script_inputs()
 
 
     def _toggle_script_inputs(self):
-        """Muestra u oculta los frames según el modo (usando pack)."""
+        """Muestra u oculta los frames según el modo (usando grid)."""
         mode = self.app.script_creation_mode.get()
         # Asegurarse de que el contenedor exista
         if not hasattr(self, 'script_container'): return
 
         if mode == "manual":
-            if hasattr(self, 'frame_script_ai'): self.frame_script_ai.pack_forget()
+            if hasattr(self, 'frame_script_ai'): self.frame_script_ai.grid_forget() # Ocultar AI
             if hasattr(self, 'frame_script_manual'):
                 # Mostrar el frame manual dentro del contenedor
-                self.frame_script_manual.pack(fill="both", expand=True, padx=2, pady=2)
+                self.frame_script_manual.grid(row=0, column=0, sticky="nsew") # Usar grid
             if hasattr(self, 'lbl_title'): self.lbl_title.config(text="Título:")
         elif mode == "ai":
-            if hasattr(self, 'frame_script_manual'): self.frame_script_manual.pack_forget()
+            if hasattr(self, 'frame_script_manual'): self.frame_script_manual.grid_forget() # Ocultar Manual
             if hasattr(self, 'frame_script_ai'):
                 # Mostrar el frame AI dentro del contenedor
-                self.frame_script_ai.pack(fill="both", expand=True, padx=2, pady=2)
+                self.frame_script_ai.grid(row=0, column=0, sticky="nsew") # Usar grid
             if hasattr(self, 'lbl_title'): self.lbl_title.config(text="Título/Idea Guion:")
-        else:
-            if hasattr(self, 'frame_script_manual'): self.frame_script_manual.pack_forget()
-            if hasattr(self, 'frame_script_ai'): self.frame_script_ai.pack_forget()
+        else: # Ocultar ambos si modo desconocido
+            if hasattr(self, 'frame_script_manual'): self.frame_script_manual.grid_forget()
+            if hasattr(self, 'frame_script_ai'): self.frame_script_ai.grid_forget()
+
+        # Reconfigurar el contenedor para que su contenido se expanda
+        # Estas líneas aseguran que el frame que se muestra (manual o AI)
+        # ocupe todo el espacio disponible dentro de script_container.
+        self.script_container.grid_rowconfigure(0, weight=1)
+        self.script_container.grid_columnconfigure(0, weight=1)
 
     # ... (resto de tus métodos: _add_project_to_queue, _clear_project_fields, _get_selected_project, etc.) ...
     # Asegúrate de que las referencias a self.app sean correctas y que esas variables/métodos
@@ -980,21 +779,16 @@ class BatchTabFrame(ttk.Frame):
                 'aplicar_transicion': self.app.aplicar_transicion.get(),
                 'tipo_transicion': self.app.tipo_transicion.get(),
                 'duracion_transicion': self.app.duracion_transicion.get(),
-                'aplicar_fade_in': self.app.aplicar_fade_in.get(),
-                'duracion_fade_in': self.app.duracion_fade_in.get(),
-                'aplicar_fade_out': self.app.aplicar_fade_out.get(),
-                'duracion_fade_out': self.app.duracion_fade_out.get(),
-                'aplicar_overlay': bool(overlays),
-                'archivos_overlay': [str(Path(ov).resolve()) for ov in overlays] if overlays else None,
-                'opacidad_overlay': self.app.opacidad_overlay.get(),
-                'aplicar_musica': self.app.aplicar_musica.get(),
-                'archivo_musica': str(Path(self.app.archivo_musica.get()).resolve()) if self.app.archivo_musica.get() else None,
-                'volumen_musica': self.app.volumen_musica.get(),
-                'aplicar_fade_in_musica': self.app.aplicar_fade_in_musica.get(),
-                'duracion_fade_in_musica': self.app.duracion_fade_in_musica.get(),
-                'aplicar_fade_out_musica': self.app.aplicar_fade_out_musica.get(),
-                'duracion_fade_out_musica': self.app.duracion_fade_out_musica.get(),
-                'volumen_voz': self.app.volumen_voz.get(),
+                'aplicar_audio': self.app.aplicar_audio.get(),
+                'audio_file': self.app.audio_file.get(),
+                'audio_volume': self.app.audio_volume.get(),
+                'aplicar_fade_in_audio': self.app.aplicar_fade_in_audio.get(),
+                'duracion_fade_in_audio': self.app.duracion_fade_in_audio.get(),
+                'aplicar_fade_out_audio': self.app.aplicar_fade_out_audio.get(),
+                'duracion_fade_out_audio': self.app.duracion_fade_out_audio.get(),
+                'aplicar_voz': self.app.aplicar_voz.get(),
+                'voz_file': self.app.voz_file.get(),
+                'voz_volume': self.app.voz_volume.get(),
                 'aplicar_fade_in_voz': self.app.aplicar_fade_in_voz.get(),
                 'duracion_fade_in_voz': self.app.duracion_fade_in_voz.get(),
                 'aplicar_fade_out_voz': self.app.aplicar_fade_out_voz.get(),
@@ -1013,8 +807,10 @@ class BatchTabFrame(ttk.Frame):
                 'subtitulos_margen': self.app.settings_subtitles_margin.get(),
                 'tts_rate': self.app.tts_rate_str.get(),
                 'tts_pitch': self.app.tts_pitch_str.get(),
-                'estilo_imagenes': self.prompt_style_map.get(self.prompt_style_dropdown.get(), 'default'),
-                'nombre_estilo': self.prompt_style_dropdown.get(),
+                'image_prompt_style_id': self.image_style_map.get(self.app.selected_image_style_name.get(), 'default'),
+                'image_prompt_style_name': self.app.selected_image_style_name.get(),
+                'script_prompt_style_id': self.script_style_map.get(self.app.selected_script_style_name.get(), 'default'),
+                'script_prompt_style_name': self.app.selected_script_style_name.get(),
                 'settings': effect_settings
             }
         except Exception as e:
@@ -1052,7 +848,6 @@ class BatchTabFrame(ttk.Frame):
                 # return # Opcional: requerir contexto
 
             # Añadir parámetros específicos de IA a video_settings
-            video_settings['script_style'] = estilo_script
             video_settings['script_num_secciones'] = num_secciones
             video_settings['script_palabras_seccion'] = palabras_seccion
             # (script_contexto lo pasaremos como argumento separado al manager)

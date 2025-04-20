@@ -1,0 +1,47 @@
+{
+  "default": {
+    "name": "Predeterminado (Vidas Santas - Polémico/Enganche)",
+    "description": "Estilo principal Vidas Santas con enfoque en polémica/enganche.",
+    "image_prompt": {
+      "system": "Eres un asistente experto en visualización creativa para vídeos. Generas prompts concisos y descriptivos para modelos de generación de imágenes como Stable Diffusion.",
+      "user": "Genera un prompt en inglés para una imagen de estilo cinematográfico basado en el siguiente texto: '{titulo}: {escena}'. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El aspect ratio es 16:9.",
+      "negative": "text, watermark, low quality, blurry, words, letters, fonts, signature"
+    },
+    "script_prompt": {
+      "esquema": "Eres un asistente experto en estructurar guiones para YouTube para el canal 'Vidas Santas'. Analiza el título \"{titulo}\" y el contexto proporcionado: \"{contexto}\".\nTu tarea es generar la estructura detallada del guion, manteniendo un tono intrigante y buscando ángulos únicos sobre figuras religiosas.\nRESPONDE ÚNICAMENTE CON UN OBJETO JSON VÁLIDO. No añadas ningún texto introductorio, explicaciones, ni ```json ``` antes o después del JSON.\nEl objeto JSON debe tener una única clave llamada \"secciones\".\nEl valor de \"secciones\" debe ser una lista de Python que contenga EXACTAMENTE {num_secciones} strings.\nCada string de la lista debe ser la instrucción detallada y concisa para esa sección del guion (de 50 a 100 palabras aprox.), guiando el contenido a desarrollar posteriormente y manteniendo la estrategia de preguntas inductivas o polémica mencionada en el contexto si aplica. Asegúrate de que las instrucciones fluyan lógicamente.",
+      "seccion": "Desarrolla la sección {numero_seccion} del guion ({instruccion_seccion}) para un video sobre {titulo}, basándote en el contexto: {contexto}.\nEscribe aproximadamente {num_palabras} palabras solo de la voz en off.\nQuiero que escribas exclusivamente la voz en off. No añadas nada más, ni marcas de tiempo, ni titulos, ni sugerencias sobre las imágenes… Quiero un texto limpio y procura que sea fácil de entender sin utilizar palabras complicadas, pero manteniendo en todo momento la estructura que hemos comentado. Quiero que juegues mucho con temas polémicos y rebuscados para provocar sentimientos y reacciones opuestas en los oyentes. Utiliza técnicas de Storytelling además de todo lo mencionado anteriormente y utiliza la segunda persona del singular. Es una manera más personal e íntima, como si estuvieras hablando directamente con cada espectador individualmente. Por último escribe los números con letras, incluyendo números romanos. Ves variandolo ligeramente la estructura de cada capítulo para que se vea natural. Procura no repetir conceptos que se hayan tratado en capítulos anteriores. NO empieces cada capítulo con \"Capítulo numero capitulo: titulo capitulo\" empieza con el contenido del capitulo directamente, no digas cosas como \"en este capítulo\", etc , mejor \"en esta historía\", \"en este video\" etc ,ni con el titulo del capitulo, ni con un resumen del capítulo anterior ni los cierres adelantando el contenido del siguiente capítulo, quiero que todo el texto sea fluido entre capítulos. Utiliza saltos de linea cuando sea necesario.",
+      "revision": "Revisa y humaniza el siguiente guion completo para YouTube para el canal 'Vidas Santas'. Tema: {titulo}.\nOBJETIVO: Transformar el texto actual en un guion narrable, fluido y cautivador que inspire al espectador y transmita las virtudes y enseñanzas del santo/a, sin alterar significativamente la extensión original.\nMODIFICACIONES ESPECÍFICAS REQUERIDAS\n1. Ganchos narrativos estratégicos...\n2. Técnicas de engagement...\n3. Humanización del lenguaje...\n4. Mejora de transiciones (Elimina 'Capítulo X')...\n5. Alternativas para 'Imagina que'...\n6. Inclusión estratégica de CTAs (Inicio, Mitad, Comentario, Final)...\n7. Formato para narración (frases variables)...\n8. Formato de números (a letras)...\n9. Concisión y valor espiritual...\n\nGuion a revisar:\n\n{guion_borrador}",
+      "metadata": "Basado en el siguiente guion final para un video de YouTube titulado '{titulo}' para el canal 'Vidas Santas', genera los siguientes metadatos en formato JSON estricto (solo el JSON):\n- 4 títulos clickbait (clave: \"titulos\" - lista de strings)\n- 4 frases cortas y llamativas para la miniatura (clave: \"frases_miniatura\" - lista de strings)\n- 4 prompts de imagen detallados para generar la miniatura (clave: \"prompts_miniatura\" - lista de strings)\n- 1 descripción optimizada para YouTube (clave: \"descripcion\" - string)\n- 1 lista de tags relevantes (clave: \"tags\" - lista de strings)\n\nGuion:\n{guion_final}\n\nRespuesta JSON:"
+    }
+  },
+  "educativo": {
+    "name": "Educativo/Documental",
+    "description": "Estilo claro y basado en hechos.",
+    "image_prompt": {
+      "system": "...",
+      "user": "...",
+      "negative": "..."
+    },
+    "script_prompt": {
+      "esquema": "Crea un esquema JSON ('secciones': [lista de {num_secciones} strings]) para un video documental educativo sobre {titulo}. Contexto: {contexto}. Enfócate en claridad y datos verificables.",
+      "seccion": "Desarrolla la sección {numero_seccion} ({instruccion_seccion}) para un video educativo sobre {titulo}. Contexto: {contexto}. Escribe unas {num_palabras} palabras con tono informativo, claro y preciso. Cita fuentes si es relevante. Solo voz en off.",
+      "revision": "Revisa este guion educativo sobre {titulo} para asegurar claridad, precisión y flujo lógico. Corrige errores factuales o de estilo. Guion:\n{guion_borrador}",
+      "metadata": "Genera metadata JSON (titulos, frases_miniatura, prompts_miniatura, descripcion, tags) para un video educativo en YouTube sobre {titulo}. Guion:\n{guion_final}"
+    }
+  },
+  "historico": {
+    "name": "Histórico/Cronológico",
+    "description": "Estilo narrativo siguiendo eventos históricos.",
+    "image_prompt": {
+      "system": "...",
+      "user": "...",
+      "negative": "..."
+    },
+    "script_prompt": {
+      "esquema": "Crea un esquema JSON ('secciones': [lista de {num_secciones} strings]) para un video histórico sobre {titulo}. Contexto: {contexto}. Estructura cronológicamente. Incluye fechas/eventos clave en las instrucciones.",
+      "seccion": "Desarrolla la sección {numero_seccion} ({instruccion_seccion}) para un video histórico sobre {titulo}. Contexto: {contexto}. Escribe unas {num_palabras} palabras con tono narrativo histórico. Incluye fechas y detalles relevantes. Solo voz en off.",
+      "revision": "Revisa este guion histórico sobre {titulo} para asegurar precisión cronológica, rigor factual y narrativa fluida. Corrige anacronismos. Guion:\n{guion_borrador}",
+      "metadata": "Genera metadata JSON (titulos, frases_miniatura, prompts_miniatura, descripcion, tags) para un video histórico en YouTube sobre {titulo}. Guion:\n{guion_final}"
+    }
+  }
+}

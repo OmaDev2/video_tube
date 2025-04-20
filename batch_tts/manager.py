@@ -522,9 +522,6 @@ class BatchTTSManager:
         print("Worker de cola finalizado.")
 
 
-
-    
-
     def update_job_status_gui(self, job_id, status, tiempo=""):
         """Actualiza el estado de un trabajo en la GUI."""
         # Usar root.after para asegurar que la actualización de la GUI
