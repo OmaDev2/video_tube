@@ -11,7 +11,7 @@ import threading
 import asyncio
 from datetime import datetime
 import subprocess
-from datetime import datetime
+# from datetime import datetime # Duplicado, eliminado
 import sys
 
 # Importar el gestor de prompts
@@ -31,11 +31,14 @@ except ImportError:
 
 # Importar el módulo de TTS
 try:
-    import sys
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # Asegurarse de que la ruta base del proyecto esté en sys.path
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root not in sys.path:
+        sys.path.append(project_root)
     from tts_generator import text_chunk_to_speech
     TTS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    print(f"ADVERTENCIA: No se pudo importar tts_generator en tab_batch: {e}")
     TTS_AVAILABLE = False
 
 class BatchTabFrame(ttk.Frame):
@@ -52,9 +55,35 @@ class BatchTabFrame(ttk.Frame):
         """
         super().__init__(parent_notebook, style="Card.TFrame", **kwargs)
         self.app = app_instance  # Guardamos la referencia a la app principal (VideoCreatorApp)
-        
+
         # Cola de guiones generados pendientes de revisar
         self.guiones_pendientes = []
+        self.script_style_map = {} # Inicializar mapeo de estilos de guion
+        self.prompt_style_map = {} # Inicializar mapeo de estilos de prompt
+
+        # Crear variables de control si no existen en app_instance (importante hacerlo aquí)
+        if not hasattr(self.app, 'script_creation_mode'):
+             self.app.script_creation_mode = tk.StringVar(value="manual") # Valor inicial por defecto
+        if not hasattr(self.app, 'selected_voice'):
+            self.app.selected_voice = tk.StringVar(value="es-MX-JorgeNeural")
+        if not hasattr(self.app, 'selected_script_style'):
+            self.app.selected_script_style = tk.StringVar()
+        if not hasattr(self.app, 'ai_num_sections'): # Renombrado para claridad AI
+            self.app.ai_num_sections = tk.IntVar(value=5)
+        if not hasattr(self.app, 'ai_words_per_section'): # Renombrado para claridad AI
+            self.app.ai_words_per_section = tk.IntVar(value=300)
+        if not hasattr(self.app, 'selected_prompt_style'):
+            self.app.selected_prompt_style = tk.StringVar(value="Cinematográfico")
+        if not hasattr(self.app, 'aplicar_subtitulos'):
+            self.app.aplicar_subtitulos = tk.BooleanVar(value=True)
+        # Variable para Auto-Queue (importante definirla antes de _setup_widgets)
+        if not hasattr(self, 'auto_queue_ai_script'):
+             self.auto_queue_ai_script = tk.BooleanVar(value=False)
+        # Variables TTS
+        if not hasattr(self.app, 'tts_rate_value'): self.app.tts_rate_value = tk.IntVar(value=-10)
+        if not hasattr(self.app, 'tts_pitch_value'): self.app.tts_pitch_value = tk.IntVar(value=-5)
+        if not hasattr(self.app, 'tts_rate_str'): self.app.tts_rate_str = tk.StringVar(value="-10%")
+        if not hasattr(self.app, 'tts_pitch_str'): self.app.tts_pitch_str = tk.StringVar(value="-5Hz")
 
         # Llamar al método que crea y posiciona los widgets
         self._setup_widgets()
@@ -62,1386 +91,1282 @@ class BatchTabFrame(ttk.Frame):
     def _toggle_script_inputs(self):
         """Muestra u oculta los campos según el modo de creación de guion."""
         mode = self.app.script_creation_mode.get()
+        # Asegurarse de que el contenedor exista y los frames internos también
+        if not hasattr(self, 'script_container'): return
+        frame_manual_exists = hasattr(self, 'frame_script_manual')
+        frame_ai_exists = hasattr(self, 'frame_script_ai')
+
         if mode == "manual":
-            # Mostrar campos manuales, ocultar campos AI
-            if hasattr(self, 'frame_script_manual'):
-                self.frame_script_manual.pack(fill="both", expand=True, padx=2, pady=2)
-            if hasattr(self, 'frame_script_ai'):
-                self.frame_script_ai.pack_forget()
-            if hasattr(self, 'lbl_title'):
-                self.lbl_title.config(text="Título:")
+            # Ocultar AI, Mostrar Manual
+            if frame_ai_exists: self.frame_script_ai.pack_forget()
+            if frame_manual_exists: self.frame_script_manual.pack(fill="both", expand=True, padx=2, pady=2)
+            if hasattr(self, 'lbl_title'): self.lbl_title.config(text="Título:")
         elif mode == "ai":
-            # Ocultar campos manuales, mostrar campos AI
-            if hasattr(self, 'frame_script_manual'):
-                self.frame_script_manual.pack_forget()
-            if hasattr(self, 'frame_script_ai'):
-                self.frame_script_ai.pack(fill="both", expand=True, padx=2, pady=2)
-            if hasattr(self, 'lbl_title'):
-                self.lbl_title.config(text="Título/Idea Guion:")
+            # Ocultar Manual, Mostrar AI
+            if frame_manual_exists: self.frame_script_manual.pack_forget()
+            if frame_ai_exists: self.frame_script_ai.pack(fill="both", expand=True, padx=2, pady=2)
+            if hasattr(self, 'lbl_title'): self.lbl_title.config(text="Título/Idea Guion:")
         else:
-            # Ocultar ambos en caso de error o estado inesperado
-            if hasattr(self, 'frame_script_manual'): 
-                self.frame_script_manual.pack_forget()
-            if hasattr(self, 'frame_script_ai'): 
-                self.frame_script_ai.pack_forget()
-    
+            # Ocultar ambos en caso de error
+            if frame_manual_exists: self.frame_script_manual.pack_forget()
+            if frame_ai_exists: self.frame_script_ai.pack_forget()
+
+    def _recargar_estilos_script(self):
+        """Recarga la lista de estilos de guion desde el gestor."""
+        print("Recargando estilos de guion...")
+        style_names = ["(No disponible)"]
+        self.script_style_map = {} # Limpiar mapeo anterior
+        if SCRIPT_PROMPT_MANAGER_AVAILABLE and hasattr(self.app, 'script_prompt_manager') and self.app.script_prompt_manager:
+            try:
+                self.app.script_prompt_manager.load_prompts()  # Recarga desde el JSON
+                style_tuples = self.app.script_prompt_manager.get_style_names()
+                # Filtrar tuplas vacías o inválidas si es necesario
+                valid_tuples = [(id_style, name) for id_style, name in style_tuples if id_style and name]
+                if valid_tuples:
+                    style_names = [name for _, name in valid_tuples]
+                    self.script_style_map = dict(valid_tuples)  # Mapeo id -> nombre
+                    print(f"Estilos cargados: {style_names}")
+                    print(f"Mapeo de estilos: {self.script_style_map}")
+                else:
+                     print("No se encontraron estilos válidos.")
+            except Exception as e:
+                print(f"Error obteniendo estilos de guion: {e}")
+                messagebox.showerror("Error Estilos", f"No se pudieron cargar los estilos de guion: {e}")
+
+        # Mantener selección si existe y es válida
+        current_style_name = self.app.selected_script_style.get() if hasattr(self.app, 'selected_script_style') else ""
+
+        # Actualizar valores del Combobox
+        if hasattr(self, 'combo_estilo_script'):
+             self.combo_estilo_script['values'] = style_names
+
+             if current_style_name in style_names:
+                 self.combo_estilo_script.set(current_style_name)
+                 print(f"Estilo actual '{current_style_name}' mantenido.")
+             elif style_names and style_names[0] != "(No disponible)":
+                 self.combo_estilo_script.current(0) # Seleccionar el primero válido
+                 self.app.selected_script_style.set(style_names[0]) # Actualizar variable
+                 print(f"Seleccionado primer estilo disponible: {style_names[0]}")
+             else:
+                 self.combo_estilo_script.set("(No disponible)")
+                 self.app.selected_script_style.set("") # Limpiar variable si no hay estilos
+                 print("No hay estilos disponibles, combobox seteado a (No disponible).")
+        else:
+             print("Error: combo_estilo_script no encontrado para actualizar.")
+
+
     def _generar_guion_ai(self):
-        """Genera un guion usando IA y lo muestra en el campo de texto del guion manual."""
+        """Genera un guion usando IA y lo gestiona (muestra o encola)."""
         print("\n--- INICIANDO GENERACIÓN DE GUION CON IA ---")
         print(f"Estado actual de guiones_pendientes: {len(self.guiones_pendientes)} guiones")
-        
+
         # Obtener los datos necesarios para la generación
         titulo = self.entry_title.get().strip()
         contexto = self.txt_contexto_ai.get("1.0", tk.END).strip()
-        estilo = self.app.selected_script_style.get()
+        estilo_nombre = self.app.selected_script_style.get() # Nombre legible del estilo
         num_secciones = self.app.ai_num_sections.get()
         palabras_por_seccion = self.app.ai_words_per_section.get()
         voice = self.app.selected_voice.get()
-        
-        # *** Leer el estado del checkbox ***
+
+        # Buscar el ID del estilo a partir del nombre seleccionado
+        # Necesitamos invertir el mapeo si 'script_style_map' es id -> nombre
+        style_name_to_id_map = {name: id_style for id_style, name in self.script_style_map.items()}
+        estilo_id = style_name_to_id_map.get(estilo_nombre)
+
+        if not estilo_id:
+             messagebox.showerror("Error", f"No se encontró el ID para el estilo de guion '{estilo_nombre}'. Asegúrate de que los estilos estén cargados.")
+             return
+
+        # Leer el estado del checkbox de encolado automático
         auto_queue = self.auto_queue_ai_script.get()
         print(f"Encolado automático: {'Sí' if auto_queue else 'No'}")
-        
-        # *** CAPTURAR CONTEXTO ANTES DE INICIAR HILO ***
+
+        # Capturar contexto antes de iniciar hilo
         titulo_capturado = titulo
         contexto_capturado = contexto
-        estilo_capturado = estilo
+        estilo_id_capturado = estilo_id # Usamos el ID para la generación
+        estilo_nombre_capturado = estilo_nombre # Guardamos el nombre para mensajes
         num_secciones_capturado = num_secciones
         palabras_por_seccion_capturado = palabras_por_seccion
         voice_capturada = voice
-        
+
         print(f"Título: '{titulo_capturado}'")
-        print(f"Estilo: '{estilo_capturado}'")
+        print(f"ID Estilo: '{estilo_id_capturado}' (Nombre: '{estilo_nombre_capturado}')")
         print(f"Número de secciones: {num_secciones_capturado}")
         print(f"Palabras por sección: {palabras_por_seccion_capturado}")
         print(f"Voz seleccionada: {voice_capturada}")
-        
+
         # Validar datos
         if not titulo_capturado:
             messagebox.showerror("Error", "Por favor, introduce un Título / Idea para el proyecto.")
             return
-            
+
         if not contexto_capturado:
             messagebox.showerror("Error", "Por favor, introduce el Contexto/Notas para la generación del guion.")
             return
-        
-        # Convertir a enteros
+
+        # Validar enteros (ya son tk.IntVar, pero una comprobación extra no hace daño)
         try:
-            num_secciones_capturado = int(num_secciones_capturado)
-            palabras_por_seccion_capturado = int(palabras_por_seccion_capturado)
-        except ValueError:
-            messagebox.showerror("Error", "El número de secciones y palabras por sección deben ser números enteros.")
+            num_sec_int = int(num_secciones_capturado)
+            pal_sec_int = int(palabras_por_seccion_capturado)
+            if num_sec_int <= 0 or pal_sec_int <= 0:
+                 raise ValueError("Los valores deben ser positivos.")
+        except ValueError as e:
+            messagebox.showerror("Error", f"Valores inválidos para secciones o palabras: {e}")
             return
-        
-        # --- Usar valores predeterminados seguros para video_settings ---
-        video_settings_capturados = {}  # Diccionario vacío por defecto
-        try:
-            if auto_queue:  # Solo recopilar settings si se va a encolar automáticamente
-                # Usar valores predeterminados seguros en lugar de intentar acceder a atributos que podrían no existir
-                video_settings_capturados = {
-                    # Configuraciones básicas con valores predeterminados seguros
-                    'duracion_imagen': 5.0,  # 5 segundos por imagen
-                    'duracion_transicion': 1.0,  # 1 segundo de transición
-                    'tipo_transicion': 'fade',  # Transición por defecto: fade
-                    'fps': 30,  # 30 FPS
-                    'resolucion': '1080p',  # Resolución Full HD
-                    
-                    # Configuraciones de efectos
-                    'efectos_habilitados': False,  # Sin efectos por defecto
-                    'efecto_seleccionado': 'none',  # Sin efecto específico
-                    'modo_secuencia': 'aleatorio',  # Modo aleatorio para secuencias
-                    
-                    # Configuraciones de audio
-                    'musica_habilitada': False,  # Sin música por defecto
-                    'volumen_musica': 0.5,  # Volumen medio para música
-                    'volumen_voz': 1.0,  # Volumen completo para voz
-                    
-                    # Configuraciones de subtítulos
-                    'subtitulos_habilitados': False,  # Sin subtítulos por defecto
-                    'tamano_fuente_subtitulos': 24,  # Tamaño de fuente estándar
-                    'color_texto_subtitulos': 'white',  # Texto blanco
-                    'color_fondo_subtitulos': 'black'  # Fondo negro
-                }
-                
-                # Intentar obtener algunos valores de la interfaz si están disponibles
-                # Usar getattr con valores predeterminados para evitar errores
-                if hasattr(self.app, 'selected_voice'):
-                    video_settings_capturados['voz'] = self.app.selected_voice.get()
-                
-                print("DEBUG UI: video_settings predeterminados preparados para encolado.")
-        except Exception as e:
-            # Solo muestra error si se intentaba encolar automáticamente
-            if auto_queue:
-                messagebox.showerror("Error", f"Error al leer parámetros de la UI necesarios para encolar: {e}")
+
+        # --- Recopilar video_settings si se va a encolar automáticamente ---
+        video_settings_capturados = {}
+        if auto_queue:
+            print("Recopilando video_settings para encolado automático...")
+            try:
+                # Reutiliza la lógica de _add_project_to_queue para obtener settings
+                # Esto evita duplicar código y asegura consistencia
+                # Necesitamos pasar un 'modo falso' para que recoja todo
+                temp_settings = self._get_current_video_settings("ai") # Pide settings como si fuera AI
+                if temp_settings is None:
+                     # _get_current_video_settings ya muestra el error
+                     return
+                video_settings_capturados = temp_settings
+                print("DEBUG UI: video_settings recopilados para encolado.")
+            except Exception as e:
+                messagebox.showerror("Error", f"Error crítico al leer parámetros de la UI necesarios para encolar: {e}")
                 print(f"ERROR LEYENDO PARÁMETROS UI (Auto-Queue): {e}")
                 import traceback
                 traceback.print_exc()
-                return  # No continuar si fallan los settings y se quería encolar
-            else:
-                print(f"ADVERTENCIA: Error leyendo parámetros UI, pero no se requería encolado automático: {e}")
-                video_settings_capturados = {}  # Resetear por si acaso
-            
+                return # No continuar si fallan los settings y se quería encolar
+
         # Mostrar mensaje de progreso
-        messagebox.showinfo("Generando Guion", f"Generando guion para '{titulo_capturado}'... Esto puede tardar unos minutos.")
-        self.update_idletasks()  # Actualizar la interfaz
-        
+        messagebox.showinfo("Generando Guion", f"Generando guion para '{titulo_capturado}' con estilo '{estilo_nombre_capturado}'... Esto puede tardar unos minutos.")
+        self.update_idletasks() # Actualizar la interfaz
+
         # Cambiar el cursor a "espera"
         self.config(cursor="wait")
-        
+
         try:
-            # Importar la función de generación de guiones
-            from ai_script_generator import generar_guion
-            
-            # Generar el guion en un hilo separado para no bloquear la interfaz
-            def generar_en_segundo_plano(captured_title, captured_context, captured_style, 
-                                         captured_num_sec, captured_words_sec, captured_voice, 
-                                         captured_settings, should_auto_queue):
+            # Importar la función de generación de guiones (asumiendo que existe)
+            # Asegúrate de que ai_script_generator está accesible
+            try:
+                 from ai_script_generator import generar_guion
+            except ImportError:
+                 messagebox.showerror("Error", "No se encontró el módulo 'ai_script_generator'.")
+                 self.config(cursor="")
+                 return
+
+            # Función para ejecutar en segundo plano
+            def generar_en_segundo_plano(captured_title, captured_context, captured_style_id,
+                                         captured_num_sec, captured_words_sec, captured_voice,
+                                         captured_settings, should_auto_queue, captured_style_name):
                 try:
-                    print(f"DEBUG HILO: Iniciando generación para '{captured_title}', AutoQueue={should_auto_queue}")
+                    print(f"DEBUG HILO: Iniciando generación para '{captured_title}', Estilo ID: {captured_style_id}, AutoQueue={should_auto_queue}")
+                    # Asegúrate de que 'generar_guion' acepte el ID del estilo
                     guion = generar_guion(
                         titulo=captured_title,
                         contexto=captured_context,
-                        estilo=captured_style,
+                        estilo=captured_style_id, # Pasar el ID del estilo
                         num_secciones=captured_num_sec,
                         palabras_por_seccion=captured_words_sec
                     )
-                    
+
                     if guion:
                         print(f"DEBUG HILO: Guion generado para '{captured_title}'. Longitud: {len(guion)} caracteres.")
-                        # *** Decidir qué callback llamar basado en el flag ***
+                        # Decidir qué callback llamar basado en el flag
                         if should_auto_queue:
                             print(f"DEBUG HILO: Llamando a _encolar_proyecto_generado para '{captured_title}'.")
+                            # Pasar también el contexto original, podría ser útil guardarlo
                             self.after(0, lambda: self._encolar_proyecto_generado(
-                                captured_title, guion, captured_voice, captured_settings
+                                captured_title, guion, captured_voice, captured_settings, captured_context
                             ))
                         else:
                             print(f"DEBUG HILO: Llamando a _mostrar_guion_generado para '{captured_title}'.")
-                            self.after(0, lambda: self._mostrar_guion_generado(captured_title, guion))
+                            # Pasar también el contexto y el nombre del estilo usado
+                            self.after(0, lambda: self._mostrar_guion_generado(
+                                captured_title, guion, captured_context, captured_style_name
+                            ))
                     else:
                         raise ValueError(f"La función generar_guion no devolvió contenido para '{captured_title}'.")
                 except Exception as e:
                     print(f"DEBUG HILO: Error en generación para '{captured_title}': {e}")
+                    import traceback
+                    traceback.print_exc()
                     # Pasar el título original al error handler también
                     self.after(0, lambda: self._mostrar_error_generacion(captured_title, str(e)))
-            
+
             # Iniciar el hilo pasando el contexto capturado
-            import threading
             thread = threading.Thread(target=generar_en_segundo_plano, args=(
                 titulo_capturado,
                 contexto_capturado,
-                estilo_capturado,
+                estilo_id_capturado, # Pasar ID
                 num_secciones_capturado,
                 palabras_por_seccion_capturado,
                 voice_capturada,
                 video_settings_capturados,
-                auto_queue
+                auto_queue,
+                estilo_nombre_capturado # Pasar nombre para mensajes
             ))
-            thread.daemon = True  # El hilo se cerrará cuando se cierre la aplicación
+            thread.daemon = True # El hilo se cerrará cuando se cierre la aplicación
             thread.start()
-            
+
         except Exception as e:
             messagebox.showerror("Error", f"Error al iniciar la generación del guion para '{titulo_capturado}': {str(e)}")
-            self.config(cursor="")
-    
-    def _mostrar_guion_generado(self, titulo_recibido, guion):
+            self.config(cursor="") # Restaurar cursor en caso de error al iniciar hilo
+
+
+    def _mostrar_guion_generado(self, titulo_recibido, guion, contexto_usado=None, estilo_usado=None):
         """Gestiona un guion generado añadiéndolo a la cola de guiones pendientes."""
+        self.config(cursor="") # Restaurar cursor inmediatamente
+
         if guion is None:
             print(f"ERROR INTERNO: _mostrar_guion_generado recibió guion None para '{titulo_recibido}'")
             self._mostrar_error_generacion(titulo_recibido, "La generación devolvió un resultado vacío.")
             return
-            
+
         print(f"\n--- GUION GENERADO EXITOSAMENTE PARA '{titulo_recibido}' ---\nLongitud: {len(guion)} caracteres")
+        print(f"Estilo Usado: {estilo_usado if estilo_usado else 'N/A'}")
+        #print(f"Contexto Usado: {contexto_usado[:100] if contexto_usado else 'N/A'}...") # Opcional mostrar contexto
         print(f"Primeros 200 caracteres: {guion[:200]}...")
-        print(f"Estado actual de guiones_pendientes: {len(self.guiones_pendientes)} guiones")
-        
+        print(f"Estado actual de guiones_pendientes antes de añadir: {len(self.guiones_pendientes)} guiones")
+
         try:
-            # Usar el título recibido del hilo, NO leer de la GUI
-            titulo = titulo_recibido or f"Guion_{len(self.guiones_pendientes) + 1}"
-            print(f"Título para el nuevo guion: '{titulo}'")
-            
+            # Usar el título recibido del hilo
+            titulo = titulo_recibido or f"Guion_Generado_{len(self.guiones_pendientes) + 1}"
+            print(f"Título final para el nuevo guion pendiente: '{titulo}'")
+
             # Añadir el guion a la cola de guiones pendientes
             self.guiones_pendientes.append({
                 'titulo': titulo,
                 'guion': guion,
+                'contexto': contexto_usado, # Guardar contexto original
+                'estilo': estilo_usado,     # Guardar nombre del estilo usado
                 'fecha': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             })
-            print(f"Guion añadido a la cola. Ahora hay {len(self.guiones_pendientes)} guiones pendientes.")
-            
-            # Restaurar el cursor
-            self.config(cursor="")
-            
-            # Preguntar al usuario si desea ver el guion ahora o continuar generando más
+            print(f"Guion añadido a la cola de pendientes. Ahora hay {len(self.guiones_pendientes)} guiones pendientes.")
+
+            # Actualizar el botón (o crearlo si no existe)
+            self._actualizar_boton_guiones_pendientes()
+
+            # Preguntar al usuario si desea ver el guion ahora
             print(f"Mostrando diálogo de confirmación al usuario para '{titulo}'...")
             respuesta = messagebox.askyesno(
-                "Guion Generado", 
-                f"El guion '{titulo}' ha sido generado con éxito.\n\n"
+                "Guion Generado",
+                f"El guion '{titulo}' (Estilo: {estilo_usado if estilo_usado else 'N/A'}) ha sido generado.\n\n"
                 f"Tienes {len(self.guiones_pendientes)} guion(es) pendiente(s) de revisar.\n\n"
-                "¿Deseas ver este guion ahora?"
+                "¿Deseas cargar este guion en el editor manual ahora para revisarlo/editarlo?"
             )
             print(f"Respuesta del usuario para '{titulo}': {respuesta}")
-            
+
             if respuesta:
-                self._mostrar_guion_especifico(len(self.guiones_pendientes) - 1)  # Mostrar el último guion generado
-            else:
-                # Si el usuario decide no ver el guion ahora, mostrar un botón para verlo más tarde
-                self._actualizar_boton_guiones_pendientes()
-            
-            print("Proceso de gestión de guion completado.")
+                # Mostrar el último guion añadido (que es el que acabamos de generar)
+                self._mostrar_guion_especifico(len(self.guiones_pendientes) - 1)
+            # else: # No hacer nada más si dice que no, el botón ya está actualizado
+
+            print(f"Proceso de gestión de guion generado para '{titulo}' completado.")
+
         except Exception as e:
-            print(f"ERROR al gestionar guion generado: {e}")
-            messagebox.showerror("Error", f"Se generó el guion pero hubo un error al gestionarlo: {e}")
-    
+            print(f"ERROR al gestionar guion generado '{titulo_recibido}': {e}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Error Interno", f"Se generó el guion '{titulo_recibido}' pero hubo un error al añadirlo a la lista de pendientes: {e}")
+
+
     def _mostrar_guion_especifico(self, indice):
-        """Muestra un guion específico de la cola de guiones pendientes."""
-        if 0 <= indice < len(self.guiones_pendientes):
-            guion_info = self.guiones_pendientes[indice]
-            
+        """Muestra un guion específico de la cola de pendientes en el editor manual."""
+        if not (0 <= indice < len(self.guiones_pendientes)):
+             messagebox.showerror("Error", "Índice de guion pendiente inválido.")
+             return
+
+        try:
+            guion_info = self.guiones_pendientes.pop(indice) # Sacarlo de la lista al mostrarlo
+            print(f"Mostrando guion pendiente '{guion_info['titulo']}' (índice {indice}). {len(self.guiones_pendientes)} restantes.")
+
             # Cambiar al modo manual para mostrar el guion
-            print(f"Mostrando guion '{guion_info['titulo']}'...")
             self.app.script_creation_mode.set("manual")
-            self._toggle_script_inputs()
-            
-            # Actualizar el título si está vacío
-            if not self.entry_title.get().strip():
-                self.entry_title.delete(0, tk.END)
-                self.entry_title.insert(0, guion_info['titulo'])
-            
-            # Limpiar el campo de texto y mostrar el guion
+            self._toggle_script_inputs() # Actualizar la UI para mostrar campos manuales
+
+            # Actualizar el título en la UI
+            self.entry_title.delete(0, tk.END)
+            self.entry_title.insert(0, guion_info['titulo'])
+
+            # Limpiar el campo de texto manual y mostrar el guion generado
             self.txt_script.delete("1.0", tk.END)
             self.txt_script.insert("1.0", guion_info['guion'])
-            
+
+            # Actualizar el botón de pendientes (ahora hay uno menos)
+            self._actualizar_boton_guiones_pendientes()
+
             # Mostrar un mensaje informativo
             messagebox.showinfo(
-                "Guion Cargado", 
-                f"El guion '{guion_info['titulo']}' ha sido cargado en el editor.\n\n"
-                "Puedes revisarlo y editarlo antes de añadir el proyecto a la cola."
+                "Guion Cargado",
+                f"El guion '{guion_info['titulo']}' ha sido cargado en el editor manual.\n\n"
+                f"Puedes revisarlo y editarlo antes de añadir el proyecto a la cola de procesamiento.\n\n"
+                f"({len(self.guiones_pendientes)} guiones generados restantes en la lista de pendientes)."
             )
-    
+
+        except IndexError:
+             messagebox.showerror("Error", "El guion seleccionado ya no está en la lista de pendientes.")
+             self._actualizar_boton_guiones_pendientes() # Asegurarse de que el botón refleje el estado real
+        except Exception as e:
+            messagebox.showerror("Error", f"Ocurrió un error al mostrar el guion pendiente: {e}")
+            import traceback
+            traceback.print_exc()
+
+
     def _actualizar_boton_guiones_pendientes(self):
-        """Actualiza o crea el botón de guiones pendientes."""
-        # Si ya existe el botón, actualizar su texto
-        if hasattr(self, 'btn_guiones_pendientes'):
-            self.btn_guiones_pendientes.config(
-                text=f"Ver Guiones Pendientes ({len(self.guiones_pendientes)})"
-            )
+        """Actualiza o crea/destruye el botón de guiones pendientes."""
+        num_pendientes = len(self.guiones_pendientes)
+
+        if num_pendientes > 0:
+            button_text = f"Ver Guiones Pendientes ({num_pendientes})"
+            # Si ya existe el botón, actualizar su texto y asegurarse de que sea visible
+            if hasattr(self, 'btn_guiones_pendientes') and self.btn_guiones_pendientes.winfo_exists():
+                self.btn_guiones_pendientes.config(text=button_text)
+                # Asegurarse de que esté empaquetado correctamente (podría haberse quitado)
+                # Lo colocamos después del frame de entrada
+                if hasattr(self, 'frame_input'):
+                     self.btn_guiones_pendientes.pack(after=self.frame_input, side="top", padx=10, pady=5, fill="x")
+                else: # Fallback si frame_input no existe aún
+                     self.btn_guiones_pendientes.pack(side="top", padx=10, pady=5, fill="x")
+
+            else:
+                # Crear el botón si no existe (o fue destruido)
+                # Necesitamos saber dónde colocarlo, idealmente después de la sección de entrada
+                parent_widget = self.scroll_frame if hasattr(self, 'scroll_frame') else self # Usar scroll_frame si existe
+
+                self.btn_guiones_pendientes = ttk.Button(
+                    parent_widget, # Añadir al frame scrolleable
+                    text=button_text,
+                    command=self._mostrar_menu_guiones_pendientes,
+                    style="Accent.TButton" # Usar un estilo que resalte
+                )
+                # Empaquetarlo después del frame de entrada si es posible
+                if hasattr(self, 'frame_input'):
+                     self.btn_guiones_pendientes.pack(after=self.frame_input, side="top", padx=10, pady=5, fill="x")
+                else: # Fallback
+                     self.btn_guiones_pendientes.pack(side="top", padx=10, pady=5, fill="x")
+
         else:
-            # Crear el botón si no existe
-            self.btn_guiones_pendientes = ttk.Button(
-                self, 
-                text=f"Ver Guiones Pendientes ({len(self.guiones_pendientes)})",
-                command=self._mostrar_menu_guiones_pendientes,
-                style="Secondary.TButton"
-            )
-            self.btn_guiones_pendientes.pack(side="top", padx=10, pady=5, fill="x")
-    
+            # Si no hay pendientes, destruir el botón si existe
+            if hasattr(self, 'btn_guiones_pendientes') and self.btn_guiones_pendientes.winfo_exists():
+                self.btn_guiones_pendientes.pack_forget()
+                self.btn_guiones_pendientes.destroy()
+                # Eliminar el atributo para que se cree de nuevo si es necesario
+                delattr(self, 'btn_guiones_pendientes')
+
+
     def _mostrar_menu_guiones_pendientes(self):
         """Muestra un menú con los guiones pendientes de revisar."""
         if not self.guiones_pendientes:
             messagebox.showinfo("Guiones Pendientes", "No hay guiones pendientes de revisar.")
+            # Asegurarse de que el botón desaparezca si se llega aquí por alguna razón
+            if hasattr(self, 'btn_guiones_pendientes') and self.btn_guiones_pendientes.winfo_exists():
+                 self.btn_guiones_pendientes.pack_forget()
+                 self.btn_guiones_pendientes.destroy()
+                 delattr(self, 'btn_guiones_pendientes')
             return
-        
+
         # Crear un menú emergente
         menu = tk.Menu(self, tearoff=0)
-        
+
         # Añadir una opción para cada guion pendiente
         for i, guion_info in enumerate(self.guiones_pendientes):
             menu.add_command(
-                label=f"{i+1}. {guion_info['titulo']} ({guion_info['fecha']})",
+                label=f"{i+1}. '{guion_info['titulo']}' (Estilo: {guion_info.get('estilo', 'N/A')}, {guion_info['fecha']})",
+                # Usar lambda idx=i para capturar el índice correcto en el momento de la creación
                 command=lambda idx=i: self._mostrar_guion_especifico(idx)
             )
-        
-        # Añadir una opción para limpiar la lista
+
+        # Añadir opción para limpiar toda la lista
         menu.add_separator()
-        menu.add_command(label="Limpiar lista", command=self._limpiar_guiones_pendientes)
-        
-        # Mostrar el menú en la posición del ratón
-        try:
-            menu.tk_popup(self.winfo_pointerx(), self.winfo_pointery())
-        finally:
-            menu.grab_release()
-    
+        menu.add_command(label="Descartar Todos", command=self._limpiar_guiones_pendientes)
+
+        # Mostrar el menú cerca del botón que lo invocó
+        if hasattr(self, 'btn_guiones_pendientes') and self.btn_guiones_pendientes.winfo_exists():
+             button_x = self.btn_guiones_pendientes.winfo_rootx()
+             button_y = self.btn_guiones_pendientes.winfo_rooty() + self.btn_guiones_pendientes.winfo_height()
+             try:
+                  menu.tk_popup(button_x, button_y)
+             finally:
+                  menu.grab_release()
+        else:
+            # Fallback: mostrar en la posición del ratón si el botón no existe
+             try:
+                  menu.tk_popup(self.winfo_pointerx(), self.winfo_pointery())
+             finally:
+                  menu.grab_release()
+
     def _limpiar_guiones_pendientes(self):
-        """Limpia la lista de guiones pendientes."""
-        if messagebox.askyesno("Limpiar Guiones", "¿Estás seguro de que deseas eliminar todos los guiones pendientes?"):
+        """Limpia la lista de guiones pendientes tras confirmación."""
+        if not self.guiones_pendientes:
+             messagebox.showinfo("Limpiar Guiones", "La lista de guiones pendientes ya está vacía.")
+             return
+
+        if messagebox.askyesno("Descartar Guiones", f"¿Estás seguro de que deseas descartar los {len(self.guiones_pendientes)} guiones generados pendientes? Esta acción no se puede deshacer."):
+            print(f"Limpiando {len(self.guiones_pendientes)} guiones pendientes.")
             self.guiones_pendientes = []
-            if hasattr(self, 'btn_guiones_pendientes'):
-                self.btn_guiones_pendientes.pack_forget()
-                delattr(self, 'btn_guiones_pendientes')
-    
+            # Ocultar/destruir el botón
+            self._actualizar_boton_guiones_pendientes()
+
+
     def _mostrar_error_generacion(self, titulo_fallido, error_msg):
         """Muestra un mensaje de error si la generación del guion falla."""
         print(f"\n--- ERROR AL GENERAR GUION PARA '{titulo_fallido}' ---\n{error_msg}")
+        self.config(cursor="") # Restaurar cursor siempre
         try:
-            messagebox.showerror("Error", f"Error al generar el guion para '{titulo_fallido}':\n{error_msg}")
-            self.config(cursor="")
-            print(f"Mensaje de error mostrado para '{titulo_fallido}'.")
+            messagebox.showerror("Error de Generación", f"Error al generar el guion para '{titulo_fallido}':\n\n{error_msg}")
+            print(f"Mensaje de error mostrado al usuario para '{titulo_fallido}'.")
         except Exception as e:
-            print(f"ERROR al mostrar mensaje de error: {e}")
-    
+            print(f"ERROR CRÍTICO: No se pudo mostrar el mensaje de error de generación: {e}")
+
+    # --- Métodos de configuración de la UI ---
+
     def _setup_widgets(self):
-        """Configura la pestaña de cola de proyectos para TTS (Refactorizado con Grid)."""
-        # Usar un PanedWindow para dividir entrada y cola
-        self.paned_window = ttk.PanedWindow(self, orient="vertical")
-        self.paned_window.pack(fill="both", expand=True, padx=5, pady=5)
+        """Configura todos los widgets de la pestaña usando un Canvas para scroll."""
+        # --- Scroll principal para toda la pestaña ---
+        main_canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        main_scrollbar = ttk.Scrollbar(self, orient="vertical", command=main_canvas.yview)
+        self.scroll_frame = ttk.Frame(main_canvas, style="Card.TFrame") # Frame interior que contendrá TODO
 
-        # --- Sección de Entrada (Usando Grid) ---
-        frame_input = ttk.LabelFrame(self.paned_window, text="Nuevo Proyecto")
-        self.paned_window.add(frame_input, weight=1) # Peso inicial para la parte de entrada
+        self.scroll_frame.bind(
+            "<Configure>",
+            lambda e: main_canvas.configure(
+                scrollregion=main_canvas.bbox("all")
+            )
+        )
+        main_canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
+        main_canvas.configure(yscrollcommand=main_scrollbar.set)
 
-        # Configurar columnas para el frame de entrada (ej: 4 columnas)
-        frame_input.columnconfigure(1, weight=1) # Columna para Título/Guion Manual/Contexto
-        frame_input.columnconfigure(3, weight=1) # Columna para Voz/Controles AI
+        main_canvas.pack(side="left", fill="both", expand=True)
+        main_scrollbar.pack(side="right", fill="y")
+
+        # Permitir scroll con rueda del ratón sobre el canvas y el frame interior
+        def _on_mousewheel(event):
+             # Ajustar la velocidad del scroll si es necesario
+             scroll_speed = int(-1 * (event.delta / 60))
+             main_canvas.yview_scroll(scroll_speed, "units")
+
+        main_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        self.scroll_frame.bind_all("<MouseWheel>", _on_mousewheel) # También en el frame
+
+        # --- Sección de Entrada (Dentro de scroll_frame) ---
+        self.frame_input = ttk.LabelFrame(self.scroll_frame, text="Nuevo Proyecto", style="Card.TFrame")
+        self.frame_input.pack(fill="x", padx=10, pady=10) # Añadir padding
+
+        # Configurar columnas para el frame de entrada
+        self.frame_input.columnconfigure(1, weight=1) # Columna para Título/Guion/Contexto
 
         # --- Fila 0: Modo ---
-        frame_mode = ttk.Frame(frame_input)
-        frame_mode.grid(row=0, column=0, columnspan=4, padx=5, pady=5, sticky="w")
+        frame_mode = ttk.Frame(self.frame_input)
+        frame_mode.grid(row=0, column=0, columnspan=2, padx=5, pady=(5, 10), sticky="w")
         lbl_mode = ttk.Label(frame_mode, text="Método Guion:")
         lbl_mode.pack(side="left", padx=(0, 5))
         rb_manual = ttk.Radiobutton(frame_mode, text="Manual",
-                                variable=self.app.script_creation_mode, value="manual",
-                                command=self._toggle_script_inputs)
-        rb_manual.pack(side="left", padx=2)
+                                    variable=self.app.script_creation_mode, value="manual",
+                                    command=self._toggle_script_inputs, style="Toolbutton")
+        rb_manual.pack(side="left", padx=3)
         rb_ai = ttk.Radiobutton(frame_mode, text="Generar con IA",
-                            variable=self.app.script_creation_mode, value="ai",
-                            command=self._toggle_script_inputs)
-        rb_ai.pack(side="left", padx=2)
+                                variable=self.app.script_creation_mode, value="ai",
+                                command=self._toggle_script_inputs, style="Toolbutton")
+        rb_ai.pack(side="left", padx=3)
 
-        # --- Fila 1: Título y Voz ---
-        self.lbl_title = ttk.Label(frame_input, text="Título:") # Guardar referencia si la usas
+        # --- Fila 1: Título ---
+        self.lbl_title = ttk.Label(self.frame_input, text="Título:") # Texto se actualiza en _toggle
         self.lbl_title.grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.entry_title = ttk.Entry(frame_input)
+        self.entry_title = ttk.Entry(self.frame_input)
         self.entry_title.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-        lbl_voice = ttk.Label(frame_input, text="Voz:")
-        lbl_voice.grid(row=1, column=2, padx=5, pady=5, sticky="w")
-        voces = [ "es-EC-LuisNeural", "es-ES-ElviraNeural", "es-MX-DaliaNeural",
-                  "es-AR-ElenaNeural", "es-CO-GonzaloNeural", "es-CL-CatalinaNeural",
-                  "es-MX-JorgeNeural"]
-        if not hasattr(self.app, 'selected_voice'): # Crear si no existe
-             self.app.selected_voice = tk.StringVar(value="es-MX-JorgeNeural")
-        voice_combo = ttk.Combobox(frame_input, textvariable=self.app.selected_voice, values=voces, state="readonly", width=25)
-        voice_combo.grid(row=1, column=3, padx=5, pady=5, sticky="ew")
-
         # --- Fila 2: Contenedor para Guion Manual o Parámetros AI ---
-        self.script_container = ttk.Frame(frame_input)
-        self.script_container.grid(row=2, column=0, columnspan=4, padx=5, pady=5, sticky="nsew")
-        frame_input.rowconfigure(2, weight=1) # Permitir que esta fila crezca verticalmente
-        self.script_container.rowconfigure(0, weight=1) # El contenido del container también debe crecer
-        self.script_container.columnconfigure(0, weight=1)
+        self.script_container = ttk.Frame(self.frame_input)
+        self.script_container.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
+        self.frame_input.rowconfigure(2, weight=1) # Permitir que esta fila crezca
+        self.script_container.columnconfigure(0, weight=1) # Permitir que el contenido crezca
 
         # --- Frame Guion Manual (Dentro de script_container) ---
         self.frame_script_manual = ttk.Frame(self.script_container)
-        # NO USAR pack aquí, se controla en _toggle_script_inputs
-        
-        # Crear un frame para el texto y la barra de desplazamiento
+        # NO USAR pack/grid aquí, se controla en _toggle_script_inputs
         text_frame = ttk.Frame(self.frame_script_manual)
         text_frame.pack(fill="both", expand=True, padx=2, pady=2)
-        
-        self.txt_script = tk.Text(text_frame, wrap="word", height=10)
+        self.txt_script = tk.Text(text_frame, wrap="word", height=10, undo=True,
+                                 bg="#23272e", fg="#f5f6fa", insertbackground="#f5f6fa", relief="sunken", borderwidth=1)
         scrollbar_script = ttk.Scrollbar(text_frame, orient="vertical", command=self.txt_script.yview)
         self.txt_script.configure(yscrollcommand=scrollbar_script.set)
-        
-        # Usar pack para el texto y la barra de desplazamiento
         self.txt_script.pack(side="left", fill="both", expand=True)
         scrollbar_script.pack(side="right", fill="y")
 
+
         # --- Frame Parámetros AI (Dentro de script_container) ---
         self.frame_script_ai = ttk.Frame(self.script_container)
-        # NO USAR grid/pack aquí, se controla en _toggle_script_inputs
-        
-        # Crear un LabelFrame específico para el contexto/notas
-        contexto_frame = ttk.LabelFrame(self.frame_script_ai, text="Contexto/Notas para Generación IA")
-        contexto_frame.pack(side="top", fill="both", expand=True, padx=5, pady=5)
-        
-        # Crear el widget de texto para el contexto con configuración explícita
-        self.txt_contexto_ai = tk.Text(contexto_frame, 
-                                      wrap="word", 
-                                      height=8, 
-                                      width=40,
-                                      state="normal",
-                                      bg="white", 
-                                      fg="black",
-                                      relief="sunken", 
-                                      borderwidth=2,
-                                      font=("Arial", 10))
-        
-        # Configurar scrollbar
+        # NO USAR pack/grid aquí
+
+        # Sub-Frame para Contexto y Estilo de Guion
+        ai_top_frame = ttk.Frame(self.frame_script_ai)
+        ai_top_frame.pack(side="top", fill="both", expand=True, padx=0, pady=0)
+
+        # Contexto AI (dentro de ai_top_frame)
+        contexto_frame = ttk.LabelFrame(ai_top_frame, text="Contexto/Notas para Generación IA")
+        contexto_frame.pack(side="top", fill="both", expand=True, padx=5, pady=(5, 2))
+        self.txt_contexto_ai = tk.Text(contexto_frame, wrap="word", height=8, width=40, undo=True,
+                                     bg="#23272e", fg="#f5f6fa", insertbackground="#f5f6fa", relief="sunken", borderwidth=1)
         scrollbar_contexto = ttk.Scrollbar(contexto_frame, orient="vertical", command=self.txt_contexto_ai.yview)
         self.txt_contexto_ai.configure(yscrollcommand=scrollbar_contexto.set)
-        
-        # Posicionar widgets con pack
         self.txt_contexto_ai.pack(side="left", fill="both", expand=True, padx=(5, 0), pady=5)
         scrollbar_contexto.pack(side="right", fill="y", padx=(0, 5), pady=5)
-        
-        # Insertar texto de ayuda
         self.txt_contexto_ai.insert("1.0", "Escribe aquí el contexto o notas para guiar la generación del guion...")
-        
-        # Frame para controles adicionales
-        controls_frame = ttk.Frame(self.frame_script_ai)
-        controls_frame.pack(side="top", fill="x", padx=5, pady=5)
-        
-        # Frame para parámetros de IA (palabras y capítulos)
-        params_frame = ttk.Frame(frame_input)
-        params_frame.grid(row=3, column=0, columnspan=4, padx=5, pady=5, sticky="ew")
-        
-        # Número de capítulos/secciones
-        sections_frame = ttk.Frame(params_frame)
-        sections_frame.pack(side="left", fill="x", expand=True, padx=5, pady=2)
-        
-        lbl_sections = ttk.Label(sections_frame, text="Capítulos:")
-        lbl_sections.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'ai_num_sections'):
-            self.app.ai_num_sections = tk.IntVar(value=5)
-            
-        sections_values = list(range(1, 11))  # De 1 a 10 capítulos
-        self.combo_sections = ttk.Combobox(
-            sections_frame,
-            textvariable=self.app.ai_num_sections,
-            values=sections_values,
-            width=5
-        )
-        self.combo_sections.pack(side="left", padx=5, pady=2)
-        
-        # Palabras por sección
-        words_frame = ttk.Frame(params_frame)
-        words_frame.pack(side="right", fill="x", expand=True, padx=5, pady=2)
-        
-        lbl_words = ttk.Label(words_frame, text="Palabras/Sección:")
-        lbl_words.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'ai_words_per_section'):
-            self.app.ai_words_per_section = tk.IntVar(value=300)
-            
-        words_values = [100, 150, 200, 250, 300, 350, 400, 450, 500]
-        self.combo_words = ttk.Combobox(
-            words_frame,
-            textvariable=self.app.ai_words_per_section,
-            values=words_values,
-            width=5
-        )
-        self.combo_words.pack(side="left", padx=5, pady=2)
-        
-        # Botón GENERAR GUION destacado - Más grande y visible
-        btn_frame = ttk.Frame(frame_input)
-        btn_frame.grid(row=5, column=0, columnspan=4, padx=5, pady=10, sticky="ew")
-        
-        # Checkbox para encolado automático (junto al botón)
-        self.auto_queue_ai_script = tk.BooleanVar(value=False)
-        chk_auto_queue = ttk.Checkbutton(
-            btn_frame, 
-            text="Encolar automáticamente al finalizar",
-            variable=self.auto_queue_ai_script
-        )
-        chk_auto_queue.pack(side="left", padx=10, pady=5)
-        
-        # Botón GENERAR GUION
-        self.btn_generar_guion = ttk.Button(
-            btn_frame,
-            text="GENERAR GUION",
-            command=self._generar_guion_ai,
-            style="Accent.TButton",
-            width=20,
-            padding=(10, 5)  # Padding horizontal y vertical para hacerlo más grande
-        )
-        self.btn_generar_guion.pack(side="right", padx=10, pady=5)
-        
-        # El checkbox de encolado automático ya está definido arriba junto al botón
-        
-        # Frame para opciones adicionales
-        options_frame = ttk.Frame(self.frame_script_ai)
-        options_frame.pack(side="top", fill="x", padx=5, pady=5)
-        
-        # Controles para palabras por sección y número de capítulos
-        params_frame = ttk.Frame(options_frame)
-        params_frame.pack(side="top", fill="x", padx=0, pady=5)
-        
-        # Número de capítulos/secciones
-        sections_frame = ttk.Frame(params_frame)
-        sections_frame.pack(side="left", fill="x", expand=True, padx=5, pady=2)
-        
-        lbl_sections = ttk.Label(sections_frame, text="Capítulos:")
-        lbl_sections.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'ai_num_sections'):
-            self.app.ai_num_sections = tk.IntVar(value=5)
-            
-        sections_values = list(range(1, 11))  # De 1 a 10 capítulos
-        self.combo_sections = ttk.Combobox(
-            sections_frame,
-            textvariable=self.app.ai_num_sections,
-            values=sections_values,
-            width=5
-        )
-        self.combo_sections.pack(side="left", padx=5, pady=2)
-        
-        # Palabras por sección
-        words_frame = ttk.Frame(params_frame)
-        words_frame.pack(side="right", fill="x", expand=True, padx=5, pady=2)
-        
-        lbl_words = ttk.Label(words_frame, text="Palabras/Sección:")
-        lbl_words.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'ai_words_per_section'):
-            self.app.ai_words_per_section = tk.IntVar(value=300)
-            
-        words_values = [100, 150, 200, 250, 300, 350, 400, 450, 500]
-        self.combo_words = ttk.Combobox(
-            words_frame,
-            textvariable=self.app.ai_words_per_section,
-            values=words_values,
-            width=5
-        )
-        self.combo_words.pack(side="left", padx=5, pady=2)
-        
-        # Estilo de guion
-        style_frame = ttk.Frame(options_frame)
-        style_frame.pack(side="top", fill="x", padx=0, pady=2)
-        
+
+        # Estilo Guion (debajo del contexto, dentro de ai_top_frame)
+        style_frame = ttk.Frame(ai_top_frame)
+        style_frame.pack(side="top", fill="x", padx=5, pady=(3, 5))
         lbl_estilo_script = ttk.Label(style_frame, text="Estilo Guion:")
         lbl_estilo_script.pack(side="left", padx=5, pady=2)
-        
-        # Obtener estilos disponibles
-        style_names = ["(No disponible)"]
-        if SCRIPT_PROMPT_MANAGER_AVAILABLE and hasattr(self.app, 'script_prompt_manager') and self.app.script_prompt_manager:
-            try:
-                style_tuples = self.app.script_prompt_manager.get_style_names()
-                style_names = [name for _, name in style_tuples]
-                self.script_style_map = dict(style_tuples) # Mapeo inverso
-            except Exception as e: 
-                print(f"Error obteniendo estilos: {e}")
-        
-        if not hasattr(self.app, 'selected_script_style'): 
-            self.app.selected_script_style = tk.StringVar()
-        
-        self.combo_estilo_script = ttk.Combobox(
-            style_frame, 
-            textvariable=self.app.selected_script_style, 
-            values=style_names, 
-            state="readonly", 
-            width=20
-        )
+        self.combo_estilo_script = ttk.Combobox(style_frame, textvariable=self.app.selected_script_style,
+                                                state="readonly", width=25) # Ancho ajustado
         self.combo_estilo_script.pack(side="left", fill="x", expand=True, padx=5, pady=2)
-        
-        if style_names and style_names[0] != "(No disponible)": 
-            self.combo_estilo_script.current(0)
-        
-        # Nº Secciones
-        sections_frame = ttk.Frame(options_frame)
-        sections_frame.pack(side="top", fill="x", padx=0, pady=2)
-        
-        lbl_num_sec = ttk.Label(sections_frame, text="Nº Secciones:")
-        lbl_num_sec.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'script_num_secciones'):
-            self.app.script_num_secciones = tk.IntVar(value=5)
-        
-        spin_num_sec = ttk.Spinbox(
-            sections_frame, 
-            from_=3, 
-            to=15, 
-            increment=1, 
-            textvariable=self.app.script_num_secciones, 
-            width=5
-        )
-        spin_num_sec.pack(side="left", padx=5, pady=2)
-        
-        # Palabras por sección
-        words_frame = ttk.Frame(options_frame)
-        words_frame.pack(side="top", fill="x", padx=0, pady=2)
-        
-        lbl_pal_sec = ttk.Label(words_frame, text="Palabras/Sección:")
-        lbl_pal_sec.pack(side="left", padx=5, pady=2)
-        
-        if not hasattr(self.app, 'script_palabras_seccion'):
-            self.app.script_palabras_seccion = tk.IntVar(value=300)
-        
-        spin_pal_sec = ttk.Spinbox(
-            words_frame, 
-            from_=100, 
-            to=800, 
-            increment=50, 
-            textvariable=self.app.script_palabras_seccion, 
-            width=7
-        )
-        spin_pal_sec.pack(side="left", padx=5, pady=2)
-        
+        btn_recargar_estilos = ttk.Button(style_frame, text="🔄", command=self._recargar_estilos_script, width=3, style="Toolbutton") # Botón pequeño
+        btn_recargar_estilos.pack(side="left", padx=(0, 5), pady=2)
+        self._recargar_estilos_script() # Cargar estilos al inicio
+
+        # Sub-Frame para Opciones Adicionales (Secciones, Palabras, Estilo Imagen, Auto-Queue)
+        ai_options_frame = ttk.Frame(self.frame_script_ai)
+        ai_options_frame.pack(side="top", fill="x", padx=0, pady=0)
+
+        # Nº Secciones y Palabras/Sección (en una línea)
+        sections_words_frame = ttk.Frame(ai_options_frame)
+        sections_words_frame.pack(side="top", fill="x", padx=5, pady=2)
+
+        lbl_num_sec = ttk.Label(sections_words_frame, text="Nº Secciones:")
+        lbl_num_sec.pack(side="left", padx=(5, 0), pady=2)
+        spin_num_sec = ttk.Spinbox(sections_words_frame, from_=3, to=15, increment=1,
+                                   textvariable=self.app.ai_num_sections, width=5)
+        spin_num_sec.pack(side="left", padx=(2, 10), pady=2)
+
+        lbl_pal_sec = ttk.Label(sections_words_frame, text="Palabras/Sección:")
+        lbl_pal_sec.pack(side="left", padx=(5, 0), pady=2)
+        spin_pal_sec = ttk.Spinbox(sections_words_frame, from_=100, to=800, increment=50,
+                                   textvariable=self.app.ai_words_per_section, width=7)
+        spin_pal_sec.pack(side="left", padx=(2, 5), pady=2)
+
         # Estilo Imágenes
-        images_frame = ttk.Frame(options_frame)
-        images_frame.pack(side="top", fill="x", padx=0, pady=2)
-        
-        lbl_prompt_style = ttk.Label(images_frame, text="Estilo Imágenes:")
+        images_style_frame = ttk.Frame(ai_options_frame)
+        images_style_frame.pack(side="top", fill="x", padx=5, pady=2)
+        lbl_prompt_style = ttk.Label(images_style_frame, text="Estilo Imágenes:")
         lbl_prompt_style.pack(side="left", padx=5, pady=2)
-        # Obtener estilos de prompt disponibles
-        prompt_styles = [("default", "Cinematográfico")]
+        prompt_styles = [("default", "Cinematográfico")] # Valor por defecto
         if PROMPT_MANAGER_AVAILABLE:
             try:
                 prompt_manager = PromptManager()
                 prompt_styles = prompt_manager.get_prompt_names()
             except Exception as e:
-                print(f"Error prompt styles: {e}")
-                
+                print(f"Error obteniendo estilos de prompt: {e}")
         prompt_style_values = [name for _, name in prompt_styles]
-        prompt_style_ids = [id for id, _ in prompt_styles]
-        
-        if not hasattr(self.app, 'selected_prompt_style'):
-            self.app.selected_prompt_style = tk.StringVar(value="Cinematográfico")
-            
-        self.prompt_style_dropdown = ttk.Combobox(
-            images_frame, 
-            textvariable=self.app.selected_prompt_style, 
-            values=prompt_style_values, 
-            state="readonly", 
-            width=20
-        )
+        prompt_style_ids = [id_style for id_style, _ in prompt_styles]
+        self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids)) # nombre -> id
+        self.prompt_style_dropdown = ttk.Combobox(images_style_frame, textvariable=self.app.selected_prompt_style,
+                                                  values=prompt_style_values, state="readonly", width=25) # Ancho ajustado
         self.prompt_style_dropdown.pack(side="left", fill="x", expand=True, padx=5, pady=2)
-        self.prompt_style_map = dict(zip(prompt_style_values, prompt_style_ids))
-        
-        # Vincular evento de cambio de estilo
-        def on_prompt_style_change(event):
-            print(f"Estilo de prompt cambiado a: {self.app.selected_prompt_style.get()}")
-            
-        self.prompt_style_dropdown.bind("<<ComboboxSelected>>", on_prompt_style_change)
-
-        # Subtítulos Checkbox
-        subtitles_frame = ttk.Frame(options_frame)
-        subtitles_frame.pack(side="top", fill="x", padx=0, pady=2)
-        
-        if not hasattr(self.app, 'aplicar_subtitulos'):
-            self.app.aplicar_subtitulos = tk.BooleanVar(value=True)
-            
-        chk_subtitles = ttk.Checkbutton(
-            subtitles_frame, 
-            text="Generar subtítulos", 
-            variable=self.app.aplicar_subtitulos
-        )
-        chk_subtitles.pack(side="left", padx=5, pady=2)
+        # Set default if current value is not in list or if list is empty
+        if self.app.selected_prompt_style.get() not in prompt_style_values:
+            if prompt_style_values:
+                self.prompt_style_dropdown.current(0)
+                self.app.selected_prompt_style.set(prompt_style_values[0])
+            else:
+                self.app.selected_prompt_style.set("") # o un valor por defecto
 
         # Auto-Queue Checkbox
-        self.auto_queue_ai_script = tk.BooleanVar(value=False) # Definir la variable
-        auto_queue_frame = ttk.Frame(options_frame)
-        auto_queue_frame.pack(side="top", fill="x", padx=0, pady=2)
-        chk_auto_queue = ttk.Checkbutton(
-            auto_queue_frame, 
-            text="Encolar automáticamente", 
-            variable=self.auto_queue_ai_script
-        )
+        auto_queue_frame = ttk.Frame(ai_options_frame)
+        auto_queue_frame.pack(side="top", fill="x", padx=5, pady=2)
+        chk_auto_queue = ttk.Checkbutton(auto_queue_frame, text="Encolar automáticamente al generar",
+                                         variable=self.auto_queue_ai_script, style="Switch.TCheckbutton")
         chk_auto_queue.pack(side="left", padx=5, pady=2)
 
-        # --- Ajustes de Voz ---
-        voice_frame = ttk.LabelFrame(frame_input, text="Ajustes de Voz")
-        voice_frame.grid(row=4, column=0, columnspan=4, padx=5, pady=5, sticky="ew")
+        # Botón Generar Guion (Sólo en modo AI)
+        btn_generar_guion = ttk.Button(self.frame_script_ai, text="Generar Guion", command=self._generar_guion_ai, style="Accent.TButton")
+        btn_generar_guion.pack(side="top", padx=5, pady=10)
 
-        # Variables para rate/pitch
-        if not hasattr(self.app, 'tts_rate_value'): 
-            self.app.tts_rate_value = tk.IntVar(value=-10)
-        if not hasattr(self.app, 'tts_pitch_value'): 
-            self.app.tts_pitch_value = tk.IntVar(value=-5)
-        if not hasattr(self.app, 'tts_rate_str'): 
-            self.app.tts_rate_str = tk.StringVar(value="-10%")
-        if not hasattr(self.app, 'tts_pitch_str'): 
-            self.app.tts_pitch_str = tk.StringVar(value="-5Hz")
 
-        # Control de velocidad (Rate)
-        rate_frame = ttk.Frame(voice_frame)
-        rate_frame.pack(fill="x", padx=5, pady=5)
-        
-        lbl_rate = ttk.Label(rate_frame, text="Velocidad:")
-        lbl_rate.pack(side="left", padx=5)
-        
-        lbl_rate_value = ttk.Label(rate_frame, text=self.app.tts_rate_str.get(), width=6)
-        lbl_rate_value.pack(side="right", padx=5)
-        
-        scale_rate = ttk.Scale(
-            rate_frame, 
-            from_=-50, 
-            to=50, 
-            orient="horizontal", 
-            variable=self.app.tts_rate_value, 
-            length=300
-        )
-        scale_rate.pack(side="left", fill="x", expand=True, padx=5)
-        
-        # Control de tono (Pitch)
-        pitch_frame = ttk.Frame(voice_frame)
-        pitch_frame.pack(fill="x", padx=5, pady=5)
-        
-        lbl_pitch = ttk.Label(pitch_frame, text="Tono:")
-        lbl_pitch.pack(side="left", padx=5)
-        
-        lbl_pitch_value = ttk.Label(pitch_frame, text=self.app.tts_pitch_str.get(), width=6)
-        lbl_pitch_value.pack(side="right", padx=5)
-        
-        scale_pitch = ttk.Scale(
-            pitch_frame, 
-            from_=-50, 
-            to=50, 
-            orient="horizontal", 
-            variable=self.app.tts_pitch_value, 
-            length=300
-        )
-        scale_pitch.pack(side="left", fill="x", expand=True, padx=5)
-        
-        # Funciones para actualizar etiquetas
+        # --- Fila 3: Voz y Ajustes TTS (Común a ambos modos) ---
+        voice_frame = ttk.LabelFrame(self.frame_input, text="Ajustes de Voz", style="Card.TFrame")
+        voice_frame.grid(row=3, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
+
+        # Selector de Voz
+        voice_select_frame = ttk.Frame(voice_frame)
+        voice_select_frame.pack(fill="x", padx=5, pady=5)
+        lbl_voice = ttk.Label(voice_select_frame, text="Voz:")
+        lbl_voice.pack(side="left", padx=5)
+        # Lista de voces, idealmente debería cargarse dinámicamente
+        voces = [ "es-EC-LuisNeural", "es-ES-ElviraNeural", "es-MX-DaliaNeural",
+                  "es-AR-ElenaNeural", "es-CO-GonzaloNeural", "es-CL-CatalinaNeural",
+                  "es-MX-JorgeNeural"] # Ejemplo
+        voice_combo = ttk.Combobox(voice_select_frame, textvariable=self.app.selected_voice, values=voces, state="readonly", width=25)
+        voice_combo.pack(side="left", fill="x", expand=True, padx=5)
+        # Asegurarse de que el valor inicial esté en la lista
+        if self.app.selected_voice.get() not in voces and voces:
+            self.app.selected_voice.set(voces[0])
+
+
+        # Controles Rate/Pitch
+        tts_controls_frame = ttk.Frame(voice_frame)
+        tts_controls_frame.pack(fill="x", padx=5, pady=5)
+        tts_controls_frame.columnconfigure(1, weight=1) # Hacer que las escalas se expandan
+
+        # Rate
+        lbl_rate = ttk.Label(tts_controls_frame, text="Velocidad:")
+        lbl_rate.grid(row=0, column=0, padx=(5,0), pady=2, sticky="w")
+        scale_rate = ttk.Scale(tts_controls_frame, from_=-50, to=50, orient="horizontal",
+                               variable=self.app.tts_rate_value, length=200) # Longitud ajustada
+        scale_rate.grid(row=0, column=1, padx=5, pady=2, sticky="ew")
+        lbl_rate_value = ttk.Label(tts_controls_frame, text=self.app.tts_rate_str.get(), width=6, anchor="e")
+        lbl_rate_value.grid(row=0, column=2, padx=(0,5), pady=2, sticky="e")
+
+        # Pitch
+        lbl_pitch = ttk.Label(tts_controls_frame, text="Tono:")
+        lbl_pitch.grid(row=1, column=0, padx=(5,0), pady=2, sticky="w")
+        scale_pitch = ttk.Scale(tts_controls_frame, from_=-50, to=50, orient="horizontal",
+                                variable=self.app.tts_pitch_value, length=200)
+        scale_pitch.grid(row=1, column=1, padx=5, pady=2, sticky="ew")
+        lbl_pitch_value = ttk.Label(tts_controls_frame, text=self.app.tts_pitch_str.get(), width=6, anchor="e")
+        lbl_pitch_value.grid(row=1, column=2, padx=(0,5), pady=2, sticky="e")
+
+        # Botón de vista previa TTS
+        self.btn_preview = ttk.Button(tts_controls_frame, text="Probar Voz", command=self._preview_voice, style="Secondary.TButton", width=10)
+        self.btn_preview.grid(row=0, rowspan=2, column=3, padx=10, pady=2, sticky="e")
+
+        # Funciones para actualizar etiquetas Rate/Pitch
         def update_rate_str(*args):
             rate_val = self.app.tts_rate_value.get()
             text = f"+{rate_val}%" if rate_val >= 0 else f"{rate_val}%"
             lbl_rate_value.config(text=text)
             self.app.tts_rate_str.set(text)
-            
+
         def update_pitch_str(*args):
             pitch_val = self.app.tts_pitch_value.get()
             text = f"+{pitch_val}Hz" if pitch_val >= 0 else f"{pitch_val}Hz"
             lbl_pitch_value.config(text=text)
             self.app.tts_pitch_str.set(text)
-            
+
         # Vincular variables a funciones de actualización
         self.app.tts_rate_value.trace_add("write", update_rate_str)
         self.app.tts_pitch_value.trace_add("write", update_pitch_str)
-        
-        # Botón de vista previa
-        preview_frame = ttk.Frame(voice_frame)
-        preview_frame.pack(fill="x", padx=5, pady=5)
-        
-        self.btn_preview = ttk.Button(
-            preview_frame, 
-            text="Probar Voz", 
-            command=self._preview_voice, 
-            style="Secondary.TButton"
-        )
-        self.btn_preview.pack(side="right", padx=5)
 
         # Inicializar etiquetas
         update_rate_str(); update_pitch_str()
 
-        # --- Fila 4: Botones de Acción Principales ---
-        frame_buttons = ttk.Frame(frame_input)
-        frame_buttons.grid(row=4, column=0, columnspan=4, padx=5, pady=10, sticky="e")
+        # --- Fila 4: Botones de Acción Principales (Añadir / Limpiar) ---
+        frame_buttons = ttk.Frame(self.frame_input)
+        frame_buttons.grid(row=4, column=0, columnspan=2, padx=5, pady=10, sticky="e")
         btn_clear = ttk.Button(frame_buttons, text="Limpiar Campos", command=self._clear_project_fields, style="Secondary.TButton")
-        btn_clear.pack(side="right", padx=5)
-        btn_add_queue = ttk.Button(frame_buttons, text="Añadir a la Cola", command=self._add_project_to_queue, style="Action.TButton")
-        btn_add_queue.pack(side="right", padx=5)
+        btn_clear.pack(side="left", padx=(0, 5)) # Cambiado a left
+        # Este botón SÓLO añade si está en modo manual. En AI, se usa el botón "Generar Guion"
+        self.btn_add_queue = ttk.Button(frame_buttons, text="Añadir a la Cola (Manual)", command=self._add_project_to_queue, style="Action.TButton")
+        self.btn_add_queue.pack(side="left", padx=5) # Cambiado a left
 
+        # --- Sección de Cola (Debajo del frame de entrada, dentro de scroll_frame) ---
+        frame_queue = ttk.LabelFrame(self.scroll_frame, text="Cola de Procesamiento", style="Card.TFrame")
+        frame_queue.pack(fill="both", expand=True, padx=10, pady=(0, 10)) # Añadir padding
 
-        # --- Sección de Cola (Debajo, en el PanedWindow) ---
-        frame_queue = ttk.LabelFrame(self.paned_window, text="Cola de Procesamiento")
-        self.paned_window.add(frame_queue, weight=2) # Más peso para que sea más grande
-
-        # Configurar Treeview y Scrollbar (como ya tenías)
-        # ... (código del treeview, scrollbar, botones de la cola - parece estar bien) ...
-        self.app.tree_queue = ttk.Treeview(frame_queue, columns=("titulo", "estado", "tiempo"), show="headings", height=10) # Más altura
-        self.app.tree_queue.heading("titulo", text="Título del Proyecto"); self.app.tree_queue.column("titulo", width=450)
+        # Treeview para la cola
+        frame_treeview = ttk.Frame(frame_queue);
+        frame_treeview.pack(fill="both", expand=True, pady=(5, 5))
+        self.app.tree_queue = ttk.Treeview(frame_treeview, columns=("titulo", "estado", "tiempo"), show="headings", height=8) # Altura ajustada
+        self.app.tree_queue.heading("titulo", text="Título del Proyecto"); self.app.tree_queue.column("titulo", width=400, stretch=tk.YES)
         self.app.tree_queue.heading("estado", text="Estado"); self.app.tree_queue.column("estado", width=180, anchor="center")
         self.app.tree_queue.heading("tiempo", text="Tiempo"); self.app.tree_queue.column("tiempo", width=100, anchor="center")
-        frame_treeview = ttk.Frame(frame_queue); frame_treeview.pack(fill="both", expand=True, pady=(0, 5))
         scrollbar_queue = ttk.Scrollbar(frame_treeview, orient="vertical", command=self.app.tree_queue.yview)
         self.app.tree_queue.configure(yscrollcommand=scrollbar_queue.set)
         self.app.tree_queue.pack(side="left", fill="both", expand=True)
         scrollbar_queue.pack(side="right", fill="y")
-        # ... (botones de la cola: Cargar, Generar Video, Regenerar...) ...
-        frame_botones_principales = ttk.Frame(frame_queue); frame_botones_principales.pack(fill="x", pady=(5, 0))
-        btn_cargar_proyecto = ttk.Button(frame_botones_principales, text="Cargar Proyecto Existente", command=self._cargar_proyecto_existente, style="Secondary.TButton")
-        btn_cargar_proyecto.pack(side="left", padx=5, pady=5)
-        btn_generate_video = ttk.Button(frame_botones_principales, text="Generar Vídeo", command=self.app.trigger_video_generation_for_selected, style="Action.TButton")
-        btn_generate_video.pack(side="right", padx=5, pady=5)
-        frame_regeneracion = ttk.Frame(frame_queue); frame_regeneracion.pack(fill="x", pady=(0, 5))
-        lbl_regenerar = ttk.Label(frame_regeneracion, text="Regenerar:", font=("Helvetica", 10, "bold")); lbl_regenerar.pack(side="left", padx=5, pady=5)
-        btn_regenerar_audio = ttk.Button(frame_regeneracion, text="Audio", command=self._regenerar_audio, style="Secondary.TButton", width=10); btn_regenerar_audio.pack(side="left", padx=5, pady=5)
-        btn_regenerar_prompts = ttk.Button(frame_regeneracion, text="Prompts", command=self._regenerar_prompts, style="Secondary.TButton", width=10); btn_regenerar_prompts.pack(side="left", padx=5, pady=5)
-        btn_regenerar_imagenes = ttk.Button(frame_regeneracion, text="Imágenes", command=self._regenerar_imagenes, style="Secondary.TButton", width=10); btn_regenerar_imagenes.pack(side="left", padx=5, pady=5)
-        btn_regenerar_subtitulos = ttk.Button(frame_regeneracion, text="Subtítulos", command=self._regenerar_subtitulos, style="Secondary.TButton", width=10); btn_regenerar_subtitulos.pack(side="left", padx=5, pady=5)
+
+        # Frame para botones de la cola
+        frame_botones_cola = ttk.Frame(frame_queue)
+        frame_botones_cola.pack(fill="x", pady=(5, 5))
+
+        # Botones lado izquierdo: Cargar, Regenerar
+        frame_botones_izquierda = ttk.Frame(frame_botones_cola)
+        frame_botones_izquierda.pack(side="left", padx=5, pady=5)
+        btn_cargar_proyecto = ttk.Button(frame_botones_izquierda, text="Cargar Proyecto Existente", command=self._cargar_proyecto_existente, style="Secondary.TButton")
+        btn_cargar_proyecto.pack(side="top", anchor="w", pady=(0,5))
+
+        frame_regeneracion = ttk.Frame(frame_botones_izquierda)
+        frame_regeneracion.pack(side="top", anchor="w")
+        lbl_regenerar = ttk.Label(frame_regeneracion, text="Regenerar:")
+        lbl_regenerar.pack(side="left", padx=(0, 5))
+        btn_regenerar_audio = ttk.Button(frame_regeneracion, text="Audio", command=self._regenerar_audio, style="Secondary.TButton", width=8); btn_regenerar_audio.pack(side="left", padx=2)
+        btn_regenerar_prompts = ttk.Button(frame_regeneracion, text="Prompts", command=self._regenerar_prompts, style="Secondary.TButton", width=8); btn_regenerar_prompts.pack(side="left", padx=2)
+        btn_regenerar_imagenes = ttk.Button(frame_regeneracion, text="Imágenes", command=self._regenerar_imagenes, style="Secondary.TButton", width=9); btn_regenerar_imagenes.pack(side="left", padx=2)
+        btn_regenerar_subtitulos = ttk.Button(frame_regeneracion, text="Subtítulos", command=self._regenerar_subtitulos, style="Secondary.TButton", width=10); btn_regenerar_subtitulos.pack(side="left", padx=2)
+
+
+        # Botón lado derecho: Generar Video
+        frame_botones_derecha = ttk.Frame(frame_botones_cola)
+        frame_botones_derecha.pack(side="right", padx=5, pady=5)
+        btn_generate_video = ttk.Button(frame_botones_derecha, text="Generar Vídeo Seleccionado", command=self.app.trigger_video_generation_for_selected, style="Action.TButton")
+        btn_generate_video.pack() # Simple pack a la derecha
 
         # --- Final ---
-        # Asignar treeview al manager
-        self.app.batch_tts_manager.tree_queue = self.app.tree_queue
-        # Llamada inicial para mostrar/ocultar según el modo
-        self._toggle_script_inputs()
-
-
-    def _toggle_script_inputs(self):
-        """Muestra u oculta los frames según el modo (usando pack)."""
-        mode = self.app.script_creation_mode.get()
-        # Asegurarse de que el contenedor exista
-        if not hasattr(self, 'script_container'): return
-
-        if mode == "manual":
-            if hasattr(self, 'frame_script_ai'): self.frame_script_ai.pack_forget()
-            if hasattr(self, 'frame_script_manual'):
-                # Mostrar el frame manual dentro del contenedor
-                self.frame_script_manual.pack(fill="both", expand=True, padx=2, pady=2)
-            if hasattr(self, 'lbl_title'): self.lbl_title.config(text="Título:")
-        elif mode == "ai":
-            if hasattr(self, 'frame_script_manual'): self.frame_script_manual.pack_forget()
-            if hasattr(self, 'frame_script_ai'):
-                # Mostrar el frame AI dentro del contenedor
-                self.frame_script_ai.pack(fill="both", expand=True, padx=2, pady=2)
-            if hasattr(self, 'lbl_title'): self.lbl_title.config(text="Título/Idea Guion:")
+        # Asignar treeview al manager (si batch_tts_manager existe en app)
+        if hasattr(self.app, 'batch_tts_manager') and self.app.batch_tts_manager:
+            self.app.batch_tts_manager.tree_queue = self.app.tree_queue
         else:
-            if hasattr(self, 'frame_script_manual'): self.frame_script_manual.pack_forget()
-            if hasattr(self, 'frame_script_ai'): self.frame_script_ai.pack_forget()
+            print("ADVERTENCIA: self.app.batch_tts_manager no encontrado al asignar tree_queue.")
 
-    # ... (resto de tus métodos: _add_project_to_queue, _clear_project_fields, _get_selected_project, etc.) ...
-    # Asegúrate de que las referencias a self.app sean correctas y que esas variables/métodos
-    # existan en la instancia principal de VideoCreatorApp pasada a __init__
-    # --- Asegúrate de tener todos tus métodos necesarios aquí ---
-    # _encolar_proyecto_generado, _regenerar_audio, _regenerar_prompts, etc.
+        # Llamada inicial para mostrar/ocultar según el modo por defecto
+        self._toggle_script_inputs()
+        # Llamada inicial para el botón de pendientes (si hay alguno al inicio)
+        self._actualizar_boton_guiones_pendientes()
 
-    # Necesitarás estas funciones si no están definidas en otra parte de esta clase
-    def _cargar_proyecto_existente(self):
-        print("Placeholder: Cargar proyecto existente")
-        messagebox.showinfo("Info", "Funcionalidad 'Cargar Proyecto' aún no implementada aquí.")
+    # --- Métodos de Acción ---
 
-    def _regenerar_audio(self): print("Placeholder: Regenerar audio")
-    def _regenerar_prompts(self): print("Placeholder: Regenerar prompts")
-    def _regenerar_imagenes(self): print("Placeholder: Regenerar imágenes")
-    def _regenerar_subtitulos(self): print("Placeholder: Regenerar subtítulos")
-    def _preview_voice(self): print("Placeholder: Preview voice")
+    def _get_current_video_settings(self, mode):
+         """Recopila los video_settings actuales de la UI principal. Separa lógica."""
+         print(f"DEBUG UI: Recopilando video_settings para modo '{mode}'")
+         # Verificar que los atributos necesarios existen en self.app
+         required_attrs = [
+             'duracion_img', 'fps', 'aplicar_efectos', 'aplicar_transicion',
+             'tipo_transicion', 'duracion_transicion', 'aplicar_fade_in', 'duracion_fade_in',
+             'aplicar_fade_out', 'duracion_fade_out', 'opacidad_overlay',
+             'aplicar_musica', 'archivo_musica', 'volumen_musica',
+             'aplicar_fade_in_musica', 'duracion_fade_in_musica',
+             'aplicar_fade_out_musica', 'duracion_fade_out_musica', 'volumen_voz',
+             'aplicar_fade_in_voz', 'duracion_fade_in_voz', 'aplicar_fade_out_voz',
+             'duracion_fade_out_voz', 'aplicar_subtitulos',
+             'settings_subtitles_font_color', 'settings_subtitles_font_size',
+             'settings_subtitles_font_name', 'settings_use_system_font',
+             'settings_subtitles_stroke_color', 'settings_subtitles_stroke_width',
+             'settings_subtitles_align', 'settings_subtitles_position_h',
+             'settings_subtitles_position_v', 'subtitles_uppercase',
+             'settings_subtitles_margin', 'tts_rate_str', 'tts_pitch_str',
+             # Effect settings
+             'settings_zoom_ratio', 'settings_zoom_quality', 'settings_pan_scale_factor',
+             'settings_pan_easing', 'settings_pan_quality', 'settings_kb_zoom_ratio',
+             'settings_kb_scale_factor', 'settings_kb_quality', 'settings_kb_direction',
+             'settings_overlay_opacity', 'settings_overlay_blend_mode',
+             # Funciones requeridas
+             'obtener_overlays_seleccionados', 'obtener_secuencia_efectos_actual'
+         ]
+         missing_attrs = [attr for attr in required_attrs if not hasattr(self.app, attr)]
+         if missing_attrs:
+              error_msg = f"Faltan atributos/métodos necesarios en 'self.app': {', '.join(missing_attrs)}"
+              print(f"ERROR: {error_msg}")
+              messagebox.showerror("Error de Configuración", error_msg)
+              return None
 
-    # Ya tienes _add_project_to_queue, _clear_project_fields
-    # Añadimos la función de encolar que faltaba
-    def _encolar_proyecto_generado(self, titulo, guion_generado, voice, video_settings):
-            """Añade un proyecto con guion recién generado a la cola del BatchTTSManager."""
-            print(f"--- Encolando proyecto generado automáticamente: '{titulo}' ---")
-            self.config(cursor="") # Restaurar cursor
+         try:
+             effect_settings = { # Ajustes específicos anidados de efectos
+                 'zoom_ratio': self.app.settings_zoom_ratio.get(),
+                 'zoom_quality': self.app.settings_zoom_quality.get(),
+                 'pan_scale_factor': self.app.settings_pan_scale_factor.get(),
+                 'pan_easing': self.app.settings_pan_easing.get(),
+                 'pan_quality': self.app.settings_pan_quality.get(),
+                 'kb_zoom_ratio': self.app.settings_kb_zoom_ratio.get(),
+                 'kb_scale_factor': self.app.settings_kb_scale_factor.get(),
+                 'kb_quality': self.app.settings_kb_quality.get(),
+                 'kb_direction': self.app.settings_kb_direction.get(),
+                 'overlay_opacity': self.app.settings_overlay_opacity.get(),
+                 'overlay_blend_mode': self.app.settings_overlay_blend_mode.get()
+             }
+             overlays = self.app.obtener_overlays_seleccionados()
+             selected_effects_sequence = self.app.obtener_secuencia_efectos_actual()
 
-            if not guion_generado:
-                 messagebox.showerror("Error Interno", f"Se intentó encolar el proyecto '{titulo}' pero el guion estaba vacío.")
-                 return
+             # Diccionario base de video_settings
+             video_settings = {
+                 'duracion_img': self.app.duracion_img.get(),
+                 'fps': self.app.fps.get(),
+                 'aplicar_efectos': self.app.aplicar_efectos.get(),
+                 'secuencia_efectos': selected_effects_sequence, # Añadido aquí
+                 'aplicar_transicion': self.app.aplicar_transicion.get(),
+                 'tipo_transicion': self.app.tipo_transicion.get(),
+                 'duracion_transicion': self.app.duracion_transicion.get(),
+                 'aplicar_fade_in': self.app.aplicar_fade_in.get(),
+                 'duracion_fade_in': self.app.duracion_fade_in.get(),
+                 'aplicar_fade_out': self.app.aplicar_fade_out.get(),
+                 'duracion_fade_out': self.app.duracion_fade_out.get(),
+                 'aplicar_overlay': bool(overlays),
+                 'archivos_overlay': [str(Path(ov).resolve()) for ov in overlays] if overlays else None,
+                 'opacidad_overlay': self.app.opacidad_overlay.get(),
+                 'aplicar_musica': self.app.aplicar_musica.get(),
+                 'archivo_musica': str(Path(self.app.archivo_musica.get()).resolve()) if self.app.aplicar_musica.get() and self.app.archivo_musica.get() else None,
+                 'volumen_musica': self.app.volumen_musica.get(),
+                 'aplicar_fade_in_musica': self.app.aplicar_fade_in_musica.get(),
+                 'duracion_fade_in_musica': self.app.duracion_fade_in_musica.get(),
+                 'aplicar_fade_out_musica': self.app.aplicar_fade_out_musica.get(),
+                 'duracion_fade_out_musica': self.app.duracion_fade_out_musica.get(),
+                 'volumen_voz': self.app.volumen_voz.get(),
+                 'aplicar_fade_in_voz': self.app.aplicar_fade_in_voz.get(),
+                 'duracion_fade_in_voz': self.app.duracion_fade_in_voz.get(),
+                 'aplicar_fade_out_voz': self.app.aplicar_fade_out_voz.get(),
+                 'duracion_fade_out_voz': self.app.duracion_fade_out_voz.get(),
+                 'aplicar_subtitulos': self.app.aplicar_subtitulos.get(),
+                 'color_fuente_subtitulos': self.app.settings_subtitles_font_color.get(),
+                 'tamano_fuente_subtitulos': self.app.settings_subtitles_font_size.get(),
+                 'font_name': self.app.settings_subtitles_font_name.get(),
+                 'use_system_font': self.app.settings_use_system_font.get(),
+                 'color_borde_subtitulos': self.app.settings_subtitles_stroke_color.get(),
+                 'grosor_borde_subtitulos': self.app.settings_subtitles_stroke_width.get(),
+                 'subtitles_align': self.app.settings_subtitles_align.get(),
+                 'subtitles_position_h': self.app.settings_subtitles_position_h.get(),
+                 'subtitles_position_v': self.app.settings_subtitles_position_v.get(),
+                 'subtitles_uppercase': self.app.subtitles_uppercase.get(),
+                 'subtitulos_margen': self.app.settings_subtitles_margin.get(),
+                 'tts_rate': self.app.tts_rate_str.get(),
+                 'tts_pitch': self.app.tts_pitch_str.get(),
+                 # Estilo de imágenes (obtenido del dropdown de esta pestaña)
+                 'estilo_imagenes': self.prompt_style_map.get(self.app.selected_prompt_style.get(), 'default'), # Usar mapeo nombre->id
+                 'nombre_estilo': self.app.selected_prompt_style.get(), # Nombre legible
+                 'settings': effect_settings # Anidar ajustes de efectos
+             }
 
-            try:
-                # Llamar al manager para añadir el proyecto a la cola
-                success = self.app.batch_tts_manager.add_project_to_queue(
-                    title=titulo,
-                    script=guion_generado, # El guion generado por IA
-                    voice=voice,
-                    video_settings=video_settings # Los settings capturados
-                    # script_contexto se podría añadir aquí si se capturó
-                )
+             # Añadir parámetros específicos de IA SOLO si estamos en modo AI
+             if mode == "ai":
+                  # Asegúrate de que estas variables existan en self.app o self
+                  # y que los mapeos estén actualizados
+                  script_style_name = self.app.selected_script_style.get()
+                  style_name_to_id_map = {name: id_style for id_style, name in self.script_style_map.items()}
+                  script_style_id = style_name_to_id_map.get(script_style_name)
 
-                if success:
-                    messagebox.showinfo("Éxito", f"Guion para '{titulo}' generado y añadido a la cola de procesamiento.")
-                    self._clear_project_fields("ai") # Limpiar campos AI
-                else:
-                     print(f"Fallo al añadir '{titulo}' a la cola (ver logs manager).")
-                     # El manager ya debería haber mostrado error
+                  video_settings['script_style'] = script_style_id # ID del estilo de guion
+                  video_settings['script_style_name'] = script_style_name # Nombre del estilo de guion
+                  video_settings['script_num_secciones'] = self.app.ai_num_sections.get()
+                  video_settings['script_palabras_seccion'] = self.app.ai_words_per_section.get()
 
-                # Actualizar el estado visual de la cola
-                if hasattr(self.app, 'update_queue_status'):
-                     self.app.update_queue_status() # Llama a la función de la app principal si existe
+             # Imprimir para depuración ANTES de devolver
+             # print("\n--- DEBUG UI: video_settings Recopilados ---")
+             # try:
+             #      print(json.dumps(video_settings, indent=2, default=str))
+             # except Exception as json_e:
+             #      print(f"(Error al imprimir como JSON: {json_e}) -> {video_settings}")
+             # print("------------------------------------------\n")
 
-            except Exception as e:
-                messagebox.showerror("Error", f"Error al añadir el proyecto '{titulo}' a la cola: {e}")
-                print(f"ERROR al llamar a add_project_to_queue para '{titulo}': {e}")
-                import traceback
-                traceback.print_exc()
+             return video_settings
+
+         except Exception as e:
+             messagebox.showerror("Error", f"Error al leer parámetros de la UI: {e}")
+             print(f"ERROR LEYENDO PARÁMETROS UI: {e}")
+             import traceback
+             traceback.print_exc()
+             return None # Devuelve None si hay error
 
     def _add_project_to_queue(self):
         """
-        Añade un nuevo proyecto a la cola de procesamiento, adaptándose
-        al modo seleccionado (Manual o Generación AI).
+        Añade un NUEVO proyecto MANUAL a la cola de procesamiento.
+        Para proyectos AI, se usa _generar_guion_ai y opcionalmente _encolar_proyecto_generado.
         """
-        print("--- Iniciando _add_project_to_queue ---")
+        print("--- Iniciando _add_project_to_queue (SOLO MODO MANUAL) ---")
         modo_seleccionado = self.app.script_creation_mode.get()
-        print(f"DEBUG UI - Modo seleccionado: {modo_seleccionado}")
+
+        if modo_seleccionado != "manual":
+             messagebox.showwarning("Acción Incorrecta", "Para generar un guion con IA y añadirlo, usa el botón 'Generar Guion'.\n\nEste botón 'Añadir a la Cola' es solo para guiones introducidos manualmente.")
+             return
 
         # --- Variables comunes ---
-        title = self.entry_title.get().strip() # Usamos el mismo título para ambos
-        voice = self.app.selected_voice.get()
-        script = None  # Inicializamos la variable script
+        title = self.entry_title.get().strip()
+        voice = self.app.selected_voice.get() # Voz seleccionada en esta pestaña
+        script = self.txt_script.get("1.0", tk.END).strip()
 
-        # --- Validar Título ---
+        # --- Validaciones ---
         if not title:
-            messagebox.showerror("Error", "Por favor, introduce un Título / Idea para el proyecto.")
+            messagebox.showerror("Error", "Por favor, introduce un Título para el proyecto.")
             return
-
-        # --- Recoger Ajustes de Video Comunes (Efectos, Transiciones, Audio, etc.) ---
-        # (Estos se recogen independientemente del modo de guion)
-        try:
-            effect_settings = { # Ajustes específicos anidados de efectos
-                'zoom_ratio': self.app.settings_zoom_ratio.get(),
-                'zoom_quality': self.app.settings_zoom_quality.get(),
-                'pan_scale_factor': self.app.settings_pan_scale_factor.get(),
-                'pan_easing': self.app.settings_pan_easing.get(),
-                'pan_quality': self.app.settings_pan_quality.get(),
-                'kb_zoom_ratio': self.app.settings_kb_zoom_ratio.get(),
-                'kb_scale_factor': self.app.settings_kb_scale_factor.get(),
-                'kb_quality': self.app.settings_kb_quality.get(),
-                'kb_direction': self.app.settings_kb_direction.get(),
-                'overlay_opacity': self.app.settings_overlay_opacity.get(),
-                'overlay_blend_mode': self.app.settings_overlay_blend_mode.get()
-            }
-            overlays = self.app.obtener_overlays_seleccionados()
-
-            # Diccionario base de video_settings
-            video_settings = {
-                'duracion_img': self.app.duracion_img.get(),
-                'fps': self.app.fps.get(),
-                'aplicar_efectos': self.app.aplicar_efectos.get(),
-                'aplicar_transicion': self.app.aplicar_transicion.get(),
-                'tipo_transicion': self.app.tipo_transicion.get(),
-                'duracion_transicion': self.app.duracion_transicion.get(),
-                'aplicar_fade_in': self.app.aplicar_fade_in.get(),
-                'duracion_fade_in': self.app.duracion_fade_in.get(),
-                'aplicar_fade_out': self.app.aplicar_fade_out.get(),
-                'duracion_fade_out': self.app.duracion_fade_out.get(),
-                'aplicar_overlay': bool(overlays),
-                'archivos_overlay': [str(Path(ov).resolve()) for ov in overlays] if overlays else None,
-                'opacidad_overlay': self.app.opacidad_overlay.get(),
-                'aplicar_musica': self.app.aplicar_musica.get(),
-                'archivo_musica': str(Path(self.app.archivo_musica.get()).resolve()) if self.app.archivo_musica.get() else None,
-                'volumen_musica': self.app.volumen_musica.get(),
-                'aplicar_fade_in_musica': self.app.aplicar_fade_in_musica.get(),
-                'duracion_fade_in_musica': self.app.duracion_fade_in_musica.get(),
-                'aplicar_fade_out_musica': self.app.aplicar_fade_out_musica.get(),
-                'duracion_fade_out_musica': self.app.duracion_fade_out_musica.get(),
-                'volumen_voz': self.app.volumen_voz.get(),
-                'aplicar_fade_in_voz': self.app.aplicar_fade_in_voz.get(),
-                'duracion_fade_in_voz': self.app.duracion_fade_in_voz.get(),
-                'aplicar_fade_out_voz': self.app.aplicar_fade_out_voz.get(),
-                'duracion_fade_out_voz': self.app.duracion_fade_out_voz.get(),
-                'aplicar_subtitulos': self.app.aplicar_subtitulos.get(),
-                'color_fuente_subtitulos': self.app.settings_subtitles_font_color.get(),
-                'tamano_fuente_subtitulos': self.app.settings_subtitles_font_size.get(),
-                'font_name': self.app.settings_subtitles_font_name.get(),
-                'use_system_font': self.app.settings_use_system_font.get(),
-                'color_borde_subtitulos': self.app.settings_subtitles_stroke_color.get(),
-                'grosor_borde_subtitulos': self.app.settings_subtitles_stroke_width.get(),
-                'subtitles_align': self.app.settings_subtitles_align.get(),
-                'subtitles_position_h': self.app.settings_subtitles_position_h.get(),
-                'subtitles_position_v': self.app.settings_subtitles_position_v.get(),
-                'subtitles_uppercase': self.app.subtitles_uppercase.get(),
-                'subtitulos_margen': self.app.settings_subtitles_margin.get(),
-                'tts_rate': self.app.tts_rate_str.get(),
-                'tts_pitch': self.app.tts_pitch_str.get(),
-                'estilo_imagenes': self.prompt_style_map.get(self.prompt_style_dropdown.get(), 'default'),
-                'nombre_estilo': self.prompt_style_dropdown.get(),
-                'settings': effect_settings
-            }
-        except Exception as e:
-            messagebox.showerror("Error", f"Error al leer parámetros de la UI: {e}")
-            print(f"ERROR LEYENDO PARÁMETROS UI: {e}")
-            import traceback
-            traceback.print_exc()
+        if not script:
+            messagebox.showerror("Error", "Por favor, introduce un guion para el proyecto.")
             return
+        if not hasattr(self.app, 'batch_tts_manager') or not self.app.batch_tts_manager:
+             messagebox.showerror("Error Crítico", "El gestor de cola (BatchTTSManager) no está disponible.")
+             return
 
-        # --- Variables específicas del modo ---
-        script_content = None
-        script_contexto = None
-        needs_ai_generation = False # Flag para el manager
+        # --- Recoger Ajustes de Video ---
+        video_settings = self._get_current_video_settings("manual") # Obtener settings para modo manual
+        if video_settings is None:
+            return # Error ya mostrado por _get_current_video_settings
 
-        # --- Lógica según el Modo Seleccionado ---
-        if modo_seleccionado == "manual":
-            print("DEBUG UI - Modo manual seleccionado.")
-            # Recoger texto del guion
-            script = self.txt_script.get("1.0", tk.END).strip()
-            
-            if not script:
-                messagebox.showerror("Error", "Por favor, introduce un guion para el proyecto.")
-                return
-        elif modo_seleccionado == "ai":
-            print("DEBUG UI - Modo AI seleccionado.")
-            # El título ya lo leímos antes (usamos el mismo campo)
-            script_contexto = self.txt_contexto_ai.get("1.0", tk.END).strip()
-            estilo_script = self.app.selected_script_style.get()
-            num_secciones = self.app.ai_num_sections.get()
-            palabras_seccion = self.app.ai_words_per_section.get()
-
-            if not script_contexto: # El contexto podría ser opcional, decide tú
-                print("ADVERTENCIA UI: Contexto para IA está vacío.")
-                # messagebox.showwarning("Advertencia", "El campo de contexto para IA está vacío.")
-                # return # Opcional: requerir contexto
-
-            # Añadir parámetros específicos de IA a video_settings
-            video_settings['script_style'] = estilo_script
-            video_settings['script_num_secciones'] = num_secciones
-            video_settings['script_palabras_seccion'] = palabras_seccion
-            # (script_contexto lo pasaremos como argumento separado al manager)
-
-            needs_ai_generation = True
-            script_content = None # No hay guion manual en este modo
-
-        else:
-            messagebox.showerror("Error", f"Modo de creación desconocido: {modo_seleccionado}")
-            return
-
-        # --- Obtener y añadir la secuencia de efectos (después de crear video_settings) ---
-        try:
-            if hasattr(self.app, 'obtener_secuencia_efectos_actual'):
-                selected_effects_sequence = self.app.obtener_secuencia_efectos_actual()
-                print(f"DEBUG UI: La función obtener_secuencia_efectos_actual() devolvió: {selected_effects_sequence}")
-                video_settings['secuencia_efectos'] = selected_effects_sequence
-            elif hasattr(self.app, 'obtener_secuencia_efectos'):
-                print("ADVERTENCIA: Usando obtener_secuencia_efectos() en lugar de _actual()")
-                selected_effects_sequence = self.app.obtener_secuencia_efectos()
-                print(f"DEBUG UI: La función obtener_secuencia_efectos() devolvió: {selected_effects_sequence}")
-                video_settings['secuencia_efectos'] = selected_effects_sequence
-            else:
-                print("ERROR: No se encontró la función para obtener la secuencia de efectos en self.app.")
-                video_settings['secuencia_efectos'] = []
-        except Exception as e_fx:
-            print(f"ERROR obteniendo secuencia de efectos: {e_fx}")
-            video_settings['secuencia_efectos'] = [] # Fallback seguro
-
-
-        # --- Imprimir settings finales y llamar al Manager ---
-        print("\n--- DEBUG UI: video_settings FINAL Enviado al Manager ---")
-        try:
-            print(json.dumps(video_settings, indent=2, default=str))
-        except Exception as json_e:
-            print(f"(Error al imprimir como JSON: {json_e}) -> {video_settings}")
-        print("-------------------------------------------------------\n")
-
-        # Llamar al Manager, pasando los datos correctos según el modo
-        if modo_seleccionado == "ai":
-            # En modo IA, generamos el guion primero y luego lo añadimos a la cola
-            messagebox.showinfo("Generar Guion", 
-                              "Primero debes generar el guion usando el botón 'Generar Guion'. \n\n"
-                              "Una vez generado, podrás revisarlo y editarlo antes de añadir el proyecto a la cola.")
-            return False
-        else:
-            # En modo manual, pasamos el script normalmente
-            success = self.app.batch_tts_manager.add_project_to_queue(
-                title=title,
-                script=script,
-                voice=voice,
-                video_settings=video_settings
-            )
+        # --- Llamar al Manager ---
+        print(f"Añadiendo proyecto MANUAL '{title}' a la cola...")
+        # Asegúrate de que add_project_to_queue maneja 'script_contexto=None' si no es AI
+        success = self.app.batch_tts_manager.add_project_to_queue(
+            title=title,
+            script=script,
+            voice=voice,
+            video_settings=video_settings,
+            script_contexto=None # No hay contexto en modo manual
+            # needs_ai_generation=False # El manager debería deducirlo o no necesitarlo
+        )
 
         # --- Mostrar mensaje y limpiar ---
-        if success:  # Ahora success puede ser un job_id o None/False
+        if success:
             messagebox.showinfo("Proyecto Añadido",
-                            f"El proyecto '{title}' ha sido añadido a la cola.")
-            # Limpiar los campos según el modo actual
-            self._clear_project_fields(modo_seleccionado)
-            # Actualizar el estado de la cola
+                                f"El proyecto manual '{title}' ha sido añadido a la cola.")
+            self._clear_project_fields("manual") # Limpiar campos manuales
             if hasattr(self.app, 'update_queue_status'):
                 self.app.update_queue_status()
+        # else: El manager ya debería haber mostrado el error si falló
 
-
-        # --- Modifica _clear_project_fields para limpiar según el modo ---
-
-        
     def _clear_project_fields(self, mode=None):
-        """Limpia los campos del formulario de proyecto según el modo."""
-        # Si no se especifica el modo, usar el modo actual
+        """Limpia los campos del formulario según el modo o todos."""
+        # Si no se especifica el modo, limpiar todo lo posible
         if mode is None:
-            mode = self.app.script_creation_mode.get()
-            
-        self.entry_title.delete(0, tk.END)  # Limpia título en ambos modos
-        
-        if mode == "manual" or mode is None:
-            if hasattr(self, 'txt_script'):
-                self.txt_script.delete("1.0", tk.END)
-                
-        elif mode == "ai":
+            mode = "all" # Limpiar todo por defecto si no se especifica
+
+        print(f"Limpiando campos para modo: {mode}")
+
+        # Limpiar título siempre
+        if hasattr(self, 'entry_title'):
+             self.entry_title.delete(0, tk.END)
+
+        # Limpiar campos manuales
+        if (mode == "manual" or mode == "all") and hasattr(self, 'txt_script'):
+            self.txt_script.delete("1.0", tk.END)
+
+        # Limpiar campos AI
+        if (mode == "ai" or mode == "all"):
             if hasattr(self, 'txt_contexto_ai'):
                 self.txt_contexto_ai.delete("1.0", tk.END)
-                
-        # En cualquier caso, limpiar ambos si se solicita limpiar todo
-        if mode == "all":
-            if hasattr(self, 'txt_script'):
-                self.txt_script.delete("1.0", tk.END)
-            if hasattr(self, 'txt_contexto_ai'):
-                self.txt_contexto_ai.delete("1.0", tk.END)
-        
-    def _get_selected_project(self):
-        """Obtiene el proyecto seleccionado en el Treeview."""
+                self.txt_contexto_ai.insert("1.0", "Escribe aquí el contexto o notas para guiar la generación del guion...") # Restaurar placeholder
+            # Opcional: resetear spinboxes y combos de AI a valores por defecto?
+            # if hasattr(self.app, 'ai_num_sections'): self.app.ai_num_sections.set(5)
+            # if hasattr(self.app, 'ai_words_per_section'): self.app.ai_words_per_section.set(300)
+            # if hasattr(self, 'combo_estilo_script') and self.combo_estilo_script['values']:
+            #     self.combo_estilo_script.current(0)
+            # if hasattr(self, 'prompt_style_dropdown') and self.prompt_style_dropdown['values']:
+            #     self.prompt_style_dropdown.current(0) # Resetear a cinematográfico o el primero
+
+        print("Campos limpiados.")
+
+
+    def _get_selected_project_id(self):
+        """Obtiene el ID del proyecto seleccionado en el Treeview."""
+        if not hasattr(self.app, 'tree_queue'):
+             print("Error: tree_queue no existe en self.app")
+             messagebox.showerror("Error Interno", "La tabla de la cola no está disponible.")
+             return None
+        if not hasattr(self.app, 'batch_tts_manager'):
+             print("Error: batch_tts_manager no existe en self.app")
+             messagebox.showerror("Error Interno", "El gestor de la cola no está disponible.")
+             return None
+
         selected_items = self.app.tree_queue.selection()
         if not selected_items:
-            from tkinter import messagebox
             messagebox.showwarning("Selección Requerida", "Por favor, selecciona un proyecto de la cola.")
             return None
-        
-        selected_id = selected_items[0]
+
+        selected_id = selected_items[0] # El ID es el item del treeview
+
+        # Verificar que el ID existe en el manager (jobs_in_gui es el diccionario clave)
         if selected_id not in self.app.batch_tts_manager.jobs_in_gui:
-            messagebox.showerror("Error", "No se pudo encontrar el proyecto seleccionado en la cola.")
-            return None
-        
-        return selected_id, self.app.batch_tts_manager.jobs_in_gui[selected_id]
-    
-    def _encolar_proyecto_generado(self, titulo, guion, voice=None, video_settings=None):
+             messagebox.showerror("Error", f"El proyecto seleccionado (ID: {selected_id}) no se encontró en los datos internos del gestor de cola.")
+             # Podría ser útil refrescar la cola aquí si hay inconsistencias
+             if hasattr(self.app, 'update_queue_status'): self.app.update_queue_status()
+             return None
+
+        # Devolver solo el ID, el manager ya tiene los datos asociados a ese ID
+        return selected_id
+
+
+    def _encolar_proyecto_generado(self, titulo, guion, voice, video_settings, contexto_original=None):
         """Encola directamente un proyecto con un guion generado por IA."""
         print(f"\n--- ENCOLANDO PROYECTO GENERADO AUTOMÁTICAMENTE ---")
         print(f"Título: '{titulo}'")
-        print(f"Longitud del guion: {len(guion)} caracteres")
-        print(f"Voz seleccionada: {voice if voice else 'No especificada (usará la predeterminada)'}")
-        print(f"Video settings: {len(video_settings) if video_settings else 0} parámetros")
-        
+        #print(f"Longitud del guion: {len(guion)} caracteres")
+        print(f"Voz: {voice}")
+        #print(f"Video settings params: {len(video_settings) if video_settings else 0}")
+        #print(f"Contexto Original: {'Sí' if contexto_original else 'No'}")
+
+        if not hasattr(self.app, 'batch_tts_manager') or not self.app.batch_tts_manager:
+             messagebox.showerror("Error Crítico", "El gestor de cola (BatchTTSManager) no está disponible.")
+             self.config(cursor="")
+             return
+
         try:
-            # Restaurar el cursor
-            self.config(cursor="")
-            
-            # Obtener la voz seleccionada si no se proporcionó
-            if voice is None:
-                voice = self.app.selected_voice.get()
-            
-            # Obtener los video_settings si no se proporcionaron
-            if video_settings is None:
-                video_settings = {}
-                # Aquí podríamos recopilar los settings actuales si fuera necesario
-            
-            # Obtener el contexto del guion
-            contexto = self.txt_contexto_ai.get("1.0", tk.END).strip()
-            
-            # Añadir el proyecto a la cola
+            self.config(cursor="") # Restaurar cursor
+
+            # Llamar al manager para añadir el proyecto
+            # Pasamos script_contexto si lo tenemos
             job_id = self.app.batch_tts_manager.add_project_to_queue(
                 title=titulo,
                 script=guion,
                 voice=voice,
                 video_settings=video_settings,
-                script_contexto=contexto
+                script_contexto=contexto_original # Pasar contexto si existe
             )
-            
+
             if job_id:
                 messagebox.showinfo(
-                    "Proyecto Encolado", 
-                    f"El proyecto '{titulo}' ha sido añadido a la cola con ID: {job_id}.\n\n"
-                    "Puedes ver su estado en la pestaña 'Cola de Proyectos'."
+                    "Proyecto Encolado",
+                    f"El proyecto '{titulo}' generado por IA ha sido añadido a la cola con ID: {job_id}.\n\n"
+                    "Puedes ver su estado en la tabla de abajo."
                 )
-                print(f"Proyecto '{titulo}' encolado exitosamente con ID: {job_id}")
-                
-                # Actualizar la interfaz
-                self.app.update_queue_status()
-            else:
-                messagebox.showerror(
-                    "Error", 
-                    f"No se pudo añadir el proyecto '{titulo}' a la cola."
-                )
-                print(f"ERROR: No se pudo encolar el proyecto '{titulo}'")
-        
+                print(f"Proyecto AI '{titulo}' encolado exitosamente con ID: {job_id}")
+                # Limpiar campos del modo AI después de encolar exitosamente
+                self._clear_project_fields("ai")
+
+                if hasattr(self.app, 'update_queue_status'):
+                    self.app.update_queue_status()
+            # else: El manager ya muestra el error si job_id es None/False
+
         except Exception as e:
-            print(f"ERROR al encolar proyecto generado '{titulo}': {e}")
-            messagebox.showerror(
-                "Error", 
-                f"Error al encolar el proyecto '{titulo}': {str(e)}"
-            )
-    
+            error_msg = f"Error al encolar el proyecto generado '{titulo}': {str(e)}"
+            print(f"ERROR: {error_msg}")
+            import traceback
+            traceback.print_exc()
+            messagebox.showerror("Error de Encolado", error_msg)
+            self.config(cursor="")
+
+
+    def _regenerar_parte(self, parte, mensaje_confirmacion, metodo_manager):
+         """Función genérica para confirmar y lanzar regeneración."""
+         job_id = self._get_selected_project_id()
+         if not job_id:
+             return
+
+         job_data = self.app.batch_tts_manager.jobs_in_gui.get(job_id)
+         if not job_data:
+              messagebox.showerror("Error", f"No se encontraron datos para el job ID {job_id}")
+              return
+
+         if messagebox.askyesno("Confirmar Regeneración",
+                                mensaje_confirmacion.format(titulo=job_data['titulo'])):
+             # Actualizar estado en GUI inmediatamente
+             self.app.batch_tts_manager.update_job_status_gui(job_id, f"Regenerando {parte}...")
+             # Lanzar en hilo
+             threading.Thread(target=metodo_manager, args=(job_id,), daemon=True).start()
+
+
     def _regenerar_audio(self):
         """Regenera el audio para el proyecto seleccionado."""
-        result = self._get_selected_project()
-        if not result:
-            return
-        
-        job_id, job_data = result
-        
-        from tkinter import messagebox
-        if messagebox.askyesno("Confirmar Regeneración", 
-                             f"¿Estás seguro de regenerar el audio para el proyecto '{job_data['titulo']}'?"):
-            # Actualizar el estado en la GUI
-            self.app.batch_tts_manager.update_job_status_gui(job_id, "Regenerando Audio...")
-            
-            # Iniciar el proceso de regeneración en un hilo separado
-            import threading
-            threading.Thread(target=self.app.batch_tts_manager.regenerar_audio, 
-                           args=(job_id,), daemon=True).start()
-    
+        self._regenerar_parte(
+            "Audio",
+            "¿Estás seguro de regenerar el audio para el proyecto '{titulo}'?",
+            self.app.batch_tts_manager.regenerar_audio
+        )
+
     def _regenerar_prompts(self):
         """Regenera los prompts para el proyecto seleccionado."""
-        result = self._get_selected_project()
-        if not result:
-            return
-        
-        job_id, job_data = result
-        
-        from tkinter import messagebox
-        if messagebox.askyesno("Confirmar Regeneración", 
-                             f"¿Estás seguro de regenerar los prompts para el proyecto '{job_data['titulo']}'?"):
-            # Actualizar el estado en la GUI
-            self.app.batch_tts_manager.update_job_status_gui(job_id, "Regenerando Prompts...")
-            
-            # Iniciar el proceso de regeneración en un hilo separado
-            import threading
-            threading.Thread(target=self.app.batch_tts_manager.regenerar_prompts, 
-                           args=(job_id,), daemon=True).start()
-    
+        self._regenerar_parte(
+            "Prompts",
+            "¿Estás seguro de regenerar los prompts para el proyecto '{titulo}'?",
+            self.app.batch_tts_manager.regenerar_prompts
+        )
+
     def _regenerar_imagenes(self):
         """Regenera las imágenes para el proyecto seleccionado."""
-        result = self._get_selected_project()
-        if not result:
-            return
-        
-        job_id, job_data = result
-        
-        from tkinter import messagebox
-        if messagebox.askyesno("Confirmar Regeneración", 
-                             f"¿Estás seguro de regenerar las imágenes para el proyecto '{job_data['titulo']}'?"):
-            # Actualizar el estado en la GUI
-            self.app.batch_tts_manager.update_job_status_gui(job_id, "Regenerando Imágenes...")
-            
-            # Iniciar el proceso de regeneración en un hilo separado
-            import threading
-            threading.Thread(target=self.app.batch_tts_manager.regenerar_imagenes, 
-                           args=(job_id,), daemon=True).start()
-    
+        self._regenerar_parte(
+            "Imágenes",
+            "¿Estás seguro de regenerar las imágenes para el proyecto '{titulo}'? (Esto puede usar créditos/tiempo)",
+            self.app.batch_tts_manager.regenerar_imagenes
+        )
+
     def _regenerar_subtitulos(self):
         """Regenera los subtítulos para el proyecto seleccionado."""
-        # Obtener el proyecto seleccionado
-        proyecto_id = self._get_selected_project()
-        if not proyecto_id:
-            return
-        
-        # Regenerar subtítulos
-        self.app.batch_tts_manager.regenerar_subtitulos(proyecto_id)
-        messagebox.showinfo("Regeneración", "Se ha iniciado la regeneración de subtítulos.")
-        
+        self._regenerar_parte(
+            "Subtítulos",
+            "¿Estás seguro de regenerar los subtítulos para el proyecto '{titulo}'?",
+            self.app.batch_tts_manager.regenerar_subtitulos
+        )
+
     def _preview_voice(self):
-        """Genera y reproduce una muestra de voz con los parámetros actuales."""
+        """Genera y reproduce una muestra de voz con los parámetros TTS actuales."""
         if not TTS_AVAILABLE:
-            messagebox.showerror("Error", "El módulo TTS no está disponible.")
+            messagebox.showerror("Error", "El módulo TTS (text_chunk_to_speech) no está disponible o no se pudo importar.")
             return
-        
-        # Obtener los valores actuales
+
         voice = self.app.selected_voice.get()
         rate = self.app.tts_rate_str.get()
         pitch = self.app.tts_pitch_str.get()
-        
-        print(f"DEBUG: Generando vista previa con voz={voice}, rate={rate}, pitch={pitch}")
-        
-        # Texto de prueba
-        test_text = "Hola, esta es una prueba de la configuración de voz."
-        
-        # Crear un directorio temporal si no existe
-        temp_dir = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / "temp_audio"
-        temp_dir.mkdir(exist_ok=True)
-        
-        # Ruta para el archivo de audio temporal
-        temp_audio_path = temp_dir / "preview_voice.mp3"
-        
-        # Guardar referencia al botón
-        if not hasattr(self, 'btn_preview'):
-            for widget in self.winfo_children():
-                if isinstance(widget, ttk.LabelFrame) and widget.winfo_children():
-                    for child in widget.winfo_children():
-                        if isinstance(child, ttk.Button) and child.cget('text') == "Probar Voz":
-                            self.btn_preview = child
-                            break
-        
-        # Deshabilitar el botón mientras se genera el audio
-        if hasattr(self, 'btn_preview'):
-            self.btn_preview.config(state="disabled")
-            self.btn_preview.config(text="Generando...")
-            self.update_idletasks()
-        
-        # Función para ejecutar la generación de voz en un hilo separado
-        def generate_voice_preview():
-            try:
-                # Ejecutar la generación de voz de forma asíncrona
-                asyncio.run(text_chunk_to_speech(
-                    text=test_text,
-                    voice=voice,
-                    output_path=str(temp_audio_path),
-                    rate=rate,
-                    pitch=pitch
-                ))
-                
-                # Reproducir el audio generado
-                self._play_audio(temp_audio_path)
-                
-                # Restaurar el botón
-                if hasattr(self, 'btn_preview'):
-                    self.btn_preview.config(state="normal")
-                    self.btn_preview.config(text="Probar Voz")
-            except Exception as e:
-                # Manejar errores
-                print(f"Error en la vista previa de voz: {e}")
-                messagebox.showerror("Error", f"No se pudo generar la vista previa: {e}")
-                if hasattr(self, 'btn_preview'):
-                    self.btn_preview.config(state="normal")
-                    self.btn_preview.config(text="Probar Voz")
-        
-        # Iniciar el hilo para la generación de voz
-        threading.Thread(target=generate_voice_preview, daemon=True).start()
-    
-    def _play_audio(self, audio_path):
-        """Reproduce un archivo de audio."""
+        test_text = "Hola, esta es una prueba de la configuración de voz seleccionada."
+        print(f"DEBUG: Generando vista previa TTS: voz={voice}, rate={rate}, pitch={pitch}")
+
+        # Crear directorio temporal seguro
         try:
-            # Usar el reproductor adecuado según el sistema operativo
-            if os.name == 'posix':  # macOS o Linux
-                if 'darwin' in os.sys.platform:  # macOS
-                    subprocess.run(['afplay', str(audio_path)], check=True)
-                else:  # Linux
-                    subprocess.run(['paplay', str(audio_path)], check=True)
-            elif os.name == 'nt':  # Windows
-                os.startfile(audio_path)
-            else:
-                print(f"No se pudo determinar el reproductor para el sistema {os.name}")
+            # Usar directorio temporal del sistema o uno local
+            import tempfile
+            temp_dir = Path(tempfile.gettempdir()) / "videocreator_previews"
+            temp_dir.mkdir(exist_ok=True)
+            temp_audio_path = temp_dir / f"preview_{voice}_{int(time.time())}.mp3"
         except Exception as e:
-            print(f"Error al reproducir el audio: {e}")
-            messagebox.showerror("Error", f"No se pudo reproducir el audio: {e}")
-    
+             messagebox.showerror("Error", f"No se pudo crear el directorio temporal para la vista previa: {e}")
+             return
+
+        # Deshabilitar botón y mostrar estado
+        if hasattr(self, 'btn_preview') and self.btn_preview.winfo_exists():
+            original_text = self.btn_preview.cget("text")
+            self.btn_preview.config(state="disabled", text="Generando...")
+            self.update_idletasks()
+        else:
+             original_text = "Probar Voz" # Fallback
+
+        # Función para ejecutar en hilo
+        def generate_and_play():
+            try:
+                print(f"Generando archivo de vista previa en: {temp_audio_path}")
+                # Ejecutar la generación de voz (asegúrate de que text_chunk_to_speech sea seguro para hilos si usa recursos compartidos)
+                # Usar asyncio.run en un hilo puede ser problemático si ya hay un loop corriendo.
+                # Considera ejecutar la corutina de otra manera o hacer text_chunk_to_speech síncrono si es posible.
+                # Solución simple: ejecutar en un nuevo loop de eventos si es necesario.
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(text_chunk_to_speech(
+                        text=test_text,
+                        voice=voice,
+                        output_path=str(temp_audio_path),
+                        rate=rate,
+                        pitch=pitch
+                    ))
+                    loop.close()
+                except RuntimeError as e:
+                     # Si ya hay un loop corriendo, intentar ejecutar directamente si la función lo permite
+                     if "cannot run event loop while another loop is running" in str(e):
+                          print("Advertencia: Event loop ya en ejecución. Intentando ejecutar text_chunk_to_speech directamente.")
+                          # Esto asume que text_chunk_to_speech puede funcionar sin un loop explícito aquí
+                          # o que maneja el loop existente correctamente. Puede fallar.
+                          # Necesitarías ajustar cómo se llama la corutina aquí.
+                          # Una opción es usar `self.after` para pedir al loop principal que la ejecute,
+                          # pero eso bloquea la UI. La solución del nuevo loop es generalmente mejor.
+                          # O, si `text_chunk_to_speech` es simple, hacerla síncrona.
+                          raise NotImplementedError("Llamada a corutina desde hilo con loop existente no implementada de forma segura.") from e
+                     else:
+                          raise e
+
+
+                print("Generación completada. Intentando reproducir...")
+                # Programar la reproducción en el hilo principal de Tkinter usando 'after'
+                self.after(0, lambda: self._play_audio(temp_audio_path))
+
+            except Exception as e:
+                error_msg = f"No se pudo generar la vista previa de voz: {e}"
+                print(f"ERROR: {error_msg}")
+                # Mostrar error en el hilo principal
+                self.after(0, lambda: messagebox.showerror("Error Vista Previa", error_msg))
+                import traceback
+                traceback.print_exc()
+            finally:
+                # Restaurar botón en el hilo principal
+                if hasattr(self, 'btn_preview') and self.btn_preview.winfo_exists():
+                    self.after(0, lambda: self.btn_preview.config(state="normal", text=original_text))
+
+        # Iniciar el hilo
+        threading.Thread(target=generate_and_play, daemon=True).start()
+
+
+    def _play_audio(self, audio_path):
+        """Reproduce un archivo de audio usando el método apropiado del OS."""
+        if not Path(audio_path).exists():
+             print(f"Error: El archivo de audio no existe: {audio_path}")
+             messagebox.showerror("Error Reproducción", "El archivo de audio generado no se encontró.")
+             return
+
+        print(f"Reproduciendo audio: {audio_path}")
+        try:
+            if sys.platform == "win32":
+                os.startfile(audio_path)
+            elif sys.platform == "darwin": # macOS
+                subprocess.run(['afplay', str(audio_path)], check=True, capture_output=True)
+            else: # Linux y otros POSIX
+                # Intentar con diferentes reproductores comunes
+                players = ['xdg-open', 'paplay', 'aplay', 'play']
+                played = False
+                for player in players:
+                     try:
+                          # Usar Popen para no bloquear si el reproductor no termina inmediatamente
+                          proc = subprocess.Popen([player, str(audio_path)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                          # Opcional: esperar un poco para ver si falla rápido
+                          # proc.wait(timeout=1)
+                          print(f"Intentando reproducir con {player}...")
+                          played = True
+                          break # Salir si uno funciona
+                     except (FileNotFoundError, subprocess.TimeoutExpired):
+                          continue # Probar el siguiente
+                if not played:
+                     raise FileNotFoundError(f"No se encontró un reproductor de audio compatible ({', '.join(players)}).")
+        except FileNotFoundError as e:
+             print(f"Error al reproducir audio: {e}")
+             messagebox.showwarning("Error Reproducción", f"No se encontró un comando para reproducir audio.\nAsegúrate de tener instalado un reproductor como 'afplay' (macOS), 'paplay'/'aplay' (Linux), o que 'xdg-open' funcione.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error durante la reproducción de audio: {e}")
+            # Decodificar salida de error si existe
+            error_output = e.stderr.decode('utf-8', errors='ignore') if e.stderr else "No error output"
+            messagebox.showerror("Error Reproducción", f"El comando de reproducción falló:\n{error_output}")
+        except Exception as e:
+            print(f"Error inesperado al reproducir audio: {e}")
+            messagebox.showerror("Error Reproducción", f"Ocurrió un error inesperado: {e}")
+        finally:
+             # Opcional: eliminar el archivo temporal después de intentar reproducirlo
+             # Podrías querer mantenerlo para depuración
+             # try:
+             #      Path(audio_path).unlink()
+             #      print(f"Archivo temporal eliminado: {audio_path}")
+             # except OSError as e:
+             #      print(f"Error al eliminar archivo temporal {audio_path}: {e}")
+             pass
+
+
     def _cargar_proyecto_existente(self):
-        """Carga un proyecto existente desde la carpeta de proyectos."""
-        from tkinter import filedialog, messagebox
-        import json
-        from pathlib import Path
-        
-        # Obtener la ruta base de proyectos
+        """Carga un proyecto existente desde su carpeta guardada."""
+        if not hasattr(self.app, 'batch_tts_manager') or not self.app.batch_tts_manager:
+             messagebox.showerror("Error Crítico", "El gestor de cola (BatchTTSManager) no está disponible.")
+             return
+
         proyectos_dir = self.app.batch_tts_manager.project_base_dir
-        
-        # Solicitar al usuario que seleccione una carpeta de proyecto
-        proyecto_path = filedialog.askdirectory(
-            title="Seleccionar Carpeta de Proyecto",
+        if not proyectos_dir.is_dir():
+             messagebox.showerror("Error", f"El directorio base de proyectos no existe: {proyectos_dir}")
+             return
+
+        proyecto_path_str = filedialog.askdirectory(
+            title="Seleccionar Carpeta del Proyecto a Cargar",
             initialdir=proyectos_dir
         )
-        
-        if not proyecto_path:
-            return  # El usuario canceló la selección
-        
-        proyecto_path = Path(proyecto_path)
+
+        if not proyecto_path_str:
+            return # Usuario canceló
+
+        proyecto_path = Path(proyecto_path_str)
         settings_path = proyecto_path / "settings.json"
         guion_path = proyecto_path / "guion.txt"
-        voz_path = proyecto_path / "voz.mp3"
-        
-        # Verificar que es una carpeta de proyecto válida
+
+        # Verificar que es una carpeta de proyecto válida (mínimo)
         if not settings_path.exists() or not guion_path.exists():
             messagebox.showerror(
-                "Error", 
+                "Error",
                 f"La carpeta seleccionada no parece ser un proyecto válido.\n"
-                f"Debe contener al menos settings.json y guion.txt."
+                f"Falta 'settings.json' o 'guion.txt'.\n"
+                f"Ruta: {proyecto_path}"
             )
             return
-        
+
         try:
             # Cargar configuración del proyecto
             with open(settings_path, "r", encoding="utf-8") as f:
                 settings = json.load(f)
-            
+
             # Leer el guion
             with open(guion_path, "r", encoding="utf-8") as f:
                 script_content = f.read()
-            
+
             # Obtener el nombre del proyecto (nombre de la carpeta)
             proyecto_nombre = proyecto_path.name
-            
-            # Determinar la voz utilizada
-            voz = settings.get("voz", "es-MX-JorgeNeural")  # Valor por defecto si no se encuentra
-            
-            # Crear un trabajo para este proyecto
+
+            # Determinar la voz usada (del settings.json si existe)
+            # Usar un valor por defecto si no se encuentra o es inválido
+            voz_guardada = settings.get("voz", self.app.selected_voice.get()) # Usar la actual como fallback
+
+            # Intentar añadir el proyecto existente a la cola del manager
             job_id = self.app.batch_tts_manager.add_existing_project_to_queue(
                 title=proyecto_nombre,
                 script=script_content,
                 project_folder=proyecto_path,
-                voice=voz,
-                video_settings=settings
+                voice=voz_guardada, # Usar la voz guardada
+                video_settings=settings # Pasar todos los settings guardados
             )
-            
+
             if job_id:
                 messagebox.showinfo(
-                    "Proyecto Cargado", 
+                    "Proyecto Cargado",
                     f"El proyecto '{proyecto_nombre}' ha sido cargado en la cola.\n"
-                    f"Ahora puedes regenerar partes específicas o generar el video."
+                    f"Puedes regenerar partes o generar el video completo."
                 )
-                self.app.update_queue_status()
-            else:
-                messagebox.showerror(
-                    "Error", 
-                    f"No se pudo cargar el proyecto '{proyecto_nombre}'."
-                )
-        
+                if hasattr(self.app, 'update_queue_status'):
+                    self.app.update_queue_status()
+            # else: El manager ya mostró error
+
+        except json.JSONDecodeError as e:
+             messagebox.showerror("Error", f"Error al leer el archivo 'settings.json':\n{e}")
         except Exception as e:
-            messagebox.showerror(
-                "Error", 
-                f"Error al cargar el proyecto: {str(e)}"
-            )
+            messagebox.showerror("Error", f"Error al cargar el proyecto desde {proyecto_path}:\n{str(e)}")
             import traceback
             traceback.print_exc()

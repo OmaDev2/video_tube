@@ -43,17 +43,44 @@ class ScriptPromptManager:
         return [(style_id, data.get("name", style_id)) for style_id, data in self.styles.items()]
 
     def get_prompt_template(self, style_id: str, prompt_type: str) -> str:
-        """Obtiene una plantilla de prompt específica, con fallback a 'default'."""
+        """Obtiene una plantilla de prompt específica, con fallback a 'default'. (Modo legacy: devuelve string plano)"""
         style_data = self.styles.get(style_id, self.styles.get('default', {}))
         template = style_data.get(prompt_type, "")
         if not template and style_id != 'default':
-             # Fallback a default si el tipo no existe en el estilo específico
-             print(f"ADVERTENCIA: Tipo de prompt '{prompt_type}' no encontrado para estilo '{style_id}'. Usando default.")
-             default_style_data = self.styles.get('default', {})
-             template = default_style_data.get(prompt_type, "")
+            # Fallback a default si el tipo no existe en el estilo específico
+            print(f"ADVERTENCIA: Tipo de prompt '{prompt_type}' no encontrado para estilo '{style_id}'. Usando default.")
+            default_style_data = self.styles.get('default', {})
+            template = default_style_data.get(prompt_type, "")
         if not template:
-             print(f"ERROR FATAL: Tipo de prompt '{prompt_type}' no encontrado ni en estilo '{style_id}' ni en 'default'.")
+            print(f"ERROR FATAL: Tipo de prompt '{prompt_type}' no encontrado ni en estilo '{style_id}' ni en 'default'.")
+        # Si es un dict, devuelve solo el user_prompt (legacy)
+        if isinstance(template, dict):
+            return template.get('user_prompt', '')
         return template
+
+    def get_full_prompt(self, style_id: str, prompt_type: str) -> dict:
+        """
+        Devuelve tanto el system_prompt como el user_prompt para el tipo de prompt y estilo indicados.
+        Si el prompt es un string plano (legacy), lo pone en 'user_prompt' y deja system_prompt vacío.
+        """
+        style_data = self.styles.get(style_id, self.styles.get('default', {}))
+        prompt_obj = style_data.get(prompt_type, "")
+        if not prompt_obj and style_id != 'default':
+            # Fallback a default si el tipo no existe en el estilo específico
+            print(f"ADVERTENCIA: Tipo de prompt '{prompt_type}' no encontrado para estilo '{style_id}'. Usando default.")
+            default_style_data = self.styles.get('default', {})
+            prompt_obj = default_style_data.get(prompt_type, "")
+        if not prompt_obj:
+            print(f"ERROR FATAL: Tipo de prompt '{prompt_type}' no encontrado ni en estilo '{style_id}' ni en 'default'.")
+            return {"system_prompt": "", "user_prompt": ""}
+        if isinstance(prompt_obj, dict):
+            return {
+                "system_prompt": prompt_obj.get("system_prompt", ""),
+                "user_prompt": prompt_obj.get("user_prompt", "")
+            }
+        else:
+            # Compatibilidad hacia atrás
+            return {"system_prompt": "", "user_prompt": str(prompt_obj)}
 
     def get_style_data(self, style_id: str) -> dict:
         """Obtiene todos los datos (nombre y prompts) para un estilo."""
