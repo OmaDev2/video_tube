@@ -89,12 +89,12 @@ class ScriptPromptManager:
 
     def update_style(self, style_id: str, data: dict):
         """Añade o actualiza un estilo completo."""
-        # Validar que data tenga las claves esperadas (name, esquema, seccion, etc.) sería bueno
         if not all(k in data for k in ["name", "esquema", "seccion", "revision", "metadata"]):
              print("ERROR: Datos para actualizar estilo están incompletos.")
              return False
         self.styles[style_id] = data
         print(f"Estilo '{style_id}' actualizado/añadido.")
+        self.save_prompts()
         return True
 
     def delete_style(self, style_id: str):

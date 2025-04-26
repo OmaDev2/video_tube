@@ -84,6 +84,13 @@ class BatchTabFrame(ttk.Frame):
         if not hasattr(self.app, 'tts_pitch_value'): self.app.tts_pitch_value = tk.IntVar(value=-5)
         if not hasattr(self.app, 'tts_rate_str'): self.app.tts_rate_str = tk.StringVar(value="-10%")
         if not hasattr(self.app, 'tts_pitch_str'): self.app.tts_pitch_str = tk.StringVar(value="-5Hz")
+        # Variable para la duración de la imagen
+        if not hasattr(self.app, 'duracion_img'): self.app.duracion_img = tk.IntVar(value=5)  # Valor por defecto: 5 segundos
+        # Variable para el aspect ratio
+        if not hasattr(self.app, 'aspect_ratio'): self.app.aspect_ratio = tk.StringVar(value="16:9")  # Valor por defecto: 16:9
+        # Variables para los prompts
+        if not hasattr(self.app, 'selected_image_prompt'): self.app.selected_image_prompt = tk.StringVar(value="default")
+        if not hasattr(self.app, 'selected_script_prompt'): self.app.selected_script_prompt = tk.StringVar(value="default")
 
         # Llamar al método que crea y posiciona los widgets
         self._setup_widgets()
@@ -549,10 +556,11 @@ class BatchTabFrame(ttk.Frame):
 
         # --- Sección de Entrada (Dentro de scroll_frame) ---
         self.frame_input = ttk.LabelFrame(self.scroll_frame, text="Nuevo Proyecto", style="Card.TFrame")
-        self.frame_input.pack(fill="x", padx=10, pady=10) # Añadir padding
+        self.frame_input.pack(fill="both", expand=True, padx=10, pady=10) # Cambiado a fill="both", expand=True
 
         # Configurar columnas para el frame de entrada
         self.frame_input.columnconfigure(1, weight=1) # Columna para Título/Guion/Contexto
+        self.frame_input.columnconfigure(0, weight=0)
 
         # --- Fila 0: Modo ---
         frame_mode = ttk.Frame(self.frame_input)
@@ -572,12 +580,12 @@ class BatchTabFrame(ttk.Frame):
         self.lbl_title = ttk.Label(self.frame_input, text="Título:") # Texto se actualiza en _toggle
         self.lbl_title.grid(row=1, column=0, padx=5, pady=5, sticky="w")
         self.entry_title = ttk.Entry(self.frame_input)
-        self.entry_title.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.entry_title.grid(row=1, column=1, padx=5, pady=5, sticky="ew") # sticky="ew" para expandir
 
         # --- Fila 2: Contenedor para Guion Manual o Parámetros AI ---
         self.script_container = ttk.Frame(self.frame_input)
-        self.script_container.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="nsew")
-        self.frame_input.rowconfigure(2, weight=1) # Permitir que esta fila crezca
+        self.script_container.grid(row=2, column=0, columnspan=2, padx=5, pady=5, sticky="nsew") # sticky="nsew" para expandir
+        self.frame_input.rowconfigure(2, weight=1)
         self.script_container.columnconfigure(0, weight=1) # Permitir que el contenido crezca
 
         # --- Frame Guion Manual (Dentro de script_container) ---
@@ -749,9 +757,58 @@ class BatchTabFrame(ttk.Frame):
         # Inicializar etiquetas
         update_rate_str(); update_pitch_str()
 
-        # --- Fila 4: Botones de Acción Principales (Añadir / Limpiar) ---
+        # --- Fila 4: Ajustes de Video ---
+        video_frame = ttk.LabelFrame(self.frame_input, text="Ajustes de Video", style="Card.TFrame")
+        video_frame.grid(row=4, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
+
+        # Duración de la imagen
+        duration_frame = ttk.Frame(video_frame)
+        duration_frame.pack(fill="x", padx=5, pady=5)
+        lbl_duration = ttk.Label(duration_frame, text="Duración de la imagen (segundos):")
+        lbl_duration.pack(side="left", padx=5)
+        spin_duration = ttk.Spinbox(duration_frame, from_=1, to=30, increment=1,
+                                  textvariable=self.app.duracion_img, width=5)
+        spin_duration.pack(side="left", padx=5)
+
+        # Aspect Ratio
+        aspect_frame = ttk.Frame(video_frame)
+        aspect_frame.pack(fill="x", padx=5, pady=5)
+        lbl_aspect = ttk.Label(aspect_frame, text="Aspect Ratio:")
+        lbl_aspect.pack(side="left", padx=5)
+        rb_16_9 = ttk.Radiobutton(aspect_frame, text="16:9 (Horizontal)",
+                                 variable=self.app.aspect_ratio, value="16:9")
+        rb_16_9.pack(side="left", padx=5)
+        rb_9_16 = ttk.Radiobutton(aspect_frame, text="9:16 (Vertical)",
+                                 variable=self.app.aspect_ratio, value="9:16")
+        rb_9_16.pack(side="left", padx=5)
+
+        # Prompts de Imágenes
+        image_prompt_frame = ttk.Frame(video_frame)
+        image_prompt_frame.pack(fill="x", padx=5, pady=5)
+        lbl_image_prompt = ttk.Label(image_prompt_frame, text="Estilo de Imágenes:")
+        lbl_image_prompt.pack(side="left", padx=5)
+        self.combo_image_prompt = ttk.Combobox(image_prompt_frame, textvariable=self.app.selected_image_prompt,
+                                             state="readonly", width=25)
+        self.combo_image_prompt.pack(side="left", fill="x", expand=True, padx=5)
+        btn_reload_image_prompts = ttk.Button(image_prompt_frame, text="🔄", 
+                                            command=self._recargar_prompts_imagenes, width=3, style="Toolbutton")
+        btn_reload_image_prompts.pack(side="left", padx=(0, 5))
+
+        # Prompts de Scripts
+        script_prompt_frame = ttk.Frame(video_frame)
+        script_prompt_frame.pack(fill="x", padx=5, pady=5)
+        lbl_script_prompt = ttk.Label(script_prompt_frame, text="Estilo de Script:")
+        lbl_script_prompt.pack(side="left", padx=5)
+        self.combo_script_prompt = ttk.Combobox(script_prompt_frame, textvariable=self.app.selected_script_prompt,
+                                              state="readonly", width=25)
+        self.combo_script_prompt.pack(side="left", fill="x", expand=True, padx=5)
+        btn_reload_script_prompts = ttk.Button(script_prompt_frame, text="🔄", 
+                                             command=self._recargar_prompts_scripts, width=3, style="Toolbutton")
+        btn_reload_script_prompts.pack(side="left", padx=(0, 5))
+
+        # --- Fila 5: Botones de Acción Principales (Añadir / Limpiar) ---
         frame_buttons = ttk.Frame(self.frame_input)
-        frame_buttons.grid(row=4, column=0, columnspan=2, padx=5, pady=10, sticky="e")
+        frame_buttons.grid(row=5, column=0, columnspan=2, padx=5, pady=10, sticky="e")
         btn_clear = ttk.Button(frame_buttons, text="Limpiar Campos", command=self._clear_project_fields, style="Secondary.TButton")
         btn_clear.pack(side="left", padx=(0, 5)) # Cambiado a left
         # Este botón SÓLO añade si está en modo manual. En AI, se usa el botón "Generar Guion"
@@ -760,11 +817,11 @@ class BatchTabFrame(ttk.Frame):
 
         # --- Sección de Cola (Debajo del frame de entrada, dentro de scroll_frame) ---
         frame_queue = ttk.LabelFrame(self.scroll_frame, text="Cola de Procesamiento", style="Card.TFrame")
-        frame_queue.pack(fill="both", expand=True, padx=10, pady=(0, 10)) # Añadir padding
+        frame_queue.pack(fill="both", expand=True, padx=10, pady=(0, 10)) # Cambiado a fill="both", expand=True
 
         # Treeview para la cola
-        frame_treeview = ttk.Frame(frame_queue);
-        frame_treeview.pack(fill="both", expand=True, pady=(5, 5))
+        frame_treeview = ttk.Frame(frame_queue)
+        frame_treeview.pack(fill="both", expand=True, pady=(5, 5)) # fill="both", expand=True
         self.app.tree_queue = ttk.Treeview(frame_treeview, columns=("titulo", "estado", "tiempo"), show="headings", height=8) # Altura ajustada
         self.app.tree_queue.heading("titulo", text="Título del Proyecto"); self.app.tree_queue.column("titulo", width=400, stretch=tk.YES)
         self.app.tree_queue.heading("estado", text="Estado"); self.app.tree_queue.column("estado", width=180, anchor="center")
@@ -910,7 +967,9 @@ class BatchTabFrame(ttk.Frame):
                  # Estilo de imágenes (obtenido del dropdown de esta pestaña)
                  'estilo_imagenes': self.prompt_style_map.get(self.app.selected_prompt_style.get(), 'default'), # Usar mapeo nombre->id
                  'nombre_estilo': self.app.selected_prompt_style.get(), # Nombre legible
-                 'settings': effect_settings # Anidar ajustes de efectos
+                 'settings': effect_settings, # Anidar ajustes de efectos
+                 # Añadir el aspect ratio seleccionado
+                 'aspect_ratio': self.app.aspect_ratio.get()
              }
 
              # Añadir parámetros específicos de IA SOLO si estamos en modo AI
@@ -1370,3 +1429,28 @@ class BatchTabFrame(ttk.Frame):
             messagebox.showerror("Error", f"Error al cargar el proyecto desde {proyecto_path}:\n{str(e)}")
             import traceback
             traceback.print_exc()
+
+    def _recargar_prompts_imagenes(self):
+        """Carga los prompts de imágenes disponibles"""
+        try:
+            # Obtener los nombres de los prompts disponibles
+            prompts = [name for _, name in self.app.prompt_manager.get_prompt_names()]
+            self.combo_image_prompt['values'] = prompts
+            if prompts:
+                self.app.selected_image_prompt.set(prompts[0])
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al cargar prompts de imágenes: {str(e)}")
+
+    def _recargar_prompts_scripts(self):
+        """Carga los prompts de scripts disponibles"""
+        try:
+            if hasattr(self.app, 'script_prompt_manager') and self.app.script_prompt_manager:
+                prompts = [name for _, name in self.app.script_prompt_manager.get_style_names()]
+                self.combo_script_prompt['values'] = prompts
+                if prompts:
+                    self.app.selected_script_prompt.set(prompts[0])
+            else:
+                self.combo_script_prompt['values'] = []
+                self.app.selected_script_prompt.set("")
+        except Exception as e:
+            messagebox.showerror("Error", f"Error al cargar prompts de scripts: {str(e)}")

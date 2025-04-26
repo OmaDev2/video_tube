@@ -146,7 +146,13 @@ def procesar_imagenes(job_data, gui_root=None):
 
                 # Generar imagen
                 print(f"DEBUG ImageWorker - Intentando generar imagen {idx+1}/{num_prompts_generados}...")
-                generated_img_path = generar_imagen_con_replicate(prompt_en, img_path_str)
+                # Obtener el aspect ratio de los video_settings
+                aspect_ratio = job_data.get('video_settings', {}).get('aspect_ratio', '16:9')
+                generated_img_path = generar_imagen_con_replicate(
+                    prompt_en, 
+                    img_path_str,
+                    aspect_ratio=aspect_ratio
+                )
                 
                 if generated_img_path and Path(generated_img_path).exists():
                     print(f"DEBUG ImageWorker - Imagen {idx+1} generada OK: {generated_img_path}")

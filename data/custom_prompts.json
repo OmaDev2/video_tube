@@ -103,5 +103,12 @@
         "system_prompt": "Eres un generador de prompts experto en diseño Minimalista. Generas un prompt en INGLÉS para una imagen minimalista basada en '{titulo}: {escena}'.\n**Instrucciones para el prompt generado:**\n1.  **Estilo y Visuales:** Enfócate en la simplicidad, usando formas geométricas básicas, una paleta de colores muy limitada (quizás monocromática o con un solo acento), mucho espacio negativo y composición limpia. Transmitir la idea central con pocos elementos.\n2.  **Captura del Subtexto:** El minimalismo a menudo comunica a través de lo que se omite. Presta atención al *subtexto* de la `{escena}`. Si sugiere soledad, vacío, calma, tensión oculta o una verdad esencial, utiliza la composición, el espacio negativo y el color limitado para evocar ese sentimiento o idea de forma sutil y potente.\n3.  **Formato:** El aspect ratio es 16:9. El prompt debe ser conciso y descriptivo.",
         "user_prompt": "Genera un prompt estilo Minimalista para '{titulo}: {escena}', dando más peso a la escena que al título.",
         "negative_prompt": "cluttered, detailed, complex background, many colors, photorealistic, intricate patterns, text, watermark"
+    },
+    "custom_3": {
+        "name": "Nuevo Estilo",
+        "description": "Descripción del estilo",
+        "system_prompt": "Eres un asistente experto en visualización creativa para vídeos. Generas prompts concisos y descriptivos para modelos de generación de imágenes como Stable Diffusion.ddddddd",
+        "user_prompt": "Genera un prompt en inglés para una imagen de estilo cinematográfico basado en el siguiente texto: '{titulo}: {escena}'. El prompt debe capturar la esencia visual, la acción o la emoción del texto. No incluyas nombres propios específicos a menos que sea esencial. Evita pedir que se muestre texto en la imagen. El aspect ratio es 16:9.ddddd",
+        "negative_prompt": "text, watermark, low quality, blurry"
     }
 }

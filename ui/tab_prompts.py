@@ -9,11 +9,12 @@ from pathlib import Path
 
 from prompt_manager import PromptManager, DEFAULT_PROMPT_TEMPLATE
 from ui.prompt_updater import update_dropdowns_in_other_tabs
+from script_prompt_manager import ScriptPromptManager
 
 class PromptsTabFrame(ttk.Frame):
     """
     Frame que contiene todos los widgets para la pestaña de 'Gestor de Prompts'.
-    Permite crear, editar y eliminar plantillas de prompts personalizados.
+    Permite crear, editar y eliminar plantillas de prompts personalizados de imágenes y de scripts.
     """
     def __init__(self, parent_notebook, app_instance, **kwargs):
         """
@@ -26,14 +27,20 @@ class PromptsTabFrame(ttk.Frame):
         super().__init__(parent_notebook, style="Card.TFrame", **kwargs)
         self.app = app_instance  # Guardamos la referencia a la app principal (VideoCreatorApp)
         
-        # Inicializar el gestor de prompts
+        # Gestores
         self.prompt_manager = PromptManager()
+        self.script_prompt_manager = ScriptPromptManager()
         
-        # Variables para los widgets
-        self.current_prompt_id = tk.StringVar()
-        self.prompt_name = tk.StringVar()
-        self.prompt_description = tk.StringVar()
-        self.negative_prompt = tk.StringVar()
+        # Variables para imágenes
+        self.current_prompt_id_img = tk.StringVar()
+        self.prompt_name_img = tk.StringVar()
+        self.prompt_description_img = tk.StringVar()
+        self.negative_prompt_img = tk.StringVar()
+        
+        # Variables para scripts
+        self.current_prompt_id_script = tk.StringVar()
+        self.prompt_name_script = tk.StringVar()
+        self.prompt_description_script = tk.StringVar()
         
         # Variables para la vista previa
         self.preview_title = tk.StringVar(value="Ejemplo de título")
@@ -52,412 +59,404 @@ class PromptsTabFrame(ttk.Frame):
                             style="Header.TLabel", font=("Helvetica", 14, "bold"))
         lbl_title.pack(pady=10)
         
-        # Usar un PanedWindow para dividir la pantalla en dos secciones ajustables
-        paned_window = ttk.PanedWindow(self, orient=tk.HORIZONTAL)
-        paned_window.pack(fill="both", expand=True, padx=10, pady=10)
+        # Notebook de pestañas
+        self.tabs = ttk.Notebook(self)
+        self.tabs.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Frame izquierdo para la lista de prompts (más estrecho)
-        left_frame = ttk.Frame(paned_window, style="Card.TFrame")
+        # Frame para prompts de imágenes
+        self.frame_img = ttk.Frame(self.tabs, style="Card.TFrame")
+        self.tabs.add(self.frame_img, text="Prompts de Imágenes")
         
-        # Frame derecho para el editor de prompts (más ancho)
-        right_frame = ttk.Frame(paned_window, style="Card.TFrame")
+        # Frame para prompts de scripts
+        self.frame_script = ttk.Frame(self.tabs, style="Card.TFrame")
+        self.tabs.add(self.frame_script, text="Prompts de Guion")
         
-        # Añadir los frames al PanedWindow
-        paned_window.add(left_frame, weight=1)  # 30% del espacio
-        paned_window.add(right_frame, weight=3)  # 70% del espacio
-        
-        # Configurar el frame izquierdo (lista de prompts)
-        self._setup_prompt_list(left_frame)
-        
-        # Configurar el frame derecho (editor de prompts)
-        self._setup_prompt_editor(right_frame)
+        # Configurar cada pestaña
+        self._setup_prompt_tab(self.frame_img, tipo="imagen")
+        self._setup_prompt_tab(self.frame_script, tipo="script")
     
-    def _setup_prompt_list(self, parent_frame):
+    def _setup_prompt_tab(self, parent_frame, tipo="imagen"):
+        # PanedWindow para dividir lista/editor
+        paned_window = ttk.PanedWindow(parent_frame, orient=tk.HORIZONTAL)
+        paned_window.pack(fill="both", expand=True, padx=10, pady=10)
+        left_frame = ttk.Frame(paned_window, style="Card.TFrame")
+        right_frame = ttk.Frame(paned_window, style="Card.TFrame")
+        paned_window.add(left_frame, weight=1)
+        paned_window.add(right_frame, weight=3)
+        # Lista y editor según tipo
+        if tipo == "imagen":
+            self._setup_prompt_list(left_frame, tipo)
+            self._setup_prompt_editor(right_frame, tipo)
+            self._load_prompt_list(tipo)
+        else:
+            self._setup_prompt_list(left_frame, tipo)
+            self._setup_prompt_editor(right_frame, tipo)
+            self._load_prompt_list(tipo)
+    
+    def _setup_prompt_list(self, parent_frame, tipo="imagen"):
         """Configura la lista de prompts en el frame izquierdo"""
-        # Frame para la lista de prompts
         frame_list = ttk.LabelFrame(parent_frame, text="Plantillas Disponibles")
         frame_list.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Lista de prompts con altura aumentada
-        self.prompt_listbox = tk.Listbox(frame_list, height=15, width=30, font=("Helvetica", 11))
-        self.prompt_listbox.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        listbox = tk.Listbox(frame_list, height=15, width=30, font=("Helvetica", 11))
+        listbox.pack(side="left", fill="both", expand=True, padx=5, pady=5)
         
-        # Scrollbar para la lista
-        scrollbar = ttk.Scrollbar(frame_list, orient="vertical", command=self.prompt_listbox.yview)
+        scrollbar = ttk.Scrollbar(frame_list, orient="vertical", command=listbox.yview)
         scrollbar.pack(side="right", fill="y")
-        self.prompt_listbox.config(yscrollcommand=scrollbar.set)
+        listbox.config(yscrollcommand=scrollbar.set)
         
-        # Vincular evento de selección
-        self.prompt_listbox.bind('<<ListboxSelect>>', self._on_prompt_selected)
+        if tipo == "imagen":
+            self.prompt_listbox_img = listbox
+            self.prompt_listbox_img.bind('<<ListboxSelect>>', lambda e: self._on_prompt_selected(e, "imagen"))
+        else:
+            self.prompt_listbox_script = listbox
+            self.prompt_listbox_script.bind('<<ListboxSelect>>', lambda e: self._on_prompt_selected(e, "script"))
         
         # Frame para botones de acción
         frame_buttons = ttk.Frame(parent_frame)
         frame_buttons.pack(fill="x", padx=5, pady=5)
         
         # Botón para nueva plantilla
-        btn_new = ttk.Button(frame_buttons, text="Nueva Plantilla", command=self._new_prompt)
+        btn_new = ttk.Button(frame_buttons, text="Nueva Plantilla", command=lambda: self._new_prompt(tipo))
         btn_new.pack(side="left", fill="x", expand=True, padx=2, pady=5)
         
         # Botón para eliminar plantilla
-        btn_delete = ttk.Button(frame_buttons, text="Eliminar", command=self._delete_prompt)
+        btn_delete = ttk.Button(frame_buttons, text="Eliminar", command=lambda: self._delete_prompt(tipo))
         btn_delete.pack(side="right", fill="x", expand=True, padx=2, pady=5)
     
-    def _setup_prompt_editor(self, parent_frame):
+    def _setup_prompt_editor(self, parent_frame, tipo="imagen"):
         """Configura el editor de prompts en el frame derecho"""
-        # Frame para el editor de prompts con scrollbar
         editor_container = ttk.Frame(parent_frame)
         editor_container.pack(fill="both", expand=True, padx=5, pady=5)
-        
-        # Scrollbar vertical para todo el editor
         editor_scrollbar = ttk.Scrollbar(editor_container, orient="vertical")
         editor_scrollbar.pack(side="right", fill="y")
-        
-        # Canvas para hacer scroll de todo el contenido
         editor_canvas = tk.Canvas(editor_container, yscrollcommand=editor_scrollbar.set)
         editor_canvas.pack(side="left", fill="both", expand=True)
         editor_scrollbar.config(command=editor_canvas.yview)
-        
-        # Frame dentro del canvas que contendrá todos los widgets
         frame_editor = ttk.Frame(editor_canvas)
         frame_editor_window = editor_canvas.create_window((0, 0), window=frame_editor, anchor="nw")
-        
-        # Configurar el canvas para que se ajuste al tamaño del frame
         def configure_scroll_region(event):
             editor_canvas.configure(scrollregion=editor_canvas.bbox("all"))
-            # Ajustar el ancho del frame al ancho del canvas
             editor_canvas.itemconfig(frame_editor_window, width=editor_canvas.winfo_width())
-            
         frame_editor.bind("<Configure>", configure_scroll_region)
         editor_canvas.bind("<Configure>", lambda e: editor_canvas.itemconfig(frame_editor_window, width=editor_canvas.winfo_width()))
-        
-        # Permitir scroll con la rueda del ratón
         def _on_mousewheel(event):
             editor_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         editor_canvas.bind_all("<MouseWheel>", _on_mousewheel)
-        
-        # Frame para el título y botón de guardar
         header_frame = ttk.Frame(frame_editor)
         header_frame.pack(fill="x", padx=10, pady=(10, 20))
-        
-        # Título del editor (a la izquierda)
-        lbl_editor_title = ttk.Label(header_frame, text="Editar Plantilla de Prompt", 
-                                   font=("Helvetica", 12, "bold"))
+        lbl_editor_title = ttk.Label(header_frame, text="Editar Plantilla de Prompt", font=("Helvetica", 12, "bold"))
         lbl_editor_title.pack(side="left")
-        
-        # Botón para guardar cambios (a la derecha)
-        btn_save = ttk.Button(header_frame, text="Guardar Cambios", command=self._save_prompt)
+        btn_save = ttk.Button(header_frame, text="Guardar Cambios", command=lambda: self._save_prompt(tipo))
         btn_save.pack(side="right", padx=10)
-        
-        # ID de la plantilla
         frame_id = ttk.Frame(frame_editor)
         frame_id.pack(fill="x", padx=10, pady=5)
-        
         lbl_id = ttk.Label(frame_id, text="ID:", width=15)
         lbl_id.pack(side="left", padx=5)
-        
-        self.entry_id = ttk.Entry(frame_id, textvariable=self.current_prompt_id)
+        self.entry_id = ttk.Entry(frame_id, textvariable=self.current_prompt_id_img if tipo == "imagen" else self.current_prompt_id_script)
         self.entry_id.pack(side="left", fill="x", expand=True, padx=5)
-        
-        # Nombre de la plantilla
         frame_name = ttk.Frame(frame_editor)
         frame_name.pack(fill="x", padx=10, pady=5)
-        
         lbl_name = ttk.Label(frame_name, text="Nombre:", width=15)
         lbl_name.pack(side="left", padx=5)
-        
-        entry_name = ttk.Entry(frame_name, textvariable=self.prompt_name)
+        entry_name = ttk.Entry(frame_name, textvariable=self.prompt_name_img if tipo == "imagen" else self.prompt_name_script)
         entry_name.pack(side="left", fill="x", expand=True, padx=5)
-        
-        # Descripción de la plantilla
         frame_desc = ttk.Frame(frame_editor)
         frame_desc.pack(fill="x", padx=10, pady=5)
-        
         lbl_desc = ttk.Label(frame_desc, text="Descripción:", width=15)
         lbl_desc.pack(side="left", padx=5)
-        
-        entry_desc = ttk.Entry(frame_desc, textvariable=self.prompt_description)
+        entry_desc = ttk.Entry(frame_desc, textvariable=self.prompt_description_img if tipo == "imagen" else self.prompt_description_script)
         entry_desc.pack(side="left", fill="x", expand=True, padx=5)
-        
-        # System Prompt
         lbl_system = ttk.Label(frame_editor, text="System Prompt (instrucciones para el modelo):")
         lbl_system.pack(anchor="w", padx=10, pady=(20, 5))
-        
-        # Frame para el text y scrollbar del system prompt
         system_frame = ttk.Frame(frame_editor)
         system_frame.pack(fill="both", expand=True, padx=10, pady=5)
-        
-        # Scrollbar vertical para system prompt
         system_scrollbar_y = ttk.Scrollbar(system_frame, orient="vertical")
         system_scrollbar_y.pack(side="right", fill="y")
-        
-        # Scrollbar horizontal para system prompt
         system_scrollbar_x = ttk.Scrollbar(system_frame, orient="horizontal")
         system_scrollbar_x.pack(side="bottom", fill="x")
-        
-        # Text widget para system prompt con scrollbars
-        self.text_system = tk.Text(system_frame, height=10, wrap="word", 
-                                  yscrollcommand=system_scrollbar_y.set,
-                                  xscrollcommand=system_scrollbar_x.set)
-        self.text_system.pack(side="left", fill="both", expand=True)
-        
-        # Configurar scrollbars
-        system_scrollbar_y.config(command=self.text_system.yview)
-        system_scrollbar_x.config(command=self.text_system.xview)
-        
-        # User Prompt
+        if tipo == "imagen":
+            self.text_system_img = tk.Text(system_frame, height=10, wrap="word", yscrollcommand=system_scrollbar_y.set, xscrollcommand=system_scrollbar_x.set)
+            self.text_system_img.pack(side="left", fill="both", expand=True)
+            system_scrollbar_y.config(command=self.text_system_img.yview)
+            system_scrollbar_x.config(command=self.text_system_img.xview)
+            btn_popup_system = ttk.Button(system_frame, text="Editar en ventana", command=lambda: self._open_popup_editor(self.text_system_img, "System Prompt"))
+            btn_popup_system.pack(side="left", padx=5)
+        else:
+            self.text_system_script = tk.Text(system_frame, height=10, wrap="word", yscrollcommand=system_scrollbar_y.set, xscrollcommand=system_scrollbar_x.set)
+            self.text_system_script.pack(side="left", fill="both", expand=True)
+            system_scrollbar_y.config(command=self.text_system_script.yview)
+            system_scrollbar_x.config(command=self.text_system_script.xview)
+            btn_popup_system = ttk.Button(system_frame, text="Editar en ventana", command=lambda: self._open_popup_editor(self.text_system_script, "System Prompt"))
+            btn_popup_system.pack(side="left", padx=5)
         lbl_user = ttk.Label(frame_editor, text="User Prompt (usa {titulo} y {escena} como placeholders):")
         lbl_user.pack(anchor="w", padx=10, pady=(20, 5))
-        
-        # Frame para el text y scrollbar del user prompt
         user_frame = ttk.Frame(frame_editor)
         user_frame.pack(fill="both", expand=True, padx=10, pady=5)
-        
-        # Scrollbar vertical para user prompt
         user_scrollbar_y = ttk.Scrollbar(user_frame, orient="vertical")
         user_scrollbar_y.pack(side="right", fill="y")
-        
-        # Scrollbar horizontal para user prompt
         user_scrollbar_x = ttk.Scrollbar(user_frame, orient="horizontal")
         user_scrollbar_x.pack(side="bottom", fill="x")
-        
-        # Text widget para user prompt con scrollbars
-        self.text_user = tk.Text(user_frame, height=10, wrap="word", 
-                               yscrollcommand=user_scrollbar_y.set,
-                               xscrollcommand=user_scrollbar_x.set)
-        self.text_user.pack(side="left", fill="both", expand=True)
-        
-        # Configurar scrollbars
-        user_scrollbar_y.config(command=self.text_user.yview)
-        user_scrollbar_x.config(command=self.text_user.xview)
-        
-        # Nota: El campo 'Plantilla de Prompt' ha sido eliminado ya que no se utiliza
-        # El sistema ahora genera los prompts directamente a partir del System Prompt y User Prompt
-        
-        # Prompt negativo
+        if tipo == "imagen":
+            self.text_user_img = tk.Text(user_frame, height=10, wrap="word", yscrollcommand=user_scrollbar_y.set, xscrollcommand=user_scrollbar_x.set)
+            self.text_user_img.pack(side="left", fill="both", expand=True)
+            user_scrollbar_y.config(command=self.text_user_img.yview)
+            user_scrollbar_x.config(command=self.text_user_img.xview)
+            btn_popup_user = ttk.Button(user_frame, text="Editar en ventana", command=lambda: self._open_popup_editor(self.text_user_img, "User Prompt"))
+            btn_popup_user.pack(side="left", padx=5)
+        else:
+            self.text_user_script = tk.Text(user_frame, height=10, wrap="word", yscrollcommand=user_scrollbar_y.set, xscrollcommand=user_scrollbar_x.set)
+            self.text_user_script.pack(side="left", fill="both", expand=True)
+            user_scrollbar_y.config(command=self.text_user_script.yview)
+            user_scrollbar_x.config(command=self.text_user_script.xview)
+            btn_popup_user = ttk.Button(user_frame, text="Editar en ventana", command=lambda: self._open_popup_editor(self.text_user_script, "User Prompt"))
+            btn_popup_user.pack(side="left", padx=5)
         lbl_negative = ttk.Label(frame_editor, text="Prompt Negativo:")
         lbl_negative.pack(anchor="w", padx=10, pady=(20, 5))
-        
-        # Frame para el text y scrollbar del negative prompt
         negative_frame = ttk.Frame(frame_editor)
         negative_frame.pack(fill="both", expand=True, padx=10, pady=5)
-        
-        # Scrollbar vertical para negative prompt
         negative_scrollbar_y = ttk.Scrollbar(negative_frame, orient="vertical")
         negative_scrollbar_y.pack(side="right", fill="y")
-        
-        # Scrollbar horizontal para negative prompt
         negative_scrollbar_x = ttk.Scrollbar(negative_frame, orient="horizontal")
         negative_scrollbar_x.pack(side="bottom", fill="x")
-        
-        # Text widget para negative prompt con scrollbars
-        self.text_negative = tk.Text(negative_frame, height=6, wrap="word", 
-                                   yscrollcommand=negative_scrollbar_y.set,
-                                   xscrollcommand=negative_scrollbar_x.set)
-        self.text_negative.pack(side="left", fill="both", expand=True)
-        
-        # Configurar scrollbars
-        negative_scrollbar_y.config(command=self.text_negative.yview)
-        negative_scrollbar_x.config(command=self.text_negative.xview)
-        
-        # Espacio adicional al final para mejorar la visualización
+        if tipo == "imagen":
+            self.text_negative_img = tk.Text(negative_frame, height=6, wrap="word", yscrollcommand=negative_scrollbar_y.set, xscrollcommand=negative_scrollbar_x.set)
+            self.text_negative_img.pack(side="left", fill="both", expand=True)
+            negative_scrollbar_y.config(command=self.text_negative_img.yview)
+            negative_scrollbar_x.config(command=self.text_negative_img.xview)
+        else:
+            self.text_negative_script = tk.Text(negative_frame, height=6, wrap="word", yscrollcommand=negative_scrollbar_y.set, xscrollcommand=negative_scrollbar_x.set)
+            self.text_negative_script.pack(side="left", fill="both", expand=True)
+            negative_scrollbar_y.config(command=self.text_negative_script.yview)
+            negative_scrollbar_x.config(command=self.text_negative_script.xview)
         ttk.Label(frame_editor, text="").pack(pady=20)
     
-    def _load_prompt_list(self):
+    def _load_prompt_list(self, tipo="imagen"):
         """Carga la lista de prompts disponibles en el listbox"""
-        # Limpiar la lista actual
-        self.prompt_listbox.delete(0, tk.END)
-        
-        # Obtener los IDs de los prompts
-        prompt_ids = self.prompt_manager.get_prompt_ids()
-        
-        # Añadir cada prompt a la lista
-        for prompt_id in prompt_ids:
-            prompt_info = self.prompt_manager.get_prompt(prompt_id)
-            if prompt_info:
-                display_text = f"{prompt_info['name']} ({prompt_id})"
-                self.prompt_listbox.insert(tk.END, display_text)
+        if tipo == "imagen":
+            self.prompt_listbox_img.delete(0, tk.END)
+            prompt_ids = self.prompt_manager.get_prompt_ids()
+            for prompt_id in prompt_ids:
+                prompt_info = self.prompt_manager.get_prompt(prompt_id)
+                if prompt_info:
+                    display_text = f"{prompt_info['name']} ({prompt_id})"
+                    self.prompt_listbox_img.insert(tk.END, display_text)
+        else:
+            self.prompt_listbox_script.delete(0, tk.END)
+            style_names = self.script_prompt_manager.get_style_names()
+            for style_id, name in style_names:
+                display_text = f"{name} ({style_id})"
+                self.prompt_listbox_script.insert(tk.END, display_text)
     
-    def _on_prompt_selected(self, event):
+    def _on_prompt_selected(self, event, tipo="imagen"):
         """Maneja el evento de selección de un prompt en la lista"""
         # Obtener el índice seleccionado
-        selection = self.prompt_listbox.curselection()
+        selection = self.prompt_listbox_img.curselection() if tipo == "imagen" else self.prompt_listbox_script.curselection()
         if not selection:
             return
         
         # Obtener el texto seleccionado
-        selected_text = self.prompt_listbox.get(selection[0])
+        selected_text = self.prompt_listbox_img.get(selection[0]) if tipo == "imagen" else self.prompt_listbox_script.get(selection[0])
         
         # Extraer el ID del prompt del texto seleccionado
         prompt_id = selected_text.split("(")[-1].strip(")")
         
         # Cargar la información del prompt
-        self._load_prompt(prompt_id)
+        self._load_prompt(prompt_id, tipo)
     
-    def _load_prompt(self, prompt_id):
+    def _load_prompt(self, prompt_id, tipo="imagen"):
         """Carga la información de un prompt en el editor"""
-        prompt_info = self.prompt_manager.get_prompt(prompt_id)
-        if not prompt_info:
-            return
-        
-        # Actualizar las variables
-        self.current_prompt_id.set(prompt_id)
-        self.prompt_name.set(prompt_info["name"])
-        self.prompt_description.set(prompt_info["description"])
-        
-        # Actualizar los text widgets
-        self.text_system.delete(1.0, tk.END)
-        self.text_system.insert(tk.END, prompt_info.get("system_prompt", ""))
-        
-        self.text_user.delete(1.0, tk.END)
-        self.text_user.insert(tk.END, prompt_info.get("user_prompt", ""))
-        
-        # El campo text_template ha sido eliminado
-        
-        self.text_negative.delete(1.0, tk.END)
-        self.text_negative.insert(tk.END, prompt_info.get("negative_prompt", ""))
-        
-        # Deshabilitar la edición del ID si es una plantilla predefinida
+        if tipo == "imagen":
+            prompt_info = self.prompt_manager.get_prompt(prompt_id)
+            self.current_prompt_id_img.set(prompt_id)
+            self.prompt_name_img.set(prompt_info.get("name", ""))
+            self.prompt_description_img.set(prompt_info.get("description", ""))
+            self.text_system_img.delete(1.0, tk.END)
+            self.text_system_img.insert(tk.END, prompt_info.get("system_prompt", ""))
+            self.text_user_img.delete(1.0, tk.END)
+            self.text_user_img.insert(tk.END, prompt_info.get("user_prompt", ""))
+            self.text_negative_img.delete(1.0, tk.END)
+            self.text_negative_img.insert(tk.END, prompt_info.get("negative_prompt", ""))
+        else:
+            prompt_info = self.script_prompt_manager.get_style_data(prompt_id)
+            self.current_prompt_id_script.set(prompt_id)
+            self.prompt_name_script.set(prompt_info.get("name", ""))
+            self.prompt_description_script.set(prompt_info.get("description", ""))
+            self.text_system_script.delete(1.0, tk.END)
+            self.text_system_script.insert(tk.END, prompt_info.get("esquema", ""))
+            self.text_user_script.delete(1.0, tk.END)
+            self.text_user_script.insert(tk.END, prompt_info.get("seccion", ""))
+            self.text_negative_script.delete(1.0, tk.END)
+            self.text_negative_script.insert(tk.END, prompt_info.get("revision", ""))
         if prompt_id in ["default", "terror", "animacion"]:
             self.entry_id.config(state="disabled")
         else:
             self.entry_id.config(state="normal")
     
-    def _new_prompt(self):
+    def _new_prompt(self, tipo="imagen"):
         """Prepara el editor para crear una nueva plantilla de prompt"""
-        # Generar un ID único
         base_id = "custom"
-        prompt_ids = self.prompt_manager.get_prompt_ids()
-        
-        # Encontrar un ID disponible
+        if tipo == "imagen":
+            prompt_ids = self.prompt_manager.get_prompt_ids()
+        else:
+            prompt_ids = self.script_prompt_manager.get_style_names()
         counter = 1
         new_id = f"{base_id}_{counter}"
         while new_id in prompt_ids:
             counter += 1
             new_id = f"{base_id}_{counter}"
-        
-        # Establecer valores por defecto
-        self.current_prompt_id.set(new_id)
-        self.prompt_name.set("Nuevo Estilo")
-        self.prompt_description.set("Descripción del estilo")
-        
-        # Actualizar los text widgets
-        self.text_system.delete(1.0, tk.END)
-        self.text_system.insert(tk.END, DEFAULT_PROMPT_TEMPLATE["system_prompt"])
-        
-        self.text_user.delete(1.0, tk.END)
-        self.text_user.insert(tk.END, DEFAULT_PROMPT_TEMPLATE["user_prompt"])
-        
-        # El campo text_template ha sido eliminado
-        
-        self.text_negative.delete(1.0, tk.END)
-        self.text_negative.insert(tk.END, DEFAULT_PROMPT_TEMPLATE["negative_prompt"])
-        
-        # Habilitar la edición del ID
+        if tipo == "imagen":
+            self.current_prompt_id_img.set(new_id)
+            self.prompt_name_img.set("Nuevo Estilo")
+            self.prompt_description_img.set("Descripción del estilo")
+            self.text_system_img.delete(1.0, tk.END)
+            self.text_system_img.insert(tk.END, DEFAULT_PROMPT_TEMPLATE["system_prompt"])
+            self.text_user_img.delete(1.0, tk.END)
+            self.text_user_img.insert(tk.END, DEFAULT_PROMPT_TEMPLATE["user_prompt"])
+            self.text_negative_img.delete(1.0, tk.END)
+            self.text_negative_img.insert(tk.END, DEFAULT_PROMPT_TEMPLATE["negative_prompt"])
+        else:
+            self.current_prompt_id_script.set(new_id)
+            self.prompt_name_script.set("Nuevo Estilo")
+            self.prompt_description_script.set("Descripción del estilo")
+            self.text_system_script.delete(1.0, tk.END)
+            self.text_system_script.insert(tk.END, "")
+            self.text_user_script.delete(1.0, tk.END)
+            self.text_user_script.insert(tk.END, "")
+            self.text_negative_script.delete(1.0, tk.END)
+            self.text_negative_script.insert(tk.END, "")
         self.entry_id.config(state="normal")
     
-    def _save_prompt(self):
+    def _save_prompt(self, tipo="imagen"):
         """Guarda la plantilla de prompt actual"""
-        # Obtener los valores
-        prompt_id = self.current_prompt_id.get().strip()
-        name = self.prompt_name.get().strip()
-        description = self.prompt_description.get().strip()
-        system_prompt = self.text_system.get(1.0, tk.END).strip()
-        user_prompt = self.text_user.get(1.0, tk.END).strip()
-        negative = self.text_negative.get(1.0, tk.END).strip()
-        
-        # Validar los campos
+        if tipo == "imagen":
+            prompt_id = self.current_prompt_id_img.get().strip()
+            name = self.prompt_name_img.get().strip()
+            description = self.prompt_description_img.get().strip()
+            system_prompt = self.text_system_img.get(1.0, tk.END).strip()
+            user_prompt = self.text_user_img.get(1.0, tk.END).strip()
+            negative = self.text_negative_img.get(1.0, tk.END).strip()
+        else:
+            prompt_id = self.current_prompt_id_script.get().strip()
+            name = self.prompt_name_script.get().strip()
+            description = self.prompt_description_script.get().strip()
+            system_prompt = self.text_system_script.get(1.0, tk.END).strip()
+            user_prompt = self.text_user_script.get(1.0, tk.END).strip()
+            negative = self.text_negative_script.get(1.0, tk.END).strip()
         if not prompt_id or not name or not system_prompt or not user_prompt:
             messagebox.showerror("Error", "Los campos ID, Nombre, System Prompt y User Prompt son obligatorios.")
             return
-        
-        # Validar que el ID no contenga espacios ni caracteres especiales
         if not re.match(r'^[a-zA-Z0-9_]+$', prompt_id):
             messagebox.showerror("Error", "El ID solo puede contener letras, números y guiones bajos.")
             return
-        
-        # Validar que el user prompt contenga al menos uno de los placeholders {titulo} o {escena}
-        if "{titulo}" not in user_prompt and "{escena}" not in user_prompt:
-            messagebox.showerror("Error", "El User Prompt debe contener al menos uno de los placeholders {titulo} o {escena}.")
-            return
-        
-        # Mostrar información de depuración
+        if tipo == "imagen":
+            if "{titulo}" not in user_prompt and "{escena}" not in user_prompt:
+                messagebox.showerror("Error", "El User Prompt debe contener al menos uno de los placeholders {titulo} o {escena}.")
+                return
         print(f"Guardando prompt con ID: {prompt_id}")
-        print(f"Ruta del archivo de prompts: {self.prompt_manager.prompts_file}")
-        
-        # Comprobar si es una actualización o una nueva plantilla
-        prompt_ids = self.prompt_manager.get_prompt_ids()
-        print(f"Prompts existentes: {prompt_ids}")
-        
-        if prompt_id in prompt_ids:
-            # Es una actualización
-            print(f"Actualizando prompt existente: {prompt_id}")
-            result = self.prompt_manager.update_prompt(
-                prompt_id, name, description, system_prompt, user_prompt, negative
-            )
-            if result:
-                # Verificar que se guardó correctamente
-                verificacion = self.prompt_manager.get_prompt(prompt_id)
-                if verificacion:
-                    messagebox.showinfo("Éxito", f"Plantilla '{name}' actualizada correctamente.")
-                    print(f"Verificación exitosa: {verificacion['name']}")
-                    # Actualizar los dropdowns en otras pestañas
-                    self._update_dropdowns_in_other_tabs()
-                else:
-                    messagebox.showerror("Error", "La plantilla se actualizó pero no se pudo verificar.")
-            else:
-                messagebox.showerror("Error", "No se pudo actualizar la plantilla.")
+        print(f"Ruta del archivo de prompts: {self.prompt_manager.prompts_file if tipo == 'imagen' else self.script_prompt_manager.filepath}")
+        if tipo == "imagen":
+            prompt_ids = self.prompt_manager.get_prompt_ids()
         else:
-            # Es una nueva plantilla
-            print(f"Creando nuevo prompt: {prompt_id}")
-            result = self.prompt_manager.add_prompt(
-                prompt_id, name, description, system_prompt, user_prompt, negative
-            )
-            if result:
-                # Verificar que se guardó correctamente
-                verificacion = self.prompt_manager.get_prompt(prompt_id)
-                if verificacion:
-                    messagebox.showinfo("Éxito", f"Plantilla '{name}' creada correctamente.")
-                    print(f"Verificación exitosa: {prompt_id}")
-                    # Actualizar los dropdowns en otras pestañas
-                    self._update_dropdowns_in_other_tabs()
-                else:
-                    messagebox.showerror("Error", "La plantilla se creó pero no se pudo verificar.")
+            prompt_ids = self.script_prompt_manager.get_style_names()
+        print(f"Prompts existentes: {prompt_ids}")
+        if tipo == "imagen":
+            if prompt_id in prompt_ids:
+                result = self.prompt_manager.update_prompt(
+                    prompt_id, name, description, system_prompt, user_prompt, negative
+                )
             else:
-                messagebox.showerror("Error", "No se pudo crear la plantilla.")
-        
-        # Recargar la lista de prompts
-        self._load_prompt_list()
-        
+                result = self.prompt_manager.add_prompt(
+                    prompt_id, name, description, system_prompt, user_prompt, negative
+                )
+        else:
+            # Guardar los campos mapeados en el JSON de scripts
+            data = {
+                "name": name,
+                "description": description,
+                "esquema": system_prompt,
+                "seccion": user_prompt,
+                "revision": negative,
+                "metadata": ""  # Puedes añadir un campo de metadatos vacío o gestionarlo aparte
+            }
+            if prompt_id in [id_ for id_, _ in prompt_ids]:
+                result = self.script_prompt_manager.update_style(prompt_id, data)
+            else:
+                result = self.script_prompt_manager.update_style(prompt_id, data)
+        if tipo == "imagen":
+            verificacion = self.prompt_manager.get_prompt(prompt_id)
+        else:
+            verificacion = self.script_prompt_manager.get_style_data(prompt_id)
+        if result and verificacion:
+            messagebox.showinfo("Éxito", f"Plantilla '{name}' guardada correctamente.")
+            self._update_dropdowns_in_other_tabs()
+        elif not result:
+            messagebox.showerror("Error", "No se pudo guardar la plantilla.")
+        else:
+            messagebox.showerror("Error", "La plantilla se guardó pero no se pudo verificar.")
+        self._load_prompt_list(tipo)
+    
     def _update_dropdowns_in_other_tabs(self):
         """Actualiza los dropdowns de estilos de prompts en otras pestañas"""
         # Llamar a la función del módulo prompt_updater
         update_dropdowns_in_other_tabs(self.app)
     
-    def _delete_prompt(self):
+    def _delete_prompt(self, tipo="imagen"):
         """Elimina la plantilla de prompt seleccionada"""
         # Obtener el ID del prompt
-        prompt_id = self.current_prompt_id.get().strip()
+        prompt_id = self.current_prompt_id_img.get().strip() if tipo == "imagen" else self.current_prompt_id_script.get().strip()
         if not prompt_id:
             messagebox.showerror("Error", "No hay ninguna plantilla seleccionada.")
             return
         
         # Confirmar la eliminación
         if messagebox.askyesno("Confirmar", f"¿Estás seguro de eliminar la plantilla '{prompt_id}'?"):
-            result = self.prompt_manager.delete_prompt(prompt_id)
+            if tipo == "imagen":
+                result = self.prompt_manager.delete_prompt(prompt_id)
+            else:
+                result = self.script_prompt_manager.delete_style(prompt_id)
             if result:
                 messagebox.showinfo("Éxito", f"Plantilla '{prompt_id}' eliminada correctamente.")
                 # Actualizar los dropdowns en otras pestañas
                 self._update_dropdowns_in_other_tabs()
                 
                 # Limpiar el editor
-                self.current_prompt_id.set("")
-                self.prompt_name.set("")
-                self.prompt_description.set("")
-                self.text_system.delete(1.0, tk.END)
-                self.text_user.delete(1.0, tk.END)
-                self.text_negative.delete(1.0, tk.END)
+                if tipo == "imagen":
+                    self.current_prompt_id_img.set("")
+                    self.prompt_name_img.set("")
+                    self.prompt_description_img.set("")
+                    self.text_system_img.delete(1.0, tk.END)
+                    self.text_user_img.delete(1.0, tk.END)
+                    self.text_negative_img.delete(1.0, tk.END)
+                else:
+                    self.current_prompt_id_script.set("")
+                    self.prompt_name_script.set("")
+                    self.prompt_description_script.set("")
+                    self.text_system_script.delete(1.0, tk.END)
+                    self.text_user_script.delete(1.0, tk.END)
+                    self.text_negative_script.delete(1.0, tk.END)
                 
                 # Recargar la lista de prompts
-                self._load_prompt_list()
+                self._load_prompt_list(tipo)
             else:
                 messagebox.showerror("Error", f"No se pudo eliminar la plantilla '{prompt_id}'.")
+    
+    def _open_popup_editor(self, text_widget, title):
+        """Abre un pop-up grande para editar el contenido de un campo de texto."""
+        popup = tk.Toplevel(self)
+        popup.title(f"Editar {title}")
+        popup.geometry("800x500")
+        popup.transient(self)
+        popup.grab_set()
+        lbl = ttk.Label(popup, text=title, font=("Helvetica", 12, "bold"))
+        lbl.pack(pady=10)
+        text_popup = tk.Text(popup, wrap="word", font=("Helvetica", 12))
+        text_popup.pack(fill="both", expand=True, padx=10, pady=10)
+        # Copiar el contenido actual
+        text_popup.insert(tk.END, text_widget.get(1.0, tk.END))
+        def guardar_y_cerrar():
+            text_widget.delete(1.0, tk.END)
+            text_widget.insert(tk.END, text_popup.get(1.0, tk.END))
+            popup.destroy()
+        btn_guardar = ttk.Button(popup, text="Guardar y cerrar", command=guardar_y_cerrar)
+        btn_guardar.pack(pady=10)

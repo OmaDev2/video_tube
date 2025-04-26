@@ -157,7 +157,7 @@ def generar_prompts_con_gemini(script_text: str, num_imagenes: int, video_title:
                 # Obtener el system prompt y user prompt del estilo seleccionado
                 system_prompt = prompt_manager.get_system_prompt(estilo_base)
                 user_prompt = prompt_manager.get_user_prompt(estilo_base, video_title, segmento)
-                negative_prompt = prompt_manager.get_prompt(estilo_base)["negative_prompt"]
+                negative_prompt = prompt_manager.get_negative_prompt(estilo_base)
                 
                 # Imprimir los valores que se van a usar para formatear el prompt
                 #logging.info(f"\n=== VALORES PARA FORMATEO DE PROMPT ===")

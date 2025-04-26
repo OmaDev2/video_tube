@@ -7,9 +7,19 @@ from PIL import Image, ImageTk
 from glob import glob
 import time
 from pathlib import Path
+
+# Importar los módulos de la interfaz
 from ui.tab_basico import BasicTabFrame
-from ui.tab_project import ProjectTabFrame  # Nueva pestaña de gestión de proyectos
-from project_manager import ProjectManager  # Gestor de proyectos
+from ui.tab_project import ProjectTabFrame
+from ui.tab_efectos import EffectsTabFrame
+from ui.tab_audio import AudioTabFrame
+from ui.tab_subtitles import SubtitlesTabFrame
+from ui.tab_batch import BatchTabFrame
+from ui.tab_settings import SettingsTabFrame
+from ui.tab_prompts import PromptsTabFrame
+
+# Importar el gestor de proyectos
+from project_manager import ProjectManager
 
 # Importar tqdm para la barra de progreso
 from tqdm.tk import tqdm as tqdm_tk
@@ -48,13 +58,27 @@ if WHISPER_AVAILABLE:
         print("ADVERTENCIA: No se pudo importar WhisperModel a pesar de que WHISPER_AVAILABLE es True")
 
 class VideoCreatorApp:
-    def __init__(self, root):
-        self.root = root
+    def __init__(self):
+        # Inicializar el prompt_manager
+        try:
+            from prompt_manager import PromptManager
+            self.prompt_manager = PromptManager()
+            print("INFO: Gestor de prompts inicializado correctamente.")
+        except ImportError as e:
+            self.prompt_manager = None
+            print(f"ADVERTENCIA: No se pudo importar PromptManager: {e}")
+            messagebox.showwarning(
+                "Advertencia: Gestor de Prompts",
+                "No se pudo inicializar el gestor de prompts. Algunas funcionalidades pueden no estar disponibles."
+            )
+
+        # Inicializar la ventana principal
+        self.root = tk.Tk()
         self.root.title("Video Creator")
-        self.root.geometry("1100x1000")  # Ventana más ancha y alta para mostrar todos los botones correctamente
+        self.root.geometry("1400x900")  # Ventana más ancha y alta para mostrar todos los botones correctamente
        
         # Inicializar el gestor de procesamiento por lotes para TTS
-        self.batch_tts_manager = BatchTTSManager(root)
+        self.batch_tts_manager = BatchTTSManager(self.root)
         # ProjectManager desactivado temporalmente
         # self.project_manager = ProjectManager(self)
         
@@ -344,9 +368,6 @@ class VideoCreatorApp:
         # Cargar plantillas
         self.cargar_plantillas()
         
-        # Cargar plantillas
-        #self.cargar_plantillas()
-        
         # Cargar automáticamente las imágenes y overlays al iniciar
         #self.root.after(1000, self.buscar_imagenes)
         #self.root.after(1500, lambda: self.tab_efectos.buscar_y_seleccionar_overlays() if hasattr(self, 'tab_efectos') else None)
@@ -404,7 +425,36 @@ class VideoCreatorApp:
             self.opacidad_overlay.set(template.get('opacidad_overlay', 0.25))
     
     def crear_interfaz(self):
-        
+        """Crea la interfaz principal de la aplicación."""
+        # Crear el notebook para las pestañas
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Crear las pestañas
+        self.tab_batch = BatchTabFrame(self.notebook, self)
+        self.tab_basico = BasicTabFrame(self.notebook, self)
+        self.tab_efectos = EffectsTabFrame(self.notebook, self)
+        self.tab_subtitles = SubtitlesTabFrame(self.notebook, self)
+        self.tab_audio = AudioTabFrame(self.notebook, self)
+        self.tab_prompts = PromptsTabFrame(self.notebook, self)
+        self.tab_settings = SettingsTabFrame(self.notebook, self)
+
+        # Añadir las pestañas al notebook principal en el orden deseado
+        self.notebook.add(self.tab_batch, text="Cola de Proyectos")
+        self.notebook.add(self.tab_basico, text="Básico")
+        self.notebook.add(self.tab_efectos, text="Efectos Visuales")
+        self.notebook.add(self.tab_subtitles, text="Subtítulos")
+        self.notebook.add(self.tab_audio, text="Audio")
+        self.notebook.add(self.tab_prompts, text="Gestor de Prompts")
+        self.notebook.add(self.tab_settings, text="Ajustes de Efectos")
+
+        # Verificar que el prompt_manager esté disponible
+        if not self.prompt_manager:
+            messagebox.showwarning(
+                "Advertencia",
+                "El gestor de prompts no está disponible. Algunas funcionalidades pueden no funcionar correctamente."
+            )
+
         # Crear un frame superior para el botón de crear video
         frame_superior = ttk.Frame(self.root)
         frame_superior.pack(fill="x", padx=10, pady=5)
@@ -413,54 +463,6 @@ class VideoCreatorApp:
         btn_crear = ttk.Button(frame_superior, text="Crear Video", command=self.crear_video, style="Primary.TButton")
         btn_crear.pack(side="right", padx=5)
         
-        # Crear un notebook (pestañas)
-        notebook = ttk.Notebook(self.root)
-        notebook.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        from ui.tab_basico import BasicTabFrame
-        from ui.tab_efectos import EffectsTabFrame
-        from ui.tab_audio import AudioTabFrame
-        from ui.tab_subtitles import SubtitlesTabFrame
-        from ui.tab_batch import BatchTabFrame
-        from ui.tab_settings import SettingsTabFrame
-        from ui.tab_prompts import PromptsTabFrame
-        
-        
-        # 1. Pestaña de cola de proyectos para TTS (primera pestaña)
-        self.tab_batch = BatchTabFrame(notebook, self)
-        notebook.add(self.tab_batch, text="Cola de Proyectos")
-        
-        # Inicializamos todas las pestañas pero las añadiremos en el orden solicitado
-        self.tab_basico = BasicTabFrame(notebook, self)
-        
-        # Pestaña de gestión de proyectos para TTS (Desactivada temporalmente)
-        # La siguiente línea está comentada para ocultar la pestaña de Proyecto
-        # self.tab_project = ProjectTabFrame(notebook, self)
-        # notebook.add(self.tab_project, text="Proyecto")
-        
-        # 2. Pestaña de efectos visuales
-        self.tab_efectos = EffectsTabFrame(notebook, self)
-        notebook.add(self.tab_efectos, text="Efectos Visuales")
-        
-        # 3. Pestaña de configuración de subtítulos con Whisper
-        self.tab_subtitles = SubtitlesTabFrame(notebook,self)
-        notebook.add(self.tab_subtitles, text="Subtítulos")
-        
-        # Pestaña de audio (no incluida en el orden solicitado, la dejamos aquí)
-        self.tab_audio = AudioTabFrame(notebook, self)
-        notebook.add(self.tab_audio, text="Audio")
-        
-        # 4. Pestaña de gestión de prompts
-        self.tab_prompts = PromptsTabFrame(notebook, self)
-        notebook.add(self.tab_prompts, text="Gestor de Prompts")
-        
-        # 5. Pestaña de configuración básica
-        notebook.add(self.tab_basico, text="Configuración Básica")
-        
-        # 6. Pestaña de ajustes de efectos
-        self.tab_settings = SettingsTabFrame(notebook, self)
-        notebook.add(self.tab_settings, text="Ajustes de Efectos")
-          
         # Barra de progreso
         self.progress = ttk.Progressbar(self.root, orient="horizontal", length=100, mode="indeterminate", style="TProgressbar")
         self.progress.pack(fill="x", padx=10, pady=5)
@@ -1196,6 +1198,5 @@ class VideoCreatorApp:
 
 # Iniciar la aplicación si se ejecuta este archivo directamente
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = VideoCreatorApp(root)
-    root.mainloop()
+    app = VideoCreatorApp()
+    app.root.mainloop()

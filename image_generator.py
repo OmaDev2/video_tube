@@ -28,7 +28,7 @@ else:
 def generar_imagen_con_replicate(
     prompt_en: str,
     output_image_path: str, # Ruta completa donde guardar la imagen PNG
-    aspect_ratio: str = "16:9",
+    aspect_ratio: str = "9:16",
     num_inference_steps: int = 4,
     output_quality: int = 90, # Calidad para jpg/webp, png ignora esto
     go_fast: bool = True,
