@@ -1,6 +1,7 @@
-#!/usr/bin/env python3
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import ttkbootstrap as tb
+from ttkbootstrap.constants import *
 import os
 import threading
 from PIL import Image, ImageTk
@@ -73,7 +74,7 @@ class VideoCreatorApp:
             )
 
         # Inicializar la ventana principal
-        self.root = tk.Tk()
+        self.root = tb.Window(themename="solar")
         self.root.title("Video Creator")
         self.root.geometry("1800x1000")  # Ventana más ancha y alta para mostrar todos los botones correctamente
        
@@ -441,11 +442,12 @@ class VideoCreatorApp:
 
         # Añadir las pestañas al notebook principal en el orden deseado
         self.notebook.add(self.tab_batch, text="Cola de Proyectos")
-        self.notebook.add(self.tab_basico, text="Básico")
-        self.notebook.add(self.tab_efectos, text="Efectos Visuales")
         self.notebook.add(self.tab_subtitles, text="Subtítulos")
-        self.notebook.add(self.tab_audio, text="Audio")
+        self.notebook.add(self.tab_efectos, text="Efectos Visuales")
         self.notebook.add(self.tab_prompts, text="Gestor de Prompts")
+       
+        self.notebook.add(self.tab_basico, text="Básico")
+        self.notebook.add(self.tab_audio, text="Audio")
         self.notebook.add(self.tab_settings, text="Ajustes de Efectos")
 
         # Verificar que el prompt_manager esté disponible
