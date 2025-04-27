@@ -94,8 +94,8 @@ class BatchTabFrame(tb.Frame):
         # Variable para el aspect ratio
         if not hasattr(self.app, 'aspect_ratio'): self.app.aspect_ratio = tb.StringVar(value="16:9")  # Valor por defecto: 16:9
         # Variables para los prompts
-        if not hasattr(self.app, 'selected_image_prompt'): self.app.selected_image_prompt = tb.StringVar(value="default")
-        if not hasattr(self.app, 'selected_script_prompt'): self.app.selected_script_prompt = tb.StringVar(value="default")
+        if not hasattr(self.app, 'selected_image_prompt'): self.app.selected_image_prompt = tb.StringVar()
+        if not hasattr(self.app, 'selected_script_prompt'): self.app.selected_script_prompt = tb.StringVar()
         # Variables para el volumen de música y voz
         if not hasattr(self.app, 'etiqueta_volumen_musica'): self.app.etiqueta_volumen_musica = tb.StringVar(value="0.30")
         if not hasattr(self.app, 'volumen_musica'): self.app.volumen_musica = tb.DoubleVar(value=0.3)
@@ -663,8 +663,9 @@ class BatchTabFrame(tb.Frame):
         # Mostrar el frame correcto según el modo inicial
         self._toggle_script_inputs()
         
-        # Cargar estilos de script
+        # Cargar estilos de script y prompts de imágenes
         self._recargar_estilos_script()
+        self._recargar_prompts_imagenes()
 
         # --- Fila 3: Voz y Ajustes TTS (Común a ambos modos) ---
         voice_frame = tb.LabelFrame(self.frame_input, text="Ajustes de Voz", style="Card.TFrame")
@@ -778,9 +779,10 @@ class BatchTabFrame(tb.Frame):
         self.combo_script_prompt = tb.Combobox(image_prompt_frame, textvariable=self.app.selected_script_prompt,
                                               state="readonly", width=18)
         self.combo_script_prompt.pack(side="left", fill="x", expand=True, padx=(0, 5))
-        btn_reload_script_prompts = tb.Button(image_prompt_frame, text="🔄", 
-                                             command=self._recargar_prompts_scripts, width=3, style="Toolbutton")
-        btn_reload_script_prompts.pack(side="left", padx=(0, 5))
+
+        # Cargar los prompts iniciales
+        self._recargar_prompts_imagenes()
+        self._recargar_prompts_scripts()
 
         # Definir estilos personalizados para los botones (solo una vez)
         style = tb.Style()
@@ -791,7 +793,7 @@ class BatchTabFrame(tb.Frame):
             style.configure("Secondary.TButton", foreground="#333", background="#e0e0e0", font=("Segoe UI", 10))
             style.map("Secondary.TButton", background=[("active", "#cccccc")])
 
-        # --- Fila 5: Botones de Acción Principales (DENTRO de frame_input) ---
+        # --- Fila 5: Botones de Acción ---
         frame_buttons = tb.Frame(self.frame_input)
         frame_buttons.pack(fill="x", padx=5, pady=10)
 
@@ -1212,8 +1214,8 @@ class BatchTabFrame(tb.Frame):
                  'tts_rate': self.app.tts_rate_str.get(),
                  'tts_pitch': self.app.tts_pitch_str.get(),
                  # Estilo de imágenes (obtenido del dropdown de esta pestaña)
-                 'estilo_imagenes': self.prompt_style_map.get(self.app.selected_prompt_style.get(), 'default'), # Usar mapeo nombre->id
-                 'nombre_estilo': self.app.selected_prompt_style.get(), # Nombre legible
+                 'estilo_imagenes': self.prompt_style_map.get(self.app.selected_image_prompt.get(), 'default'), # Usar mapeo nombre->id
+                 'nombre_estilo': self.app.selected_image_prompt.get(), # Nombre legible
                  'settings': effect_settings, # Anidar ajustes de efectos
                  # Añadir el aspect ratio seleccionado
                  'aspect_ratio': self.app.aspect_ratio.get(),
@@ -1681,20 +1683,27 @@ class BatchTabFrame(tb.Frame):
     def _recargar_prompts_imagenes(self):
         """Carga los prompts de imágenes disponibles"""
         try:
+            print("Recargando prompts de imágenes...")
             # Obtener los nombres y IDs de los prompts disponibles
             prompt_styles = self.app.prompt_manager.get_prompt_names()
+            print(f"Estilos obtenidos: {prompt_styles}")
             
             # Limpiar y actualizar el mapeo de nombres a IDs
             self.prompt_style_map.clear()
             for style_id, style_name in prompt_styles:
                 self.prompt_style_map[style_name] = style_id
+            print(f"Mapeo actualizado: {self.prompt_style_map}")
             
             # Actualizar el combo box solo con los nombres
             prompts = [name for _, name in prompt_styles]
+            print(f"Lista de nombres para combobox: {prompts}")
             self.combo_image_prompt['values'] = prompts
             if prompts:
+                print(f"Seleccionando primer prompt: {prompts[0]}")
                 self.app.selected_image_prompt.set(prompts[0])
+                print(f"Valor actual de selected_image_prompt: {self.app.selected_image_prompt.get()}")
         except Exception as e:
+            print(f"ERROR en _recargar_prompts_imagenes: {e}")
             Messagebox.show_error("Error al cargar prompts", 
                                 f"Error al cargar prompts de imágenes: {str(e)}")
 
