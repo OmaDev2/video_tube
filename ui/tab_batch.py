@@ -725,24 +725,38 @@ class BatchTabFrame(tb.Frame):
         video_frame = tb.LabelFrame(self.frame_input, text="Ajustes de Video", style="Card.TFrame")
         video_frame.pack(fill="x", padx=5, pady=5)
 
-        # Duración de la imagen
-        duration_frame = tb.Frame(video_frame)
+        # Duración de imágenes y opciones
+        duration_frame = tb.Frame(self)
         duration_frame.pack(fill="x", padx=5, pady=5)
-        lbl_duration = tb.Label(duration_frame, text="Duración")
-        lbl_duration.pack(side="left", padx=(0, 5))
-        spin_duration = tb.Spinbox(duration_frame, from_=1, to=30, increment=1, textvariable=self.app.duracion_img, width=5)
-        spin_duration.pack(side="left", padx=(0, 15))
 
+        # Duración
+        lbl_duration = tb.Label(duration_frame, text="Duración de imágenes (seg):")
+        lbl_duration.pack(side="left", padx=(0, 5))
+        spin_duration = tb.Spinbox(duration_frame, from_=1, to=30, increment=1,
+                                textvariable=self.app.duracion_img, width=5)
+        spin_duration.pack(side="left")
+
+        # Frame para opciones (AR y subtítulos)
+        options_frame = tb.Frame(duration_frame)
+        options_frame.pack(side="left", fill="x", expand=True, padx=(20, 0))
+        
         # Aspect Ratio
-       
-        lbl_aspect = tb.Label(duration_frame, text="AR:")
+        lbl_aspect = tb.Label(options_frame, text="AR:")
         lbl_aspect.pack(side="left", padx=(0, 5))
-        rb_16_9 = tb.Radiobutton(duration_frame, text="16:9 (Horizontal)",
-                                 variable=self.app.aspect_ratio, value="16:9")
+        rb_16_9 = tb.Radiobutton(options_frame, text="16:9 (Horizontal)",
+                                variable=self.app.aspect_ratio, value="16:9")
         rb_16_9.pack(side="left", padx=2)
-        rb_9_16 = tb.Radiobutton(duration_frame, text="9:16 (Vertical)",
-                                 variable=self.app.aspect_ratio, value="9:16")
+        rb_9_16 = tb.Radiobutton(options_frame, text="9:16 (Vertical)",
+                                variable=self.app.aspect_ratio, value="9:16")
         rb_9_16.pack(side="left", padx=2)
+
+        # Subtítulos
+        if not hasattr(self.app, 'apply_subtitles'):
+            self.app.apply_subtitles = tb.BooleanVar(value=False)
+        chk_subtitles = tb.Checkbutton(options_frame, text="Aplicar subtítulos",
+                                      variable=self.app.apply_subtitles,
+                                      bootstyle="round-toggle")
+        chk_subtitles.pack(side="left", padx=(20, 0))
 
         # Prompts de Imágenes
         image_prompt_frame = tb.Frame(video_frame)
@@ -841,6 +855,10 @@ class BatchTabFrame(tb.Frame):
             self.app.batch_tts_manager.tree_queue = self.app.tree_queue
         else:
             print("ADVERTENCIA: self.app.batch_tts_manager no encontrado al asignar tree_queue.")
+
+        # Verificar si existe la variable de subtítulos
+        if not hasattr(self.app, 'apply_subtitles'):
+            self.app.apply_subtitles = tb.BooleanVar(value=True)
 
         # Llamada inicial para mostrar/ocultar según el modo por defecto
         self._toggle_script_inputs()
@@ -1198,7 +1216,8 @@ class BatchTabFrame(tb.Frame):
                  'nombre_estilo': self.app.selected_prompt_style.get(), # Nombre legible
                  'settings': effect_settings, # Anidar ajustes de efectos
                  # Añadir el aspect ratio seleccionado
-                 'aspect_ratio': self.app.aspect_ratio.get()
+                 'aspect_ratio': self.app.aspect_ratio.get(),
+                 'apply_subtitles': self.app.apply_subtitles.get(),
              }
 
              # Añadir parámetros específicos de IA SOLO si estamos en modo AI
@@ -1662,13 +1681,22 @@ class BatchTabFrame(tb.Frame):
     def _recargar_prompts_imagenes(self):
         """Carga los prompts de imágenes disponibles"""
         try:
-            # Obtener los nombres de los prompts disponibles
-            prompts = [name for _, name in self.app.prompt_manager.get_prompt_names()]
+            # Obtener los nombres y IDs de los prompts disponibles
+            prompt_styles = self.app.prompt_manager.get_prompt_names()
+            
+            # Limpiar y actualizar el mapeo de nombres a IDs
+            self.prompt_style_map.clear()
+            for style_id, style_name in prompt_styles:
+                self.prompt_style_map[style_name] = style_id
+            
+            # Actualizar el combo box solo con los nombres
+            prompts = [name for _, name in prompt_styles]
             self.combo_image_prompt['values'] = prompts
             if prompts:
                 self.app.selected_image_prompt.set(prompts[0])
         except Exception as e:
-            Messagebox.show_error("Error", f"Error al cargar prompts de imágenes: {str(e)}")
+            Messagebox.show_error("Error al cargar prompts", 
+                                f"Error al cargar prompts de imágenes: {str(e)}")
 
     def _recargar_prompts_scripts(self):
         """Carga los prompts de scripts disponibles"""
@@ -1683,3 +1711,8 @@ class BatchTabFrame(tb.Frame):
                 self.app.selected_script_prompt.set("")
         except Exception as e:
             Messagebox.show_error("Error", f"Error al cargar prompts de scripts: {str(e)}")
+
+    def get_selected_style_id(self):
+        """Obtiene el ID del estilo seleccionado actualmente"""
+        selected_name = self.app.selected_image_prompt.get()
+        return self.prompt_style_map.get(selected_name)

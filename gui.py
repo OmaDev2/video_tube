@@ -186,6 +186,12 @@ class VideoCreatorApp:
                 'rotate_counter_clockwise': tk.BooleanVar()
             }
         
+        # Inicializar variables para efectos
+        self.aplicar_efectos = tk.BooleanVar(value=False)
+        self.modo_efecto = tk.StringVar(value="1")  # 1: Un solo tipo, 2: Secuencia, 3: Alternar, 4: Ken Burns
+        self.tipo_efecto = tk.StringVar(value="in")  # Efecto por defecto
+        self.secuencia_efectos = tk.StringVar(value="in,out")  # Secuencia por defecto
+        
         # Lista ordenada para mantener el orden visual y de selección
         self._efectos_ordenados_secuencia = list(self.efecto_checkboxes.keys())
         self._efectos_ordenados_secuencia.sort()  # Ordenar alfabéticamente
