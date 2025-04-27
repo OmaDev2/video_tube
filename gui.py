@@ -75,7 +75,7 @@ class VideoCreatorApp:
         # Inicializar la ventana principal
         self.root = tk.Tk()
         self.root.title("Video Creator")
-        self.root.geometry("1400x900")  # Ventana más ancha y alta para mostrar todos los botones correctamente
+        self.root.geometry("1800x1000")  # Ventana más ancha y alta para mostrar todos los botones correctamente
        
         # Inicializar el gestor de procesamiento por lotes para TTS
         self.batch_tts_manager = BatchTTSManager(self.root)
